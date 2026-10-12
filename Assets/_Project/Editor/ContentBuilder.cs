@@ -48,6 +48,8 @@ namespace Voidward.EditorTools
             BuildFonts();
             BuildPrefabs();
             BuildScene();
+            BuildPlanetPreviewScene();
+            UnityEditor.SceneManagement.EditorSceneManager.OpenScene(ScenePath);
             ConfigureProject();
             EditorUtility.SetDirty(catalog);
             AssetDatabase.SaveAssets();
@@ -66,7 +68,7 @@ namespace Voidward.EditorTools
         static void EnsureFolders()
         {
             foreach (var d in new[] { DataDir, DataDir + "/Items", DataDir + "/Modules", DataDir + "/Enemies", DataDir + "/Biomes", DataDir + "/Sectors",
-                         DataDir + "/Palettes", DataDir + "/Recipes", DataDir + "/Ships", DataDir + "/Loot", ArtDir, MeshDir, MatDir, PrefabDir, ResourcesDir, SceneDir })
+                         DataDir + "/Palettes", DataDir + "/Recipes", DataDir + "/Ships", DataDir + "/Loot", PlanetDir, ArtDir, MeshDir, MatDir, TextureDir, PrefabDir, ResourcesDir, SceneDir })
                 if (!AssetDatabase.IsValidFolder(d))
                 {
                     var parent = Path.GetDirectoryName(d).Replace('\\', '/');
@@ -152,6 +154,7 @@ namespace Voidward.EditorTools
             MatGlow.SetColor("_BaseColor", new Color(0.7f, 1.8f, 3.4f));
             MatParticle = Mat("VW_Particle", "VOIDWARD/AdditiveParticle");
             MatGlass = Mat("VW_Glass", "VOIDWARD/Glass");
+            BuildPlanetMaterials();
         }
 
         // ================================================================ data
@@ -166,6 +169,7 @@ namespace Voidward.EditorTools
             BuildItems();
             BuildLoot();
             var enemies = BuildEnemies();
+            BuildPlanetShapes();
             BuildBiomes();
             var sectors = BuildSectors(palettes);
             var recipes = BuildRecipes();
@@ -184,6 +188,8 @@ namespace Voidward.EditorTools
             catalog.LootTables = new[] { loot["loot_t1"], loot["loot_t2"], loot["loot_t3"], loot["loot_pirate"], loot["loot_drone"], loot["loot_alien"], loot["loot_guardian"], loot["loot_gunship"] };
             catalog.ToonMaterial = MatToon;
             catalog.TerrainMaterial = MatTerrain;
+            catalog.PlanetMaterial = MatPlanet;
+            catalog.OceanMaterial = MatOcean;
             catalog.SkyboxMaterial = MatSkybox;
             catalog.CollapseMaterial = MatCollapse;
             catalog.AtmosphereMaterial = MatAtmosphere;
@@ -358,26 +364,26 @@ namespace Voidward.EditorTools
 
         static void BuildBiomes()
         {
-            BiomeDef B(Biome kind, string name, float freq, float amp, int oct, float sea, Color low, Color mid, Color high, Color atmo, bool breathable,
+            BiomeDef B(Biome kind, string name, string shape, Color low, Color mid, Color high, Color atmo, bool breathable,
                 params (ScatterKind k, int n)[] scatter)
             {
                 var b = Asset<BiomeDef>($"{DataDir}/Biomes/Biome_{kind}.asset");
-                b.Biome = kind; b.DisplayName = name; b.Frequency = freq; b.Amplitude = amp; b.Octaves = oct; b.SeaLevel = sea;
+                b.Biome = kind; b.DisplayName = name; b.Shape = planetShapes[shape];
                 b.LowColor = low; b.MidColor = mid; b.HighColor = high; b.ScatterTint = mid; b.HasAtmosphere = true; b.AtmosphereColor = atmo; b.Breathable = breathable;
                 b.Scatter = new List<BiomeDef.ScatterEntry>();
                 foreach (var s in scatter) b.Scatter.Add(new BiomeDef.ScatterEntry { Kind = s.k, Count = s.n });
                 biomes[kind.ToString()] = b;
                 return b;
             }
-            B(Biome.Ice, "Frost World", 2.6f, 0.06f, 4, -0.1f, new Color(0.42f, 0.62f, 0.95f), new Color(0.64f, 0.8f, 0.97f), new Color(0.88f, 0.93f, 1f), new Color(0.6f, 0.85f, 1f, 0.55f), true,
+            B(Biome.Ice, "Frost World", "Ice", new Color(0.42f, 0.62f, 0.95f), new Color(0.64f, 0.8f, 0.97f), new Color(0.88f, 0.93f, 1f), new Color(0.6f, 0.85f, 1f, 0.55f), true,
                 (ScatterKind.OreNode, 7), (ScatterKind.CrystalNode, 7), (ScatterKind.FuelNode, 3), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 1), (ScatterKind.Ruin, 1), (ScatterKind.CrashedShip, 1));
-            B(Biome.Desert, "Dune World", 2.2f, 0.055f, 4, -0.2f, new Color(0.78f, 0.46f, 0.3f), new Color(0.92f, 0.7f, 0.44f), new Color(0.96f, 0.84f, 0.64f), new Color(1f, 0.78f, 0.5f, 0.45f), false,
+            B(Biome.Desert, "Dune World", "Desert", new Color(0.78f, 0.46f, 0.3f), new Color(0.92f, 0.7f, 0.44f), new Color(0.96f, 0.84f, 0.64f), new Color(1f, 0.78f, 0.5f, 0.45f), false,
                 (ScatterKind.OreNode, 9), (ScatterKind.ScrapNode, 4), (ScatterKind.FuelNode, 4), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 1), (ScatterKind.Ruin, 2), (ScatterKind.CrashedShip, 1));
-            B(Biome.ToxicJungle, "Toxic Jungle", 3.2f, 0.07f, 5, -0.05f, new Color(0.12f, 0.46f, 0.42f), new Color(0.33f, 0.8f, 0.42f), new Color(0.78f, 0.96f, 0.4f), new Color(0.55f, 1f, 0.5f, 0.6f), false,
+            B(Biome.ToxicJungle, "Toxic Jungle", "ToxicJungle", new Color(0.12f, 0.46f, 0.42f), new Color(0.33f, 0.8f, 0.42f), new Color(0.78f, 0.96f, 0.4f), new Color(0.55f, 1f, 0.5f, 0.6f), false,
                 (ScatterKind.CrystalNode, 6), (ScatterKind.OreNode, 5), (ScatterKind.FuelNode, 3), (ScatterKind.LootCrate, 6), (ScatterKind.Nest, 3), (ScatterKind.Ruin, 1));
-            B(Biome.Crystal, "Crystal World", 2.8f, 0.065f, 4, -0.1f, new Color(0.18f, 0.24f, 0.55f), new Color(0.24f, 0.44f, 0.95f), new Color(0.55f, 0.72f, 1f), new Color(0.45f, 0.7f, 1f, 0.55f), true,
+            B(Biome.Crystal, "Crystal World", "Crystal", new Color(0.18f, 0.24f, 0.55f), new Color(0.24f, 0.44f, 0.95f), new Color(0.55f, 0.72f, 1f), new Color(0.45f, 0.7f, 1f, 0.55f), true,
                 (ScatterKind.CrystalNode, 12), (ScatterKind.OreNode, 4), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 2), (ScatterKind.Ruin, 2), (ScatterKind.CrashedShip, 1));
-            B(Biome.Volcanic, "Ember World", 3f, 0.085f, 5, -0.15f, new Color(0.13f, 0.13f, 0.17f), new Color(0.32f, 0.24f, 0.3f), new Color(1f, 0.52f, 0.25f), new Color(1f, 0.45f, 0.3f, 0.55f), false,
+            B(Biome.Volcanic, "Ember World", "Volcanic", new Color(0.13f, 0.13f, 0.17f), new Color(0.32f, 0.24f, 0.3f), new Color(1f, 0.52f, 0.25f), new Color(1f, 0.45f, 0.3f, 0.55f), false,
                 (ScatterKind.OreNode, 9), (ScatterKind.FuelNode, 5), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 2), (ScatterKind.CrashedShip, 2));
         }
 

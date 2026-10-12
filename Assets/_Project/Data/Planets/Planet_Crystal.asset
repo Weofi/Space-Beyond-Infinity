@@ -1,0 +1,176 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80b4414f0d1e1403eb1c329c59eb110a, type: 3}
+  m_Name: Planet_Crystal
+  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.PlanetShapeDef
+  DisplayName: Crystal World
+  Resolution: 96
+  FarResolution: 32
+  HeightMultiplier: 1
+  Warp: 0.08
+  Layers:
+  - Enabled: 1
+    Kind: 0
+    Strength: 0.05
+    Frequency: 1.1
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 4
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0
+    RidgeWeight: 1.5
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
+  - Enabled: 1
+    Kind: 1
+    Strength: 0.03
+    Frequency: 2.4
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 5
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0.35
+    RidgeWeight: 1.2
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
+  - Enabled: 1
+    Kind: 0
+    Strength: 0.006
+    Frequency: 14
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 3
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0
+    RidgeWeight: 1.5
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
+  CraterCount: 110
+  CraterSize: {x: 0.02, y: 0.26}
+  CraterSizeBias: 3.5
+  CraterDepth: 0.28
+  CraterRim: 0.07
+  CraterRimWidth: 0.45
+  CraterFloor: 0.3
+  CraterSteepness: {x: 2, y: 5}
+  CentralPeakSize: 0.14
+  CraterIrregularity: 0.15
+  HasOcean: 0
+  OceanCoverage: {x: 0.5, y: 0.7}
+  OceanFloorDepth: 1
+  ShallowWater: {r: 0.25, g: 0.85, b: 0.85, a: 1}
+  DeepWater: {r: 0.04, g: 0.18, b: 0.45, a: 1}
+  WaterDepth: 14
+  WaterEmission: {r: 0, g: 0, b: 0, a: 1}
+  WaterGloss: 0.9
+  WaveStrength: 0.5
+  Underwater:
+    serializedVersion: 2
+    key0: {r: 0.23137255, g: 0.21568628, b: 0.20392157, a: 1}
+    key1: {r: 0.23137255, g: 0.21568628, b: 0.20392157, a: 1}
+    key2: {r: 0, g: 0, b: 0, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 65535
+    ctime2: 0
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 2
+    m_NumAlphaKeys: 2
+  Land:
+    serializedVersion: 2
+    key0: {r: 0.11764706, g: 0.16470589, b: 0.36078432, a: 1}
+    key1: {r: 0.22745098, g: 0.38431373, b: 0.78431374, a: 1}
+    key2: {r: 0.56078434, g: 0.7058824, b: 1, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 32768
+    ctime2: 65535
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 3
+    m_NumAlphaKeys: 2
+  Cliff:
+    serializedVersion: 2
+    key0: {r: 0.078431375, g: 0.101960786, b: 0.22745098, a: 1}
+    key1: {r: 0.22745098, g: 0.2901961, b: 0.5411765, a: 1}
+    key2: {r: 0, g: 0, b: 0, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 65535
+    ctime2: 0
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 2
+    m_NumAlphaKeys: 2
+  CliffSlope: {x: 0.14, y: 0.32}
+  HueJitter: 0.04
+  DetailScale: 5
+  DetailStrength: 0.45
+  DetailNormalStrength: 0.8
+  Gloss: 0.3
+  DetailTexture: {fileID: 0}
+  DetailNormal: {fileID: 0}

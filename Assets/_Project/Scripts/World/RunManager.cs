@@ -346,10 +346,11 @@ namespace Voidward.World
             if (Physics.Raycast(c + dir * r * 1.6f, -dir, out var hit, r * 1.6f, ~0, QueryTriggerInteraction.Ignore))
             {
                 pos = hit.point;
+                if (planet.IsUnderwater(pos)) return false;
                 return Vector3.Dot(hit.normal, dir) > 0.75f; // skip steep slopes
             }
             pos = planet.SurfaceWorldPoint(dir);
-            return true;
+            return !planet.IsUnderwater(pos);
         }
 
         void SpawnWreckSite(Vector3 pos, System.Random rng, int sector)

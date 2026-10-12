@@ -1,0 +1,189 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80b4414f0d1e1403eb1c329c59eb110a, type: 3}
+  m_Name: Planet_Rocky
+  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.PlanetShapeDef
+  DisplayName: Rocky Planet
+  Resolution: 96
+  FarResolution: 32
+  HeightMultiplier: 1
+  Warp: 0.12
+  Layers:
+  - Enabled: 1
+    Kind: 0
+    Strength: 0.05
+    Frequency: 1.1
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 4
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0
+    RidgeWeight: 1.5
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
+  - Enabled: 1
+    Kind: 1
+    Strength: 0.12
+    Frequency: 2
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 6
+    Persistence: 0.5
+    Lacunarity: 2.1
+    MinValue: 0.3
+    RidgeWeight: 2.2
+    MaskByFirstLayer: 1
+    MaskRange: {x: 0.48, y: 0.62}
+    Terraces: 0
+  - Enabled: 1
+    Kind: 0
+    Strength: 0.012
+    Frequency: 6
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 3
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0
+    RidgeWeight: 1.5
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
+  - Enabled: 1
+    Kind: 0
+    Strength: 0.003
+    Frequency: 24
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 2
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0
+    RidgeWeight: 1.5
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
+  CraterCount: 10
+  CraterSize: {x: 0.03, y: 0.1}
+  CraterSizeBias: 3
+  CraterDepth: 0.18
+  CraterRim: 0.05
+  CraterRimWidth: 0.5
+  CraterFloor: 0.35
+  CraterSteepness: {x: 2, y: 5}
+  CentralPeakSize: 0.12
+  CraterIrregularity: 0.15
+  HasOcean: 1
+  OceanCoverage: {x: 0.1, y: 0.25}
+  OceanFloorDepth: 2
+  ShallowWater: {r: 0.30980393, g: 0.7764706, b: 0.7882353, a: 1}
+  DeepWater: {r: 0.07058824, g: 0.24313726, b: 0.4, a: 1}
+  WaterDepth: 10
+  WaterEmission: {r: 0, g: 0, b: 0, a: 1}
+  WaterGloss: 0.9
+  WaveStrength: 0.5
+  Underwater:
+    serializedVersion: 2
+    key0: {r: 0.18039216, g: 0.23529412, b: 0.2509804, a: 1}
+    key1: {r: 0.37254903, g: 0.41960785, b: 0.36078432, a: 1}
+    key2: {r: 0.64705884, g: 0.6039216, b: 0.4627451, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 52428
+    ctime2: 65535
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 3
+    m_NumAlphaKeys: 2
+  Land:
+    serializedVersion: 2
+    key0: {r: 0.7019608, g: 0.63529414, b: 0.45490196, a: 1}
+    key1: {r: 0.43529412, g: 0.5411765, b: 0.2901961, a: 1}
+    key2: {r: 0.33333334, g: 0.41568628, b: 0.22745098, a: 0}
+    key3: {r: 0.45490196, g: 0.4, b: 0.30980393, a: 0}
+    key4: {r: 0.54901963, g: 0.53333336, b: 0.5176471, a: 0}
+    key5: {r: 0.9019608, g: 0.92156863, b: 0.9490196, a: 0}
+    key6: {r: 1, g: 1, b: 1, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 1966
+    ctime2: 19661
+    ctime3: 32768
+    ctime4: 43253
+    ctime5: 52428
+    ctime6: 65535
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 7
+    m_NumAlphaKeys: 2
+  Cliff:
+    serializedVersion: 2
+    key0: {r: 0.2901961, g: 0.24705882, b: 0.21568628, a: 1}
+    key1: {r: 0.40784314, g: 0.3764706, b: 0.34901962, a: 1}
+    key2: {r: 0.5411765, g: 0.5254902, b: 0.50980395, a: 0}
+    key3: {r: 0.8117647, g: 0.827451, b: 0.85490197, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 39321
+    ctime2: 55705
+    ctime3: 65535
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 4
+    m_NumAlphaKeys: 2
+  CliffSlope: {x: 0.1, y: 0.24}
+  HueJitter: 0.03
+  DetailScale: 6
+  DetailStrength: 0.35
+  DetailNormalStrength: 0.7
+  Gloss: 0.05
+  DetailTexture: {fileID: 0}
+  DetailNormal: {fileID: 0}

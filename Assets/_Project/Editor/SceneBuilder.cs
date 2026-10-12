@@ -44,13 +44,12 @@ namespace Voidward.EditorTools
             var backdrop = new GameObject("MenuBackdrop");
             backdrop.transform.position = new Vector3(0, 70f, 0);
             var biome = catalog.Biomes[3];
-            var planetMesh = PlanetMeshGenerator.GenerateVisualAt(1234, 120f, biome, 5);
-            planetMesh.name = "MenuPlanet";
-            string pmPath = MeshDir + "/MenuPlanet.asset";
-            AssetDatabase.DeleteAsset(pmPath);
-            AssetDatabase.CreateAsset(planetMesh, pmPath);
-            var planet = Visual(backdrop.transform, "Planet", planetMesh);
-            planet.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+            AssetDatabase.DeleteAsset(MeshDir + "/MenuPlanet.asset");
+            var planet = new GameObject("Planet");
+            planet.transform.SetParent(backdrop.transform, false);
+            var menuPlanet = planet.AddComponent<PlanetVisuals>();
+            menuPlanet.SetAutoBuild(biome.Shape, 1234, 120f);
+            menuPlanet.NearLodDistance = 100f; // hero object: always full detail
             var atmo = Visual(backdrop.transform, "Atmosphere", SaveMeshIco(130f, "MenuAtmosphere"), MatAtmosphere);
             var mpb = new MaterialPropertyBlock();
             mpb.SetColor("_Color", biome.AtmosphereColor);
@@ -322,6 +321,9 @@ namespace Voidward.EditorTools
                 {
                     urp.shadowDistance = 350f;
                     urp.supportsHDR = true;
+                    // Ocean shader reads scene depth (shore/water depth) and color (refraction).
+                    urp.supportsCameraDepthTexture = true;
+                    urp.supportsCameraOpaqueTexture = true;
                     EditorUtility.SetDirty(urp);
                 }
             }
