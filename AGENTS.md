@@ -7,6 +7,7 @@ User speaks German – answer in German.
 - Unity 6000.6.5f1, URP (`Assets/SourceFiles/Settings/PC_RPAsset`, Forward+), Input System only, TMP (ugui 2.x)
 - Netcode for GameObjects 2.13.3 + Unity Transport; Facepunch.Steamworks (`Assets/Plugins/Steamworks`, define `VOIDWARD_STEAM`, AppID 480)
 - Cinemachine 3 (`Unity.Cinemachine`), Multiplayer Play Mode 3.0
+- Blender 5.2 LTS (optional DCC tool, headless via CLI, no MCP). See "Blender (asset scripts)".
 - Developed on two machines: Mac (macOS + WebGL build modules) and Windows PC (Windows build module). See "Cross-platform (Mac + Windows)".
 
 ## Layout (`Assets/_Project`)
@@ -66,6 +67,12 @@ One issue = one branch = one PR. Don't mix issues.
 - Before switching machines: commit + push. On the other machine: `git pull` first, then open Unity.
 - `.mcp.json` is git-ignored (machine-specific Unity relay path); each machine keeps its own.
 - GitHub: use the GitHub CLI (`gh`, logged in via `gh auth login --web`) for issues, PRs and merges. No GitHub MCP server (its OAuth needs dynamic client registration, which Claude Code can't do with GitHub). On Windows, `gh` lives at `C:\Program Files\GitHub CLI\gh.exe` (call it by full path if PATH isn't refreshed yet).
+- Blender: Windows `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe`; Mac `/Applications/Blender.app/Contents/MacOS/Blender` (install the same 5.2 version there).
+
+## Blender (asset scripts)
+- When to use: procedural C# (`MeshBuilder`/`PrefabBuilder`) stays the default and already reaches the target look for hard-surface assets. Use Blender only where C# gets painful: organic forms (boss, characters, alien stuff), blended surfaces, baked AO/normal maps for close-up detail.
+- Keep it reproducible: Blender content is a Python script in the repo (e.g. `Tools/Blender/<asset>.py`), never a hand-edited `.blend` as the only source. Exported FBX goes to `Assets/_Project/Art/Models/` and is committed (Unity must build without Blender); `PrefabBuilder` references it.
+- Run headless: `blender -b --factory-startup -P script.py -- <args>`. In 5.2, FBX export applies modifiers via `use_mesh_modifiers=True` (not `apply_modifiers`). Unity is Y-up / Blender Z-up: export with `axis_forward='-Z', axis_up='Y'` and check scale (1 unit = 1 m).
 - After a first open/reimport on a machine, check `git status` before committing: reimport noise (package `.meta` files, emptied `m_List` in `UniversalRenderPipelineGlobalSettings.asset`) must not be committed.
 
 ## Status (2026-10-11)
