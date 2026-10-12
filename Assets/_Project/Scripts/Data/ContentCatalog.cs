@@ -62,6 +62,7 @@ namespace Voidward.Data
         public Material SkyboxMaterial;
         public Material CollapseMaterial;
         public Material AtmosphereMaterial;
+        public Material CloudMaterial;
         public Material UnlitMaterial;
         public Material ParticleMaterial;
         public Material GlassMaterial;

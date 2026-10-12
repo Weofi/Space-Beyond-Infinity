@@ -465,6 +465,11 @@ namespace Voidward.Player
                 else if (hit.collider.GetComponentInParent<WorldPickup>() || hit.collider.GetComponentInParent<LootCrate>()) { kind = PingKind.Loot; label = "Loot"; }
                 else if (hit.collider.GetComponentInParent<ResourceNode>() is ResourceNode n) { kind = PingKind.Loot; label = n.DisplayName; }
             }
+            else if (PlanetBody.RaycastAll(r, 6000f, out var ground, out _))
+            {
+                // Distant terrain has no streamed colliders; the height field still answers.
+                pos = ground;
+            }
             if (GameState.HasGate && Vector3.Distance(pos, GameState.GatePosition) < 80f) { kind = PingKind.Gate; label = "Jump Gate"; }
             EventBus.RaisePingRequested(pos, kind, label);
             Sfx.PlayUI("ping");

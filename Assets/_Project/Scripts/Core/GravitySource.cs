@@ -16,6 +16,9 @@ namespace Voidward.Core
         [Tooltip("Distance from center where gravity fades to zero.")]
         public float InfluenceRadius = 600f;
 
+        /// <summary>Optional terrain query: world-space unit direction from the center -> distance to the ground.</summary>
+        public System.Func<Vector3, float> GroundRadiusAt;
+
         public static readonly List<GravitySource> All = new List<GravitySource>();
 
         public Vector3 Center => transform.position;
@@ -35,7 +38,15 @@ namespace Voidward.Core
         }
 
         public Vector3 UpAt(Vector3 pos) => (pos - Center).normalized;
-        public float SurfaceDistance(Vector3 pos) => Vector3.Distance(pos, Center) - SurfaceRadius;
+
+        /// <summary>Distance from the center to the ground below a position (terrain-aware when available).</summary>
+        public float GroundRadius(Vector3 pos) => GroundRadiusAt != null ? GroundRadiusAt(UpAt(pos)) : SurfaceRadius;
+
+        /// <summary>Ground point below/above a position.</summary>
+        public Vector3 GroundPoint(Vector3 pos) => Center + UpAt(pos) * GroundRadius(pos);
+
+        /// <summary>Height above the ground (terrain-aware when available).</summary>
+        public float SurfaceDistance(Vector3 pos) => Vector3.Distance(pos, Center) - GroundRadius(pos);
 
         /// <summary>Strongest source affecting a position, or null in deep space.</summary>
         public static GravitySource Dominant(Vector3 pos)

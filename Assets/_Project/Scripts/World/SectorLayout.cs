@@ -8,12 +8,16 @@ namespace Voidward.World
     /// Deterministic sector layout shared by server (spawning) and clients (local visuals).
     /// The corridor runs along +X and is centered on the origin: every sector is rebuilt around
     /// (0,0,0), which is our floating-origin strategy (world rebasing on each jump keeps all
-    /// coordinates within ~3 km, so float precision stays sub-millimetre in multiplayer).
+    /// coordinates within ~8 km incl. the kilometre-scale planets, so float precision stays around a
+    /// millimetre in multiplayer).
     /// </summary>
     public class SectorLayout
     {
         public struct PlanetSpot { public Vector3 Pos; public float Radius; public int BiomeIndex; public int Seed; }
         public struct Field { public Vector3 Center; public Vector3 Extents; public int Count; public int Seed; }
+
+        public const float MinPlanetRadius = 1000f;
+        public const float MaxPlanetRadius = 1900f;
 
         public int Seed;
         public SectorDef Def;
@@ -42,21 +46,30 @@ namespace Voidward.World
             L.StationPos = new Vector3(MathUtils.Range(rng, -300f, 300f), MathUtils.Range(rng, -60f, 60f), MathUtils.Range(rng, 180f, 260f) * Sign(rng));
             L.ArkPos = new Vector3(L.StartX + 700f, 25f, -140f);
 
-            int nPlanets = def != null ? rng.Next(def.MinPlanets, def.MaxPlanets + 1) : 4;
+            int nPlanets = def != null ? rng.Next(def.MinPlanets, def.MaxPlanets + 1) : 3;
             L.Planets = new PlanetSpot[nPlanets];
             var cat = ContentCatalog.Instance;
             float usable = L.Length - 1400f;
+            float firstSide = Sign(rng);
             for (int i = 0; i < nPlanets; i++)
             {
+                // Kilometre-scale worlds alternate sides of the corridor, their atmospheres just clear of the lane.
                 float t = (i + 0.5f) / nPlanets;
-                float x = L.StartX + 700f + usable * t + MathUtils.Range(rng, -120f, 120f);
-                float r = MathUtils.Range(rng, 150f, 300f);
-                float side = Sign(rng);
-                float off = r * 2.2f + MathUtils.Range(rng, 60f, 220f);
-                float ang = MathUtils.Range(rng, -0.6f, 0.6f);
+                float x = L.StartX + 700f + usable * t + MathUtils.Range(rng, -150f, 150f);
+                float r = MathUtils.Range(rng, MinPlanetRadius, MaxPlanetRadius);
+                float side = (i % 2 == 0 ? 1f : -1f) * firstSide;
+                float off = r * 1.3f + MathUtils.Range(rng, 260f, 600f);
+                float ang = MathUtils.Range(rng, -0.45f, 0.45f);
                 Vector3 p = new Vector3(x, Mathf.Sin(ang) * off, Mathf.Cos(ang) * off * side);
-                // keep clear of the station
-                if (Vector3.Distance(p, L.StationPos) < r * 2.5f + 120f) p.z += side * (r * 2.5f + 150f);
+                Vector3 outward = new Vector3(0f, p.y, p.z).normalized;
+                for (int k = 0; k < 8; k++)
+                {
+                    bool clear = Vector3.Distance(p, L.StationPos) > r * 1.4f + 250f;
+                    for (int j = 0; j < i && clear; j++)
+                        if (Vector3.Distance(p, L.Planets[j].Pos) < (r + L.Planets[j].Radius) * 1.35f + 300f) clear = false;
+                    if (clear) break;
+                    p += outward * 400f;
+                }
                 int biomeIndex = 0;
                 if (def != null && def.BiomePool != null && def.BiomePool.Length > 0 && cat != null)
                 {

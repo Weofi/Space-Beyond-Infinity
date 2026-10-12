@@ -261,7 +261,9 @@ namespace Voidward.AI
                 if (groundHits[i].collider.attachedRigidbody != null) continue; // ignore ships/pawns
                 if (groundHits[i].distance < best) { best = groundHits[i].distance; ground = groundHits[i].point; }
             }
-            p = best < float.MaxValue ? ground + newUp * HoverHeight : p;
+            // No collider streamed here (far from players): follow the height field instead.
+            if (best == float.MaxValue) ground = planet.GroundPoint(p);
+            p = ground + newUp * HoverHeight;
             if (HoverHeight > 0f) p += newUp * Mathf.Sin(Time.time * 2f + NetworkObjectId) * 0.6f;
             transform.position = p;
 

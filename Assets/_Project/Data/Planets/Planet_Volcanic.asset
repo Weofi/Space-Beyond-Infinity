@@ -13,8 +13,9 @@ MonoBehaviour:
   m_Name: Planet_Volcanic
   m_EditorClassIdentifier: Voidward.Data::Voidward.Data.PlanetShapeDef
   DisplayName: Ember World
-  Resolution: 96
-  FarResolution: 48
+  ChunkResolution: 32
+  LeafSpacing: 1.6
+  LodQuality: 2.2
   HeightMultiplier: 1
   Warp: 0.12
   Layers:
@@ -33,7 +34,7 @@ MonoBehaviour:
     Terraces: 0
   - Enabled: 1
     Kind: 1
-    Strength: 0.12
+    Strength: 0.08
     Frequency: 2
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 6
@@ -46,7 +47,7 @@ MonoBehaviour:
     Terraces: 0
   - Enabled: 1
     Kind: 0
-    Strength: 0.012
+    Strength: 0.01
     Frequency: 6
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 3
@@ -58,20 +59,50 @@ MonoBehaviour:
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
   - Enabled: 1
-    Kind: 0
-    Strength: 0.003
-    Frequency: 24
+    Kind: 1
+    Strength: 0.0015
+    Frequency: 30
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 2
     Persistence: 0.5
     Lacunarity: 2
     MinValue: 0
-    RidgeWeight: 1.5
+    RidgeWeight: 1
     MaskByFirstLayer: 0
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
-  CraterCount: 25
-  CraterSize: {x: 0.03, y: 0.1}
+  Variation: 0.2
+  Features:
+  - Enabled: 1
+    Kind: 0
+    Count: {x: 3, y: 5}
+    Size: {x: 0.12, y: 0.22}
+    Height: {x: 0.45, y: 0.75}
+    Sharpness: 0.6
+    Terraces: 0
+    Roughness: 0.6
+    Caldera: 0.18
+  - Enabled: 1
+    Kind: 1
+    Count: {x: 3, y: 5}
+    Size: {x: 0.04, y: 0.08}
+    Height: {x: 0.2, y: 0.35}
+    Sharpness: 0.95
+    Terraces: 2
+    Roughness: 0.3
+    Caldera: 0.2
+  Canyons: 1
+  CanyonFrequency: 1.8
+  CanyonWidth: 0.04
+  CanyonDepth: 0.03
+  CanyonFloor: 0.3
+  CanyonSteepness: 2.5
+  CanyonTerraces: 0
+  CanyonCoverage: 0.65
+  CanyonWarp: 0.55
+  CanyonRivers: 1
+  CraterCount: 12
+  CraterSize: {x: 0.02, y: 0.08}
   CraterSizeBias: 3
   CraterDepth: 0.18
   CraterRim: 0.05
@@ -81,7 +112,7 @@ MonoBehaviour:
   CentralPeakSize: 0.12
   CraterIrregularity: 0.15
   HasOcean: 1
-  OceanCoverage: {x: 0.15, y: 0.3}
+  OceanCoverage: {x: 0.12, y: 0.22}
   OceanFloorDepth: 1
   ShallowWater: {r: 1, g: 0.627451, b: 0.2509804, a: 1}
   DeepWater: {r: 0.6901961, g: 0.1882353, b: 0.05490196, a: 1}
@@ -181,6 +212,65 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   CliffSlope: {x: 0.1, y: 0.24}
   HueJitter: 0.03
+  Region:
+    serializedVersion: 2
+    key0: {r: 0.2901961, g: 0.2509804, b: 0.2509804, a: 1}
+    key1: {r: 0.47843137, g: 0.4392157, b: 0.4392157, a: 1}
+    key2: {r: 0.6392157, g: 0.6039216, b: 0.5882353, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 32768
+    ctime2: 65535
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 3
+    m_NumAlphaKeys: 2
+  RegionFrequency: 1.4
+  RegionStrength: 0.4
+  SiteCount: {x: 6, y: 8}
+  SiteRadius: 34
+  HasAtmosphere: 1
+  AtmosphereColor: {r: 1, g: 0.5411765, b: 0.36078432, a: 1}
+  SunsetColor: {r: 1, g: 0.3137255, b: 0.1882353, a: 1}
+  AtmosphereHeight: 0.22
+  AtmosphereDensity: 2.2
+  AtmosphereFalloff: 3.5
+  CloudCoverage: 0.5
+  CloudColor: {r: 0.5411765, g: 0.49803922, b: 0.5176471, a: 1}
+  CloudShadeColor: {r: 0.22745098, g: 0.1882353, b: 0.20392157, a: 1}
+  CloudAltitude: 0.45
+  CloudScale: 2.6
+  CloudStretch: 0.8
+  Decor: 6
+  DecorDensity: 1
+  DecorColors:
+  - {r: 0.16862746, g: 0.14901961, b: 0.16078432, a: 1}
+  - {r: 0.2901961, g: 0.24705882, b: 0.23529412, a: 1}
+  - {r: 0.47843137, g: 0.3529412, b: 0.3137255, a: 1}
+  - {r: 1, g: 0.47843137, b: 0.16470589, a: 1}
+  Particles: 3
+  ParticleColor: {r: 1, g: 0.55, b: 0.25, a: 0.6}
+  Weather: 3
+  HazeColor: {r: 0.5411765, g: 0.3529412, b: 0.3137255, a: 1}
+  SurfaceAmbient: {r: 0.4509804, g: 0.32941177, b: 0.3137255, a: 1}
+  WindPitch: 0.6
   DetailScale: 6
   DetailStrength: 0.35
   DetailNormalStrength: 0.7

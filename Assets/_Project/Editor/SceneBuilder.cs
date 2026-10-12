@@ -49,12 +49,8 @@ namespace Voidward.EditorTools
             planet.transform.SetParent(backdrop.transform, false);
             var menuPlanet = planet.AddComponent<PlanetVisuals>();
             menuPlanet.SetAutoBuild(biome.Shape, 1234, 120f);
-            menuPlanet.NearLodDistance = 100f; // hero object: always full detail
-            var atmo = Visual(backdrop.transform, "Atmosphere", SaveMeshIco(130f, "MenuAtmosphere"), MatAtmosphere);
-            var mpb = new MaterialPropertyBlock();
-            mpb.SetColor("_Color", biome.AtmosphereColor);
-            atmo.GetComponent<MeshRenderer>().SetPropertyBlock(mpb);
-            atmo.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+            // The planet builds its own atmosphere and clouds; this empty child keeps MenuBackdrop's child indices.
+            new GameObject("AtmosphereSlot").transform.SetParent(backdrop.transform, false);
             var ring = new MeshBuilder { Gloss = 0.1f };
             var rng = new System.Random(5);
             for (int i = 0; i < 160; i++)

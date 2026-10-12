@@ -276,6 +276,7 @@ namespace Voidward.EditorTools
             var rb = go.AddComponent<Rigidbody>();
             rb.mass = 80f; rb.useGravity = false; rb.constraints = RigidbodyConstraints.FreezeRotation; rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+            go.AddComponent<TerrainAnchor>().Radius = 90f;
             var cap = go.AddComponent<CapsuleCollider>();
             cap.height = 1.8f; cap.radius = 0.35f; cap.center = new Vector3(0, 0.9f, 0);
             var pm = new PhysicsMaterial("PawnFriction") { dynamicFriction = 0f, staticFriction = 0f, frictionCombine = PhysicsMaterialCombine.Minimum };
@@ -442,6 +443,7 @@ namespace Voidward.EditorTools
             go.GetComponent<NetworkObject>().DontDestroyWithOwner = true;
             var rb = go.AddComponent<Rigidbody>();
             rb.mass = mass; rb.useGravity = false;
+            go.AddComponent<TerrainAnchor>().Radius = 70f;
             go.AddComponent<HealthComponent>();
             var inv = go.AddComponent<NetInventory>();
             inv.Width = cargoW; inv.Height = cargoH; inv.IsPlayerInventory = false;

@@ -2,13 +2,15 @@ Shader "VOIDWARD/Planet"
 {
     Properties
     {
-        [NoScaleOffset] _Ramp ("Color Ramp (row0 ground, row1 cliff)", 2D) = "white" {}
+        [NoScaleOffset] _Ramp ("Color Ramp (row0 ground, row1 cliff, row2 region)", 2D) = "white" {}
         [NoScaleOffset] _DetailTex ("Detail (R, linear)", 2D) = "gray" {}
         [NoScaleOffset] _DetailNormal ("Detail Normal (linear RGB)", 2D) = "bump" {}
         _DetailScale ("Detail Scale (m)", Float) = 6
         _DetailStrength ("Detail Albedo Strength", Range(0,1)) = 0.35
         _DetailNormalStrength ("Detail Normal Strength", Range(0,2)) = 0.6
         _CliffSlope ("Cliff Slope (start, end)", Vector) = (0.12, 0.3, 0, 0)
+        _RegionStrength ("Region Strength", Range(0,1)) = 0
+        _PlanetCenter ("Planet Center (world)", Vector) = (0, 0, 0, 0)
         _Gloss ("Gloss", Range(0,1)) = 0.08
         _Steps ("Toon Steps", Range(1,6)) = 3
         _Softness ("Band Softness", Range(0,1)) = 0.65
@@ -36,6 +38,8 @@ Shader "VOIDWARD/Planet"
             float _DetailStrength;
             float _DetailNormalStrength;
             float4 _CliffSlope;
+            float _RegionStrength;
+            float4 _PlanetCenter;
             float _Gloss;
             float _Steps;
             float _Softness;
@@ -106,16 +110,15 @@ Shader "VOIDWARD/Planet"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
-                float2 uv         : TEXCOORD0; // x = color ramp coordinate (elevation)
+                float2 uv         : TEXCOORD0; // x = color ramp coordinate (elevation), y = region mask
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
-                float3 positionOS : TEXCOORD1;
-                float3 normalOS   : TEXCOORD2;
-                float  ramp       : TEXCOORD3;
+                float3 normalWS   : TEXCOORD2;
+                float2 ramp       : TEXCOORD3;
                 float  fogCoord   : TEXCOORD4;
             };
 
@@ -124,19 +127,20 @@ Shader "VOIDWARD/Planet"
                 Varyings OUT;
                 OUT.positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 OUT.positionCS = TransformWorldToHClip(OUT.positionWS);
-                OUT.positionOS = IN.positionOS.xyz;
-                OUT.normalOS = IN.normalOS;
-                OUT.ramp = IN.uv.x;
+                OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.ramp = IN.uv;
                 OUT.fogCoord = ComputeFogFactor(OUT.positionCS.z);
                 return OUT;
             }
 
             half4 frag(Varyings IN) : SV_Target
             {
-                float3 nGeo = normalize(IN.normalOS);
-                float3 up = normalize(IN.positionOS);
+                // Chunks have their own origins, so all planet-space math runs relative to the planet center.
+                float3 rel = IN.positionWS - _PlanetCenter.xyz;
+                float3 nGeo = normalize(IN.normalWS);
+                float3 up = normalize(rel);
                 float3 w = TriWeights(nGeo);
-                float3 p = IN.positionOS / _DetailScale;
+                float3 p = rel / _DetailScale;
                 float dist = length(IN.positionWS - _WorldSpaceCameraPos);
 
                 // Two scales hide tiling: fine grain near, broad mottling further out. Each fades to its mean before
@@ -147,16 +151,18 @@ Shader "VOIDWARD/Planet"
 
                 float slope = 1.0 - dot(nGeo, up) + (detail - 0.5) * 0.08;
                 float cliff = smoothstep(_CliffSlope.x, _CliffSlope.y, slope);
-                float t = saturate(IN.ramp);
-                float3 ground = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 0.25)).rgb;
-                float3 rock = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 0.75)).rgb;
+                float t = saturate(IN.ramp.x);
+                float3 ground = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 1.0 / 6.0)).rgb;
+                float3 region = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 5.0 / 6.0)).rgb;
+                ground = lerp(ground, region, saturate(IN.ramp.y) * _RegionStrength);
+                float3 rock = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 0.5)).rgb;
                 float3 baseCol = lerp(ground, rock, cliff);
                 baseCol *= 1.0 + (detail - 0.5) * 2.0 * _DetailStrength;
 
                 // Detail normals fade out with distance to avoid shimmer from orbit.
                 float nStrength = _DetailNormalStrength * saturate(1.0 - dist / (_DetailScale * 40.0)) * lerp(0.6, 1.0, cliff);
-                float3 nOS = TriNormal(p, nGeo, w, nStrength);
-                float3 n = normalize(TransformObjectToWorldNormal(nOS));
+                float3 nWS = TriNormal(p, nGeo, w, nStrength);
+                float3 n = normalize(nWS);
 
                 float2 screenUV = GetNormalizedScreenSpaceUV(IN.positionCS);
                 AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(screenUV);

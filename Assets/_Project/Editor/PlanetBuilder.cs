@@ -18,7 +18,7 @@ namespace Voidward.EditorTools
         public const string TextureDir = ArtDir + "/Textures";
         public const string PlanetPreviewScenePath = SceneDir + "/PlanetPreview.unity";
 
-        public static Material MatPlanet, MatOcean;
+        public static Material MatPlanet, MatOcean, MatClouds;
         static readonly Dictionary<string, PlanetShapeDef> planetShapes = new Dictionary<string, PlanetShapeDef>();
         static readonly string[] ArchetypeIds = { "CrateredMoon", "Rocky", "Ocean", "Desert" };
 
@@ -32,6 +32,7 @@ namespace Voidward.EditorTools
             MatPlanet.SetTexture("_DetailNormal", normal);
             MatOcean = Mat("VW_Ocean", "VOIDWARD/Ocean");
             MatOcean.SetTexture("_DetailNormal", normal);
+            MatClouds = Mat("VW_Clouds", "VOIDWARD/Clouds");
         }
 
         /// <summary>Tileable rock-noise albedo detail and the matching normal map (both linear, 512x512).</summary>
@@ -143,67 +144,122 @@ namespace Voidward.EditorTools
             return s;
         }
 
-        /// <summary>Gray/brown rock, dense overlapping craters, rugged highlands.</summary>
+        static PlanetShapeDef.FeatureSet Feature(PlanetFeatureKind kind, int min, int max, float sizeMin, float sizeMax, float hMin, float hMax,
+            float sharp = 0.5f, int terraces = 0, float rough = 0.3f, float caldera = 0.2f) => new PlanetShapeDef.FeatureSet
+        {
+            Kind = kind, Count = new Vector2Int(min, max), Size = new Vector2(sizeMin, sizeMax), Height = new Vector2(hMin, hMax),
+            Sharpness = sharp, Terraces = terraces, Roughness = rough, Caldera = caldera,
+        };
+
+        static void Canyons(PlanetShapeDef s, float freq, float width, float depth, float floor, float steep, float coverage, float warp, int terraces = 0, bool rivers = false)
+        {
+            s.Canyons = true;
+            s.CanyonFrequency = freq; s.CanyonWidth = width; s.CanyonDepth = depth; s.CanyonFloor = floor; s.CanyonSteepness = steep;
+            s.CanyonCoverage = coverage; s.CanyonWarp = warp; s.CanyonTerraces = terraces; s.CanyonRivers = rivers;
+        }
+
+        static void Atmosphere(PlanetShapeDef s, string color, string sunset, string haze, float height, float density, float falloff)
+        {
+            s.HasAtmosphere = true;
+            s.AtmosphereColor = MathUtils.Hex(color); s.SunsetColor = MathUtils.Hex(sunset); s.HazeColor = MathUtils.Hex(haze);
+            s.AtmosphereHeight = height; s.AtmosphereDensity = density; s.AtmosphereFalloff = falloff;
+        }
+
+        static void Clouds(PlanetShapeDef s, float coverage, string lit, string shade, float scale = 3f, float stretch = 1f, float altitude = 0.55f)
+        {
+            s.CloudCoverage = coverage; s.CloudColor = MathUtils.Hex(lit); s.CloudShadeColor = MathUtils.Hex(shade);
+            s.CloudScale = scale; s.CloudStretch = stretch; s.CloudAltitude = altitude;
+        }
+
+        static void Environment(PlanetShapeDef s, PlanetDecorStyle decor, float density, string rock, string flora, string accent, string glow,
+            PlanetParticles particles, Color particleColor, PlanetWeather weather, string ambient, float windPitch)
+        {
+            s.Decor = decor; s.DecorDensity = density;
+            s.DecorColors = new[] { MathUtils.Hex(rock), MathUtils.Hex(flora), MathUtils.Hex(accent), MathUtils.Hex(glow) };
+            s.Particles = particles; s.ParticleColor = particleColor; s.Weather = weather;
+            s.SurfaceAmbient = MathUtils.Hex(ambient); s.WindPitch = windPitch;
+        }
+
+        /// <summary>Gray/brown rock, dense overlapping craters, rugged highlands, giant impact basins.</summary>
         static void CrateredMoon(PlanetShapeDef s)
         {
             s.Warp = 0.08f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
-                Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),                       // basins / highlands
-                Layer(PlanetNoiseKind.Ridged, 0.03f, 2.4f, 5, 0.5f, 0.35f, ridgeWeight: 1.2f), // rugged ridges
-                Layer(PlanetNoiseKind.Simple, 0.006f, 14f, 3),                       // roughness
+                Layer(PlanetNoiseKind.Simple, 0.04f, 1.1f, 4),                       // basins / highlands
+                Layer(PlanetNoiseKind.Ridged, 0.025f, 2.4f, 5, 0.5f, 0.35f, ridgeWeight: 1.2f), // rugged ridges
+                Layer(PlanetNoiseKind.Simple, 0.003f, 18f, 3),                       // roughness
             };
-            s.CraterCount = 240;
-            s.CraterSize = new Vector2(0.02f, 0.26f);
+            s.Features = new List<PlanetShapeDef.FeatureSet>
+            {
+                Feature(PlanetFeatureKind.Basin, 1, 3, 0.16f, 0.28f, 0.08f, 0.14f),
+            };
+            s.CraterCount = 220;
+            s.CraterSize = new Vector2(0.008f, 0.2f);
             s.CraterSizeBias = 3.5f;
-            s.CraterDepth = 0.28f;
+            s.CraterDepth = 0.24f;
             s.CraterRim = 0.07f;
             s.CraterRimWidth = 0.45f;
             s.CraterFloor = 0.3f;
             s.CraterSteepness = new Vector2(2f, 5f);
-            s.CentralPeakSize = 0.14f;
+            s.CentralPeakSize = 0.1f;
             s.CraterIrregularity = 0.15f;
             s.HasOcean = false;
+            s.HasAtmosphere = false;
+            s.CloudCoverage = 0f;
             s.Land = Grad((0f, "#3b3734"), (0.35f, "#5f5a55"), (0.7f, "#8a847d"), (1f, "#b8b2aa"));
             s.Underwater = Grad((0f, "#3b3734"), (1f, "#3b3734"));
             s.Cliff = Grad((0f, "#2a2726"), (0.6f, "#46413e"), (1f, "#6a645f"));
+            s.Region = Grad((0f, "#4a4038"), (1f, "#9a8b7a"));
+            s.RegionStrength = 0.35f;
             s.CliffSlope = new Vector2(0.14f, 0.32f);
             s.HueJitter = 0.04f;
             s.DetailScale = 5f;
             s.DetailStrength = 0.45f;
             s.DetailNormalStrength = 0.8f;
             s.Gloss = 0.03f;
+            Environment(s, PlanetDecorStyle.Barren, 1f, "#6a645f", "#6a645f", "#8a847d", "#9be7ff", PlanetParticles.None, Color.clear, PlanetWeather.None, "#3a3a44", 1f);
         }
 
-        /// <summary>Mountain ranges, valleys, exposed rock, snowy peaks and a few lakes.</summary>
+        /// <summary>Mountain ranges, river valleys, exposed rock, snowy peaks and lakes.</summary>
         static void Rocky(PlanetShapeDef s)
         {
             s.Warp = 0.12f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
                 Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),                                                 // continents / lowlands
-                Layer(PlanetNoiseKind.Ridged, 0.12f, 2f, 6, 0.5f, 0.3f, 2.1f, 2.2f, new Vector2(0.48f, 0.62f)), // mountain ranges
-                Layer(PlanetNoiseKind.Simple, 0.012f, 6f, 3, 0.5f),                                           // hills
-                Layer(PlanetNoiseKind.Simple, 0.003f, 24f, 2),                                                // roughness
+                Layer(PlanetNoiseKind.Ridged, 0.1f, 2f, 6, 0.5f, 0.3f, 2.1f, 2.2f, new Vector2(0.48f, 0.62f)),  // mountain ranges
+                Layer(PlanetNoiseKind.Simple, 0.01f, 6f, 3, 0.5f),                                            // hills
+                Layer(PlanetNoiseKind.Simple, 0.0015f, 30f, 2),                                               // roughness
             };
-            s.CraterCount = 10;
-            s.CraterSize = new Vector2(0.03f, 0.1f);
+            s.Features = new List<PlanetShapeDef.FeatureSet>
+            {
+                Feature(PlanetFeatureKind.Spire, 2, 4, 0.03f, 0.05f, 0.9f, 1.4f, 0.7f, rough: 0.6f),
+            };
+            Canyons(s, 1.4f, 0.08f, 0.035f, 0.3f, 1.6f, 0.65f, 0.5f, rivers: true);
+            s.CraterCount = 8;
+            s.CraterSize = new Vector2(0.02f, 0.08f);
             s.CraterDepth = 0.18f;
             s.CraterRim = 0.05f;
             s.HasOcean = true;
-            s.OceanCoverage = new Vector2(0.1f, 0.25f);
+            s.OceanCoverage = new Vector2(0.12f, 0.25f);
             s.OceanFloorDepth = 2f;
             s.ShallowWater = MathUtils.Hex("#4fc6c9");
             s.DeepWater = MathUtils.Hex("#123e66");
             s.WaterDepth = 10f;
             s.Underwater = Grad((0f, "#2e3c40"), (0.8f, "#5f6b5c"), (1f, "#a59a76"));
             s.Land = Grad((0f, "#b3a274"), (0.03f, "#6f8a4a"), (0.3f, "#556a3a"), (0.5f, "#74664f"), (0.66f, "#8c8884"), (0.8f, "#e6ebf2"), (1f, "#ffffff"));
+            s.Region = Grad((0f, "#b3a274"), (0.05f, "#9aa556"), (0.35f, "#8a9a4a"), (0.6f, "#7a6d58"), (0.8f, "#e6ebf2"), (1f, "#ffffff"));
+            s.RegionStrength = 0.5f;
             s.Cliff = Grad((0f, "#4a3f37"), (0.6f, "#686059"), (0.85f, "#8a8682"), (1f, "#cfd3da"));
             s.CliffSlope = new Vector2(0.1f, 0.24f);
             s.DetailScale = 6f;
             s.DetailStrength = 0.35f;
             s.DetailNormalStrength = 0.7f;
             s.Gloss = 0.05f;
+            Atmosphere(s, "#78b4ff", "#ff9a6a", "#a9c8f0", 0.22f, 1.6f, 4f);
+            Clouds(s, 0.42f, "#ffffff", "#9aa8c8");
+            Environment(s, PlanetDecorStyle.Rocky, 1f, "#6e665e", "#4f7a3a", "#c9b27a", "#ffe08a", PlanetParticles.Dust, new Color(1f, 1f, 0.9f, 0.25f), PlanetWeather.None, "#6a7486", 1f);
         }
 
         /// <summary>Deep oceans, continents and islands with beaches and snowy mountains.</summary>
@@ -212,13 +268,13 @@ namespace Voidward.EditorTools
             s.Warp = 0.15f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
-                Layer(PlanetNoiseKind.Simple, 0.12f, 0.8f, 5, 0.5f),                                           // continents
+                Layer(PlanetNoiseKind.Simple, 0.1f, 0.8f, 5, 0.5f),                                            // continents
                 Layer(PlanetNoiseKind.Ridged, 0.06f, 2f, 5, 0.5f, 0.3f, 2f, 1.6f, new Vector2(0.55f, 0.68f)),  // coastal mountains
-                Layer(PlanetNoiseKind.Simple, 0.006f, 9f, 3),                                                  // detail
+                Layer(PlanetNoiseKind.Simple, 0.004f, 12f, 3),                                                 // detail
             };
             s.CraterCount = 0;
             s.HasOcean = true;
-            s.OceanCoverage = new Vector2(0.55f, 0.8f);
+            s.OceanCoverage = new Vector2(0.55f, 0.75f);
             s.OceanFloorDepth = 4f;
             s.ShallowWater = MathUtils.Hex("#3fd9cf");
             s.DeepWater = MathUtils.Hex("#0a2c66");
@@ -231,33 +287,49 @@ namespace Voidward.EditorTools
             s.DetailStrength = 0.3f;
             s.DetailNormalStrength = 0.6f;
             s.Gloss = 0.05f;
+            Atmosphere(s, "#6fb0ff", "#ff9a7a", "#b5d4f5", 0.24f, 1.8f, 4f);
+            Clouds(s, 0.5f, "#ffffff", "#9fb2d0", 2.6f, 1.5f);
+            Environment(s, PlanetDecorStyle.Rocky, 1.2f, "#6e665e", "#3f8e4a", "#e6d59a", "#ffe08a", PlanetParticles.Dust, new Color(1f, 1f, 1f, 0.2f), PlanetWeather.None, "#6a7a90", 1f);
         }
 
-        /// <summary>Warm sands, smooth dune fields and terraced red-rock mesas.</summary>
+        /// <summary>Warm sands, wind-aligned dunes, terraced canyon networks, buttes and hoodoo spires.</summary>
         static void Desert(PlanetShapeDef s)
         {
-            s.Warp = 0.1f;
+            s.Warp = 0.12f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
-                Layer(PlanetNoiseKind.Simple, 0.04f, 1f, 4),                                             // broad basins
-                Layer(PlanetNoiseKind.Ridged, 0.014f, 5f, 2, 0.35f, ridgeWeight: 0.6f, stretch: new Vector3(1f, 4.5f, 1f)), // wind-aligned dunes
-                Layer(PlanetNoiseKind.Simple, 0.07f, 2.2f, 4, 0.5f, 0.5f, terraces: 3),                  // mesas
-                Layer(PlanetNoiseKind.Simple, 0.002f, 22f, 2),                                           // grain
+                Layer(PlanetNoiseKind.Simple, 0.035f, 1f, 4),                                                                   // broad basins
+                Layer(PlanetNoiseKind.Ridged, 0.004f, 9f, 2, 0.35f, ridgeWeight: 0.6f, mask: new Vector2(0.62f, 0.38f), stretch: new Vector3(1f, 4f, 1f)), // dunes in the lowlands
+                Layer(PlanetNoiseKind.Simple, 0.03f, 2.2f, 4, 0.5f, 0.52f, terraces: 4),                                       // stepped plateaus
+                Layer(PlanetNoiseKind.Simple, 0.0012f, 30f, 2),                                                                 // grain
             };
-            s.CraterCount = 6;
-            s.CraterSize = new Vector2(0.03f, 0.09f);
+            s.Features = new List<PlanetShapeDef.FeatureSet>
+            {
+                Feature(PlanetFeatureKind.Mesa, 6, 10, 0.05f, 0.12f, 0.4f, 0.7f, 0.9f, 3, 0.5f),      // buttes
+                Feature(PlanetFeatureKind.Spire, 8, 14, 0.01f, 0.02f, 1.5f, 2.6f, 0.75f, 0, 0.4f),   // hoodoo towers
+                Feature(PlanetFeatureKind.Basin, 1, 3, 0.12f, 0.2f, 0.08f, 0.12f),
+            };
+            Canyons(s, 1.6f, 0.085f, 0.07f, 0.45f, 3f, 0.65f, 0.45f, 4);
+            s.CraterCount = 4;
+            s.CraterSize = new Vector2(0.02f, 0.06f);
             s.CraterDepth = 0.15f;
             s.CraterFloor = 0.5f;
             s.HasOcean = false;
-            s.Land = Grad((0f, "#b4663f"), (0.2f, "#d48e58"), (0.5f, "#e9b676"), (0.8f, "#f2d39d"), (1f, "#f8e6c2"));
-            s.Underwater = Grad((0f, "#b4663f"), (1f, "#b4663f"));
-            s.Cliff = Grad((0f, "#8a432b"), (0.5f, "#a9583a"), (1f, "#c97f52"));
+            s.Land = Grad((0f, "#a85a36"), (0.25f, "#c47a48"), (0.55f, "#d99a5e"), (0.8f, "#e2b07a"), (1f, "#ecc598"));
+            s.Region = Grad((0f, "#b8784c"), (0.4f, "#d6a878"), (1f, "#e4c49c"));
+            s.RegionStrength = 0.4f;
+            s.Underwater = Grad((0f, "#a85a36"), (1f, "#a85a36"));
+            s.Cliff = Grad((0f, "#7a3a26"), (0.35f, "#9a4d33"), (0.6f, "#b0603d"), (1f, "#c98558"));
             s.CliffSlope = new Vector2(0.08f, 0.18f);
-            s.HueJitter = 0.02f;
+            s.HueJitter = 0.025f;
             s.DetailScale = 4f;
             s.DetailStrength = 0.25f;
             s.DetailNormalStrength = 0.45f;
             s.Gloss = 0.04f;
+            Atmosphere(s, "#ffb27a", "#ff6a4a", "#e0a878", 0.2f, 1.4f, 4f);
+            Clouds(s, 0.12f, "#fff2de", "#d9b08f", 2.4f, 2.2f, 0.7f);
+            Environment(s, PlanetDecorStyle.Desert, 1f, "#a8573a", "#6f9e80", "#e0aa70", "#ffd36b",
+                PlanetParticles.Dust, new Color(1f, 0.85f, 0.6f, 0.35f), PlanetWeather.Sandstorm, "#6e5444", 0.9f);
         }
 
         static void BuildPlanetShapes()
@@ -268,50 +340,137 @@ namespace Voidward.EditorTools
             Shape("Ocean", "Ocean Planet", OceanWorld);
             Shape("Desert", "Desert Planet", Desert);
 
-            // Game biomes reuse the archetypes with their own palettes.
+            // Game biomes: each has its own geology, atmosphere and surface composition.
             Shape("Ice", "Frost World", OceanWorld, s =>
             {
-                s.OceanCoverage = new Vector2(0.3f, 0.5f);
+                s.Warp = 0.14f;
+                s.Layers = new List<PlanetShapeDef.NoiseLayer>
+                {
+                    Layer(PlanetNoiseKind.Simple, 0.06f, 0.9f, 5),                                                   // continents / ice sheets
+                    Layer(PlanetNoiseKind.Ridged, 0.09f, 2.2f, 6, 0.5f, 0.35f, 2.1f, 2.4f, new Vector2(0.5f, 0.65f)), // jagged ranges
+                    Layer(PlanetNoiseKind.Simple, 0.008f, 7f, 3),                                                    // hills
+                    Layer(PlanetNoiseKind.Ridged, 0.002f, 26f, 2, ridgeWeight: 1f),                                   // ice ridges
+                };
+                s.Features = new List<PlanetShapeDef.FeatureSet>
+                {
+                    Feature(PlanetFeatureKind.Spire, 3, 5, 0.04f, 0.08f, 1f, 1.6f, 0.8f, 0, 0.7f),   // lone jagged peaks
+                    Feature(PlanetFeatureKind.Dome, 3, 6, 0.08f, 0.15f, 0.2f, 0.35f),                // glacier domes
+                };
+                Canyons(s, 2.2f, 0.03f, 0.06f, 0.1f, 4f, 0.5f, 0.6f);                            // frozen chasms
+                s.OceanCoverage = new Vector2(0.2f, 0.35f);
                 s.OceanFloorDepth = 3f;
-                s.ShallowWater = MathUtils.Hex("#a6ecff");
-                s.DeepWater = MathUtils.Hex("#1c4d8e");
-                s.Underwater = Grad((0f, "#29466f"), (1f, "#9fc3e6"));
-                s.Land = Grad((0f, "#cfe6fb"), (0.35f, "#b4d0ef"), (0.7f, "#e2eeff"), (1f, "#ffffff"));
-                s.Cliff = Grad((0f, "#5577a6"), (1f, "#8fb0d8"));
+                s.ShallowWater = MathUtils.Hex("#7fd0f0");
+                s.DeepWater = MathUtils.Hex("#1c3f78");
+                s.WaveStrength = 0.15f;
+                s.Underwater = Grad((0f, "#29466f"), (1f, "#7fa6d0"));
+                s.Land = Grad((0f, "#a9c6e8"), (0.35f, "#9dbde3"), (0.7f, "#c4d8f0"), (1f, "#e8f1fc"));
+                s.Region = Grad((0f, "#7fb2e0"), (0.5f, "#8fc0ea"), (1f, "#cfe4f7"));
+                s.RegionStrength = 0.45f;
+                s.Cliff = Grad((0f, "#3f5f90"), (0.6f, "#5a7fb5"), (1f, "#8fb0db"));
+                s.CliffSlope = new Vector2(0.12f, 0.26f);
                 s.Gloss = 0.25f;
+                Atmosphere(s, "#8ac6ff", "#e59ad9", "#a9cff2", 0.22f, 1.8f, 4f);
+                Clouds(s, 0.35f, "#ffffff", "#9fb0d0", 4f, 1f);
+                Environment(s, PlanetDecorStyle.Ice, 1f, "#4f5f78", "#9fd6ff", "#6fb5f0", "#9be7ff",
+                    PlanetParticles.Snow, new Color(1f, 1f, 1f, 0.8f), PlanetWeather.Blizzard, "#5f6f8a", 1.1f);
             });
             Shape("ToxicJungle", "Toxic Jungle", OceanWorld, s =>
             {
-                s.OceanCoverage = new Vector2(0.35f, 0.55f);
+                s.Warp = 0.15f;
+                s.Layers = new List<PlanetShapeDef.NoiseLayer>
+                {
+                    Layer(PlanetNoiseKind.Simple, 0.09f, 0.8f, 5, 0.5f),                                           // continents
+                    Layer(PlanetNoiseKind.Ridged, 0.05f, 2.2f, 5, 0.5f, 0.3f, 2f, 1.6f, new Vector2(0.55f, 0.7f)), // coastal ranges
+                    Layer(PlanetNoiseKind.Billow, 0.012f, 5f, 3),                                                  // rolling hills
+                    Layer(PlanetNoiseKind.Simple, 0.003f, 16f, 2),                                                 // detail
+                };
+                s.Features = new List<PlanetShapeDef.FeatureSet>
+                {
+                    Feature(PlanetFeatureKind.Spire, 8, 14, 0.015f, 0.03f, 1.2f, 2f, 0.15f, 0, 0.2f),  // karst towers
+                };
+                Canyons(s, 1.4f, 0.09f, 0.05f, 0.25f, 1.5f, 0.7f, 0.5f, rivers: true);                  // river valleys
+                s.OceanCoverage = new Vector2(0.3f, 0.45f);
                 s.OceanFloorDepth = 3f;
                 s.ShallowWater = MathUtils.Hex("#b4f25a");
                 s.DeepWater = MathUtils.Hex("#0f3b2c");
                 s.WaterEmission = new Color(0.05f, 0.16f, 0.02f);
                 s.Underwater = Grad((0f, "#1f3a33"), (1f, "#4f7a4a"));
                 s.Land = Grad((0f, "#2c5a48"), (0.25f, "#23784a"), (0.6f, "#3f9e45"), (0.85f, "#8fc94a"), (1f, "#c9e98a"));
-                s.Cliff = Grad((0f, "#2f3d3a"), (1f, "#6b5a6e"));
+                s.Region = Grad((0f, "#2e6b4f"), (0.5f, "#6a4f8a"), (1f, "#b98fd0"));
+                s.RegionStrength = 0.5f;
+                s.Cliff = Grad((0f, "#2f3d3a"), (0.6f, "#4f5a4c"), (1f, "#6b5a6e"));
+                Atmosphere(s, "#8cff8c", "#ffd36b", "#8fcf74", 0.24f, 2.6f, 3f);
+                Clouds(s, 0.38f, "#e0ffd6", "#7a9a74", 4.5f, 0.6f);
+                Environment(s, PlanetDecorStyle.Jungle, 1f, "#4a3f4f", "#2f9e5a", "#c86bd8", "#9dff6a",
+                    PlanetParticles.Spores, new Color(0.6f, 1f, 0.4f, 0.6f), PlanetWeather.SporeBloom, "#5f7a5c", 0.7f);
             });
             Shape("Crystal", "Crystal World", CrateredMoon, s =>
             {
-                s.CraterCount = 110;
-                s.Land = Grad((0f, "#1e2a5c"), (0.5f, "#3a62c8"), (1f, "#8fb4ff"));
-                s.Cliff = Grad((0f, "#141a3a"), (1f, "#3a4a8a"));
+                s.CraterCount = 60;
+                s.CraterSize = new Vector2(0.02f, 0.18f);
+                s.Features = new List<PlanetShapeDef.FeatureSet>
+                {
+                    Feature(PlanetFeatureKind.Basin, 2, 3, 0.15f, 0.25f, 0.08f, 0.12f),
+                    Feature(PlanetFeatureKind.Spire, 5, 8, 0.025f, 0.05f, 1.4f, 2.2f, 1f, 0, 0.6f),    // crystal mountains
+                    Feature(PlanetFeatureKind.Mesa, 2, 4, 0.05f, 0.09f, 0.25f, 0.4f, 0.85f, 2, 0.4f),
+                };
+                s.Layers = new List<PlanetShapeDef.NoiseLayer>
+                {
+                    Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),
+                    Layer(PlanetNoiseKind.Ridged, 0.05f, 2.6f, 5, 0.5f, 0.35f, ridgeWeight: 1.8f),       // shard ridges
+                    Layer(PlanetNoiseKind.Simple, 0.003f, 18f, 3),
+                };
+                Canyons(s, 1.2f, 0.035f, 0.04f, 0.2f, 3f, 0.4f, 0.4f);                                  // rifts
+                s.HasOcean = true;
+                s.OceanCoverage = new Vector2(0.06f, 0.12f);
+                s.OceanFloorDepth = 1f;
+                s.ShallowWater = MathUtils.Hex("#7ff0ff");
+                s.DeepWater = MathUtils.Hex("#2a4fd0");
+                s.WaterEmission = new Color(0.1f, 0.45f, 0.7f);
+                s.WaterDepth = 3f;
+                s.Land = Grad((0f, "#232a5a"), (0.4f, "#3b4f9e"), (0.7f, "#6a6fc8"), (1f, "#b9b4f0"));
+                s.Region = Grad((0f, "#4a2f78"), (0.5f, "#7a4fa8"), (1f, "#d29ae6"));
+                s.RegionStrength = 0.55f;
+                s.Cliff = Grad((0f, "#1a1f45"), (0.6f, "#3a3570"), (1f, "#5a4a9a"));
                 s.Gloss = 0.3f;
+                Atmosphere(s, "#8a9cff", "#e08aff", "#7f7fd8", 0.2f, 1.2f, 4f);
+                Clouds(s, 0.25f, "#e0e8ff", "#7f80c8", 3.5f, 1.8f);
+                Environment(s, PlanetDecorStyle.Crystal, 1.6f, "#22264a", "#79a8ff", "#e08cff", "#7ff6ff",
+                    PlanetParticles.Motes, new Color(0.6f, 0.85f, 1f, 0.7f), PlanetWeather.Shimmer, "#4a4a78", 1.4f);
             });
             Shape("Volcanic", "Ember World", Rocky, s =>
             {
-                s.OceanCoverage = new Vector2(0.15f, 0.3f);
+                s.Layers = new List<PlanetShapeDef.NoiseLayer>
+                {
+                    Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),                                                 // continents
+                    Layer(PlanetNoiseKind.Ridged, 0.08f, 2f, 6, 0.5f, 0.3f, 2.1f, 2.2f, new Vector2(0.48f, 0.62f)), // black mountains
+                    Layer(PlanetNoiseKind.Simple, 0.01f, 6f, 3, 0.5f),                                            // hills
+                    Layer(PlanetNoiseKind.Ridged, 0.0015f, 30f, 2, ridgeWeight: 1f),                               // lava crust
+                };
+                s.Features = new List<PlanetShapeDef.FeatureSet>
+                {
+                    Feature(PlanetFeatureKind.Volcano, 3, 5, 0.12f, 0.22f, 0.45f, 0.75f, 0.6f, 0, 0.6f, 0.18f),
+                    Feature(PlanetFeatureKind.Mesa, 3, 5, 0.04f, 0.08f, 0.2f, 0.35f, 0.95f, 2, 0.3f),       // basalt plateaus
+                };
+                Canyons(s, 1.8f, 0.04f, 0.03f, 0.3f, 2.5f, 0.65f, 0.55f, rivers: true);                     // lava channels
+                s.OceanCoverage = new Vector2(0.12f, 0.22f);
                 s.OceanFloorDepth = 1f;
-                s.ShallowWater = MathUtils.Hex("#ffa040");
-                s.DeepWater = MathUtils.Hex("#b0300e");
+                s.ShallowWater = MathUtils.Hex("#ff7a2a");
+                s.DeepWater = MathUtils.Hex("#a0200a");
                 s.WaterDepth = 2.5f;
-                s.WaterEmission = new Color(3.2f, 0.9f, 0.18f);
+                s.WaterEmission = new Color(2.2f, 0.55f, 0.1f);
                 s.WaterGloss = 0.3f;
                 s.WaveStrength = 0.3f;
                 s.Underwater = Grad((0f, "#3a1a14"), (1f, "#5a2a1a"));
                 s.Land = Grad((0f, "#2a2224"), (0.4f, "#3a3036"), (0.8f, "#4f4448"), (1f, "#6a5a5a"));
+                s.Region = Grad((0f, "#3f3638"), (0.5f, "#5a5052"), (1f, "#7a7072"));
+                s.RegionStrength = 0.35f;
                 s.Cliff = Grad((0f, "#1a1618"), (1f, "#3a3034"));
-                s.CraterCount = 25;
+                s.CraterCount = 12;
+                Atmosphere(s, "#ff8a5c", "#ff5030", "#8a5a50", 0.22f, 2.2f, 3.5f);
+                Clouds(s, 0.5f, "#8a7f84", "#3a3034", 2.6f, 0.8f, 0.45f);
+                Environment(s, PlanetDecorStyle.Volcanic, 1f, "#2b2629", "#4a3f3c", "#7a5a50", "#ff7a2a",
+                    PlanetParticles.Ash, new Color(1f, 0.55f, 0.25f, 0.6f), PlanetWeather.AshFall, "#735450", 0.6f);
             });
         }
 

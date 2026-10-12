@@ -13,14 +13,15 @@ MonoBehaviour:
   m_Name: Planet_Crystal
   m_EditorClassIdentifier: Voidward.Data::Voidward.Data.PlanetShapeDef
   DisplayName: Crystal World
-  Resolution: 96
-  FarResolution: 48
+  ChunkResolution: 32
+  LeafSpacing: 1.6
+  LodQuality: 2.2
   HeightMultiplier: 1
   Warp: 0.08
   Layers:
   - Enabled: 1
     Kind: 0
-    Strength: 0.05
+    Strength: 0.04
     Frequency: 1.1
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 4
@@ -33,7 +34,7 @@ MonoBehaviour:
     Terraces: 0
   - Enabled: 1
     Kind: 1
-    Strength: 0.03
+    Strength: 0.025
     Frequency: 2.4
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 5
@@ -46,8 +47,8 @@ MonoBehaviour:
     Terraces: 0
   - Enabled: 1
     Kind: 0
-    Strength: 0.006
-    Frequency: 14
+    Strength: 0.003
+    Frequency: 18
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 3
     Persistence: 0.5
@@ -57,23 +58,62 @@ MonoBehaviour:
     MaskByFirstLayer: 0
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
-  CraterCount: 110
-  CraterSize: {x: 0.02, y: 0.26}
+  Variation: 0.2
+  Features:
+  - Enabled: 1
+    Kind: 3
+    Count: {x: 2, y: 3}
+    Size: {x: 0.15, y: 0.25}
+    Height: {x: 0.08, y: 0.12}
+    Sharpness: 0.5
+    Terraces: 0
+    Roughness: 0.3
+    Caldera: 0.2
+  - Enabled: 1
+    Kind: 2
+    Count: {x: 4, y: 7}
+    Size: {x: 0.02, y: 0.04}
+    Height: {x: 1.2, y: 2}
+    Sharpness: 1
+    Terraces: 0
+    Roughness: 0.6
+    Caldera: 0.2
+  - Enabled: 1
+    Kind: 1
+    Count: {x: 2, y: 4}
+    Size: {x: 0.04, y: 0.07}
+    Height: {x: 0.2, y: 0.35}
+    Sharpness: 0.85
+    Terraces: 2
+    Roughness: 0.4
+    Caldera: 0.2
+  Canyons: 1
+  CanyonFrequency: 1.2
+  CanyonWidth: 0.03
+  CanyonDepth: 0.03
+  CanyonFloor: 0.2
+  CanyonSteepness: 3
+  CanyonTerraces: 0
+  CanyonCoverage: 0.35
+  CanyonWarp: 0.4
+  CanyonRivers: 0
+  CraterCount: 60
+  CraterSize: {x: 0.02, y: 0.18}
   CraterSizeBias: 3.5
-  CraterDepth: 0.28
+  CraterDepth: 0.24
   CraterRim: 0.07
   CraterRimWidth: 0.45
   CraterFloor: 0.3
   CraterSteepness: {x: 2, y: 5}
-  CentralPeakSize: 0.14
+  CentralPeakSize: 0.1
   CraterIrregularity: 0.15
-  HasOcean: 0
-  OceanCoverage: {x: 0.5, y: 0.7}
+  HasOcean: 1
+  OceanCoverage: {x: 0.05, y: 0.12}
   OceanFloorDepth: 1
-  ShallowWater: {r: 0.25, g: 0.85, b: 0.85, a: 1}
-  DeepWater: {r: 0.04, g: 0.18, b: 0.45, a: 1}
-  WaterDepth: 14
-  WaterEmission: {r: 0, g: 0, b: 0, a: 1}
+  ShallowWater: {r: 0.49803922, g: 0.9411765, b: 1, a: 1}
+  DeepWater: {r: 0.16470589, g: 0.30980393, b: 0.8156863, a: 1}
+  WaterDepth: 3
+  WaterEmission: {r: 0.1, g: 0.45, b: 0.7, a: 1}
   WaterGloss: 0.9
   WaveStrength: 0.5
   Underwater:
@@ -168,6 +208,65 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   CliffSlope: {x: 0.14, y: 0.32}
   HueJitter: 0.04
+  Region:
+    serializedVersion: 2
+    key0: {r: 0.17254902, g: 0.22745098, b: 0.47843137, a: 1}
+    key1: {r: 0.3529412, g: 0.32156864, b: 0.72156864, a: 1}
+    key2: {r: 0.6901961, g: 0.78431374, b: 1, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 32768
+    ctime2: 65535
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 3
+    m_NumAlphaKeys: 2
+  RegionFrequency: 1.4
+  RegionStrength: 0.45
+  SiteCount: {x: 6, y: 8}
+  SiteRadius: 34
+  HasAtmosphere: 1
+  AtmosphereColor: {r: 0.5411765, g: 0.6117647, b: 1, a: 1}
+  SunsetColor: {r: 0.8784314, g: 0.5411765, b: 1, a: 1}
+  AtmosphereHeight: 0.2
+  AtmosphereDensity: 1.2
+  AtmosphereFalloff: 4
+  CloudCoverage: 0.25
+  CloudColor: {r: 0.8784314, g: 0.9098039, b: 1, a: 1}
+  CloudShadeColor: {r: 0.49803922, g: 0.5019608, b: 0.78431374, a: 1}
+  CloudAltitude: 0.55
+  CloudScale: 2.8
+  CloudStretch: 1.8
+  Decor: 5
+  DecorDensity: 1
+  DecorColors:
+  - {r: 0.16470589, g: 0.18431373, b: 0.32156864, a: 1}
+  - {r: 0.4745098, g: 0.65882355, b: 1, a: 1}
+  - {r: 0.827451, g: 0.54901963, b: 1, a: 1}
+  - {r: 0.49803922, g: 0.9647059, b: 1, a: 1}
+  Particles: 5
+  ParticleColor: {r: 0.6, g: 0.85, b: 1, a: 0.7}
+  Weather: 5
+  HazeColor: {r: 0.56078434, g: 0.6039216, b: 0.9098039, a: 1}
+  SurfaceAmbient: {r: 0.41568628, g: 0.41568628, b: 0.627451, a: 1}
+  WindPitch: 1.4
   DetailScale: 5
   DetailStrength: 0.45
   DetailNormalStrength: 0.8
