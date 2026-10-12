@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Planet_Ice
   m_EditorClassIdentifier: Voidward.Data::Voidward.Data.PlanetShapeDef
   DisplayName: Frost World
-  ChunkResolution: 32
+  ChunkResolution: 40
   LeafSpacing: 1.6
-  LodQuality: 2.2
+  LodQuality: 1.6
   HeightMultiplier: 1
   Warp: 0.14
   Layers:
@@ -47,14 +47,27 @@ MonoBehaviour:
     Terraces: 0
   - Enabled: 1
     Kind: 0
-    Strength: 0.008
-    Frequency: 7
+    Strength: 0.012
+    Frequency: 8
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 3
     Persistence: 0.5
     Lacunarity: 2
     MinValue: 0
     RidgeWeight: 1.5
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
+  - Enabled: 1
+    Kind: 1
+    Strength: 0.006
+    Frequency: 16
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 3
+    Persistence: 0.45
+    Lacunarity: 2
+    MinValue: 0.25
+    RidgeWeight: 1.4
     MaskByFirstLayer: 0
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
@@ -76,8 +89,8 @@ MonoBehaviour:
   - Enabled: 1
     Kind: 2
     Count: {x: 3, y: 5}
-    Size: {x: 0.03, y: 0.06}
-    Height: {x: 0.8, y: 1.4}
+    Size: {x: 0.04, y: 0.08}
+    Height: {x: 1, y: 1.6}
     Sharpness: 0.8
     Terraces: 0
     Roughness: 0.7
@@ -86,19 +99,19 @@ MonoBehaviour:
     Kind: 4
     Count: {x: 3, y: 6}
     Size: {x: 0.08, y: 0.15}
-    Height: {x: 0.15, y: 0.3}
+    Height: {x: 0.2, y: 0.35}
     Sharpness: 0.5
     Terraces: 0
     Roughness: 0.3
     Caldera: 0.2
   Canyons: 1
   CanyonFrequency: 2.2
-  CanyonWidth: 0.025
-  CanyonDepth: 0.05
+  CanyonWidth: 0.03
+  CanyonDepth: 0.06
   CanyonFloor: 0.1
   CanyonSteepness: 4
   CanyonTerraces: 0
-  CanyonCoverage: 0.45
+  CanyonCoverage: 0.5
   CanyonWarp: 0.6
   CanyonRivers: 0
   CraterCount: 0
@@ -114,8 +127,8 @@ MonoBehaviour:
   HasOcean: 1
   OceanCoverage: {x: 0.2, y: 0.35}
   OceanFloorDepth: 3
-  ShallowWater: {r: 0.6509804, g: 0.9254902, b: 1, a: 1}
-  DeepWater: {r: 0.10980392, g: 0.3019608, b: 0.5568628, a: 1}
+  ShallowWater: {r: 0.49803922, g: 0.8156863, b: 0.9411765, a: 1}
+  DeepWater: {r: 0.10980392, g: 0.24705882, b: 0.47058824, a: 1}
   WaterDepth: 12
   WaterEmission: {r: 0, g: 0, b: 0, a: 1}
   WaterGloss: 0.9
@@ -123,7 +136,7 @@ MonoBehaviour:
   Underwater:
     serializedVersion: 2
     key0: {r: 0.16078432, g: 0.27450982, b: 0.43529412, a: 1}
-    key1: {r: 0.62352943, g: 0.7647059, b: 0.9019608, a: 1}
+    key1: {r: 0.49803922, g: 0.6509804, b: 0.8156863, a: 1}
     key2: {r: 0, g: 0, b: 0, a: 0}
     key3: {r: 0, g: 0, b: 0, a: 0}
     key4: {r: 0, g: 0, b: 0, a: 0}
@@ -152,10 +165,10 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   Land:
     serializedVersion: 2
-    key0: {r: 0.8117647, g: 0.9019608, b: 0.9843137, a: 1}
-    key1: {r: 0.7058824, g: 0.8156863, b: 0.9372549, a: 1}
-    key2: {r: 0.8862745, g: 0.93333334, b: 1, a: 0}
-    key3: {r: 1, g: 1, b: 1, a: 0}
+    key0: {r: 0.6627451, g: 0.7764706, b: 0.9098039, a: 1}
+    key1: {r: 0.6156863, g: 0.7411765, b: 0.8901961, a: 1}
+    key2: {r: 0.76862746, g: 0.84705883, b: 0.9411765, a: 0}
+    key3: {r: 0.9098039, g: 0.94509804, b: 0.9882353, a: 0}
     key4: {r: 0, g: 0, b: 0, a: 0}
     key5: {r: 0, g: 0, b: 0, a: 0}
     key6: {r: 0, g: 0, b: 0, a: 0}
@@ -182,9 +195,9 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   Cliff:
     serializedVersion: 2
-    key0: {r: 0.3019608, g: 0.42352942, b: 0.6117647, a: 1}
-    key1: {r: 0.43529412, g: 0.5686275, b: 0.76862746, a: 1}
-    key2: {r: 0.65882355, g: 0.76862746, b: 0.9098039, a: 0}
+    key0: {r: 0.24705882, g: 0.37254903, b: 0.5647059, a: 1}
+    key1: {r: 0.3529412, g: 0.49803922, b: 0.70980394, a: 1}
+    key2: {r: 0.56078434, g: 0.6901961, b: 0.85882354, a: 0}
     key3: {r: 0, g: 0, b: 0, a: 0}
     key4: {r: 0, g: 0, b: 0, a: 0}
     key5: {r: 0, g: 0, b: 0, a: 0}
@@ -214,9 +227,9 @@ MonoBehaviour:
   HueJitter: 0.03
   Region:
     serializedVersion: 2
-    key0: {r: 0.6117647, g: 0.79607844, b: 0.9490196, a: 1}
-    key1: {r: 0.6627451, g: 0.84705883, b: 1, a: 1}
-    key2: {r: 0.9137255, g: 0.9647059, b: 1, a: 0}
+    key0: {r: 0.49803922, g: 0.69803923, b: 0.8784314, a: 1}
+    key1: {r: 0.56078434, g: 0.7529412, b: 0.91764706, a: 1}
+    key2: {r: 0.8117647, g: 0.89411765, b: 0.96862745, a: 0}
     key3: {r: 0, g: 0, b: 0, a: 0}
     key4: {r: 0, g: 0, b: 0, a: 0}
     key5: {r: 0, g: 0, b: 0, a: 0}
@@ -243,33 +256,33 @@ MonoBehaviour:
     m_NumColorKeys: 3
     m_NumAlphaKeys: 2
   RegionFrequency: 1.4
-  RegionStrength: 0.5
+  RegionStrength: 0.45
   SiteCount: {x: 6, y: 8}
   SiteRadius: 34
   HasAtmosphere: 1
-  AtmosphereColor: {r: 0.6039216, g: 0.8235294, b: 1, a: 1}
+  AtmosphereColor: {r: 0.5411765, g: 0.7764706, b: 1, a: 1}
   SunsetColor: {r: 0.8980392, g: 0.6039216, b: 0.8509804, a: 1}
   AtmosphereHeight: 0.22
   AtmosphereDensity: 1.8
   AtmosphereFalloff: 4
-  CloudCoverage: 0.45
+  CloudCoverage: 0.35
   CloudColor: {r: 1, g: 1, b: 1, a: 1}
-  CloudShadeColor: {r: 0.7019608, g: 0.76862746, b: 0.8784314, a: 1}
+  CloudShadeColor: {r: 0.62352943, g: 0.6901961, b: 0.8156863, a: 1}
   CloudAltitude: 0.55
-  CloudScale: 3
-  CloudStretch: 1.2
+  CloudScale: 4
+  CloudStretch: 1
   Decor: 3
   DecorDensity: 1
   DecorColors:
-  - {r: 0.37254903, g: 0.43529412, b: 0.5254902, a: 1}
-  - {r: 0.7490196, g: 0.9019608, b: 1, a: 1}
-  - {r: 0.5254902, g: 0.7882353, b: 1, a: 1}
+  - {r: 0.30980393, g: 0.37254903, b: 0.47058824, a: 1}
+  - {r: 0.62352943, g: 0.8392157, b: 1, a: 1}
+  - {r: 0.43529412, g: 0.70980394, b: 0.9411765, a: 1}
   - {r: 0.60784316, g: 0.90588236, b: 1, a: 1}
   Particles: 2
   ParticleColor: {r: 1, g: 1, b: 1, a: 0.8}
   Weather: 2
-  HazeColor: {r: 0.8509804, g: 0.92156863, b: 1, a: 1}
-  SurfaceAmbient: {r: 0.5058824, g: 0.5764706, b: 0.6901961, a: 1}
+  HazeColor: {r: 0.6627451, g: 0.8117647, b: 0.9490196, a: 1}
+  SurfaceAmbient: {r: 0.37254903, g: 0.43529412, b: 0.5411765, a: 1}
   WindPitch: 1.1
   DetailScale: 6
   DetailStrength: 0.3

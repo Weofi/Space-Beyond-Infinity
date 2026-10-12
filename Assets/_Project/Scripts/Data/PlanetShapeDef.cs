@@ -75,11 +75,11 @@ namespace Voidward.Data
 
         [Header("Geometry")]
         [Tooltip("Quads per chunk edge. Chunks subdivide around the camera (quadtree LOD).")]
-        [Range(8, 64)] public int ChunkResolution = 32;
+        [Range(8, 64)] public int ChunkResolution = 40;
         [Tooltip("Target ground spacing (m) of the finest LOD; also the collider resolution.")]
         [Range(0.75f, 6f)] public float LeafSpacing = 1.6f;
         [Tooltip("Higher = finer distant terrain (split when distance < chunk size * this).")]
-        [Range(1f, 4f)] public float LodQuality = 2.2f;
+        [Range(1f, 4f)] public float LodQuality = 1.6f;
 
         [Header("Terrain")]
         [Tooltip("Global multiplier for all layer and crater heights.")]

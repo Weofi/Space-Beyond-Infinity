@@ -326,8 +326,28 @@ namespace Voidward.Planet
 
         float Distance(Node n) => Mathf.Max(0f, Vector3.Distance(camLocal, n.Center) - n.Bound);
 
+        /// <summary>True when no part of the chunk (up to the highest peak) can rise above the camera's horizon.</summary>
+        bool BeyondHorizon(Node n)
+        {
+            if (n.Level == 0) return false;
+            float camDist = camLocal.magnitude;
+            float rMin = Terrain.GroundFloorRadius, rMax = Terrain.MaxRadius;
+            if (camDist <= rMax) camDist = Mathf.Max(camDist, rMin + 1f);
+            float horizon = Mathf.Acos(Mathf.Clamp(rMin / camDist, -1f, 1f)) + Mathf.Acos(Mathf.Clamp(rMin / rMax, -1f, 1f));
+            float nodeAngle = Vector3.Angle(camLocal, n.Center) * Mathf.Deg2Rad - n.Size * 0.75f / radius;
+            return nodeAngle > horizon + 0.05f;
+        }
+
         void UpdateNode(Node n, ref int visible, ref int deepest)
         {
+            if (BeyondHorizon(n))
+            {
+                // Hidden by the planet itself: keep it coarse and skip drawing it.
+                if (n.Kids != null) { for (int k = 0; k < 4; k++) KillNode(n.Kids[k]); n.Kids = null; }
+                if (!n.Ready && n.Job == null) Request(n);
+                SetVisible(n, false);
+                return;
+            }
             float d = Distance(n);
             float splitAt = n.Size * lodQuality;
             bool canSplit = n.Level < MaxLevel;

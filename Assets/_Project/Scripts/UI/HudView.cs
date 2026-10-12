@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Voidward.AI;
 using Voidward.Core;
+using Voidward.Data;
 using Voidward.Planet;
 using Voidward.Player;
 using Voidward.Ship;
@@ -34,6 +35,7 @@ namespace Voidward.UI
         float vignetteAlpha;
         float lowO2Beep;
         bool lowO2;
+        bool stormWarned;
         HealthComponentHook hook;
 
         struct Ping { public Vector3 Pos; public PingKind Kind; public string Label; public float Until; }
@@ -209,6 +211,19 @@ namespace Voidward.UI
                 t.alpha = Mathf.Clamp01(left / 0.6f);
             }
             if (!root.gameObject.activeInHierarchy) return;
+
+            // Weather warning when a storm builds up around the player.
+            bool storm = PlanetAmbience.Storm > 0.35f;
+            if (storm && !stormWarned && PlanetAmbience.Weather != PlanetWeather.None && PlanetAmbience.Weather != PlanetWeather.Shimmer)
+                OnNotification(PlanetAmbience.Weather switch
+                {
+                    PlanetWeather.Sandstorm => "Sandstorm rolling in - visibility dropping",
+                    PlanetWeather.Blizzard => "Blizzard incoming - stay close to your crew",
+                    PlanetWeather.AshFall => "Ash fall - the sky is going dark",
+                    _ => "Spore bloom - the air is thick",
+                });
+            if (storm) stormWarned = true;
+            else if (PlanetAmbience.Storm < 0.1f) stormWarned = false;
 
             var pawn = PlayerPawn.Local;
             var cam = Camera.main;
@@ -395,6 +410,7 @@ namespace Voidward.UI
                     foreach (var lm in visuals.Landmarks.Landmarks)
                     {
                         if (shown >= MaxLandmarks) break;
+                        if (lm.AtSite) continue;
                         Vector3 p = planet.transform.TransformPoint(lm.LocalPos);
                         if (!AboveHorizon(center, p, camPos, 60f, 1100f)) continue;
                         var label = SiteLabel(used++);

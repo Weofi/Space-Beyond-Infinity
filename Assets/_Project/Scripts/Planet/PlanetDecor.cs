@@ -50,15 +50,15 @@ namespace Voidward.Planet
                 R(Prop.Rock, false, 35, 0.3f, 1.3f, 30, 0f, 0.6f, -0.3f),
                 R(Prop.DryBush, false, 35, 0.4f, 1f, 40, 0.1f, 0.3f, 0.4f),
                 R(Prop.Pebbles, false, 25, 0.2f, 0.5f, 20, 0.1f, 0.5f),
-                R(Prop.Cactus, true, 8, 2.5f, 6f, 70, 0.15f, 0.3f, 0.5f, 0.25f),
-                R(Prop.Hoodoo, true, 3, 6f, 16f, 140, 0.3f, 0.35f, -0.5f, 0.45f),
+                R(Prop.Cactus, true, 12, 2.5f, 6f, 70, 0.1f, 0.3f, 0.5f, 0.25f),
+                R(Prop.Hoodoo, true, 5, 6f, 16f, 140, 0.25f, 0.35f, -0.5f, 0.45f),
                 R(Prop.Boulder, true, 5, 2f, 5f, 60, 0.1f, 0.45f, -0.4f, 0.8f),
             },
             [PlanetDecorStyle.Ice] = new[]
             {
                 R(Prop.IceShard, false, 60, 0.4f, 1.6f, 25, 0.05f, 0.6f, 0.4f),
                 R(Prop.Rock, false, 25, 0.3f, 1.1f, 30, 0f, 0.6f, -0.5f),
-                R(Prop.IceSpike, true, 8, 4f, 13f, 90, 0.2f, 0.45f, 0.3f, 0.35f),
+                R(Prop.IceSpike, true, 12, 4f, 13f, 90, 0.1f, 0.45f, 0.3f, 0.35f),
                 R(Prop.Boulder, true, 4, 2f, 5f, 60, 0.15f, 0.45f, -0.5f, 0.8f),
             },
             [PlanetDecorStyle.Jungle] = new[]
@@ -71,17 +71,17 @@ namespace Voidward.Planet
             },
             [PlanetDecorStyle.Crystal] = new[]
             {
-                R(Prop.Crystal, false, 70, 0.4f, 1.4f, 20, 0.05f, 0.6f, 0.3f),
+                R(Prop.Crystal, false, 100, 0.5f, 1.8f, 20, 0f, 0.6f, 0.3f),
                 R(Prop.Rock, false, 30, 0.3f, 1.1f, 30, -0.1f, 0.6f, -0.4f),
                 R(Prop.Pod, false, 12, 0.3f, 0.7f, 15, 0.3f, 0.4f, 0.6f),
-                R(Prop.CrystalSpire, true, 9, 4f, 15f, 80, 0.15f, 0.45f, 0.3f, 0.35f),
+                R(Prop.CrystalSpire, true, 16, 5f, 18f, 80, 0.05f, 0.45f, 0.3f, 0.35f),
                 R(Prop.Boulder, true, 3, 2f, 5f, 60, 0.2f, 0.45f, -0.5f, 0.8f),
             },
             [PlanetDecorStyle.Volcanic] = new[]
             {
                 R(Prop.EmberRock, false, 35, 0.3f, 1.1f, 25, 0.05f, 0.6f, 0.3f),
                 R(Prop.Rock, false, 40, 0.3f, 1.2f, 30, -0.2f, 0.6f, -0.3f),
-                R(Prop.Basalt, true, 7, 3f, 9f, 80, 0.15f, 0.4f, -0.3f, 0.45f),
+                R(Prop.Basalt, true, 10, 3f, 9f, 80, 0.1f, 0.4f, -0.3f, 0.45f),
                 R(Prop.Vent, true, 2.5f, 2.5f, 5f, 90, 0.25f, 0.3f, 0.4f, 0.5f),
                 R(Prop.DeadTree, true, 4, 3f, 7f, 70, 0.2f, 0.3f, 0.5f, 0.12f),
             },

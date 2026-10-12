@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Planet_ToxicJungle
   m_EditorClassIdentifier: Voidward.Data::Voidward.Data.PlanetShapeDef
   DisplayName: Toxic Jungle
-  ChunkResolution: 32
+  ChunkResolution: 40
   LeafSpacing: 1.6
-  LodQuality: 2.2
+  LodQuality: 1.6
   HeightMultiplier: 1
   Warp: 0.15
   Layers:
@@ -60,6 +60,19 @@ MonoBehaviour:
     Terraces: 0
   - Enabled: 1
     Kind: 0
+    Strength: 0.008
+    Frequency: 12
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 3
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0
+    RidgeWeight: 1.5
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
+  - Enabled: 1
+    Kind: 0
     Strength: 0.003
     Frequency: 16
     Stretch: {x: 1, y: 1, z: 1}
@@ -76,8 +89,8 @@ MonoBehaviour:
   - Enabled: 1
     Kind: 2
     Count: {x: 8, y: 14}
-    Size: {x: 0.012, y: 0.025}
-    Height: {x: 1, y: 1.6}
+    Size: {x: 0.015, y: 0.03}
+    Height: {x: 1.2, y: 2}
     Sharpness: 0.15
     Terraces: 0
     Roughness: 0.2
@@ -243,11 +256,11 @@ MonoBehaviour:
   AtmosphereHeight: 0.24
   AtmosphereDensity: 2.6
   AtmosphereFalloff: 3
-  CloudCoverage: 0.55
+  CloudCoverage: 0.38
   CloudColor: {r: 0.8784314, g: 1, b: 0.8392157, a: 1}
   CloudShadeColor: {r: 0.47843137, g: 0.6039216, b: 0.45490196, a: 1}
   CloudAltitude: 0.55
-  CloudScale: 3.4
+  CloudScale: 4.5
   CloudStretch: 0.6
   Decor: 4
   DecorDensity: 1

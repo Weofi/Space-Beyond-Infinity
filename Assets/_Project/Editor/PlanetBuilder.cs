@@ -301,6 +301,7 @@ namespace Voidward.EditorTools
                 Layer(PlanetNoiseKind.Simple, 0.035f, 1f, 4),                                                                   // broad basins
                 Layer(PlanetNoiseKind.Ridged, 0.004f, 9f, 2, 0.35f, ridgeWeight: 0.6f, mask: new Vector2(0.62f, 0.38f), stretch: new Vector3(1f, 4f, 1f)), // dunes in the lowlands
                 Layer(PlanetNoiseKind.Simple, 0.03f, 2.2f, 4, 0.5f, 0.52f, terraces: 4),                                       // stepped plateaus
+                Layer(PlanetNoiseKind.Ridged, 0.008f, 11f, 3, 0.45f, 0.2f, ridgeWeight: 1.2f),                                 // rocky ridges
                 Layer(PlanetNoiseKind.Simple, 0.0012f, 30f, 2),                                                                 // grain
             };
             s.Features = new List<PlanetShapeDef.FeatureSet>
@@ -348,7 +349,8 @@ namespace Voidward.EditorTools
                 {
                     Layer(PlanetNoiseKind.Simple, 0.06f, 0.9f, 5),                                                   // continents / ice sheets
                     Layer(PlanetNoiseKind.Ridged, 0.09f, 2.2f, 6, 0.5f, 0.35f, 2.1f, 2.4f, new Vector2(0.5f, 0.65f)), // jagged ranges
-                    Layer(PlanetNoiseKind.Simple, 0.008f, 7f, 3),                                                    // hills
+                    Layer(PlanetNoiseKind.Simple, 0.012f, 8f, 3),                                                    // hills
+                    Layer(PlanetNoiseKind.Ridged, 0.006f, 16f, 3, 0.45f, 0.25f, ridgeWeight: 1.4f),                  // pressure ridges
                     Layer(PlanetNoiseKind.Ridged, 0.002f, 26f, 2, ridgeWeight: 1f),                                   // ice ridges
                 };
                 s.Features = new List<PlanetShapeDef.FeatureSet>
@@ -382,6 +384,7 @@ namespace Voidward.EditorTools
                     Layer(PlanetNoiseKind.Simple, 0.09f, 0.8f, 5, 0.5f),                                           // continents
                     Layer(PlanetNoiseKind.Ridged, 0.05f, 2.2f, 5, 0.5f, 0.3f, 2f, 1.6f, new Vector2(0.55f, 0.7f)), // coastal ranges
                     Layer(PlanetNoiseKind.Billow, 0.012f, 5f, 3),                                                  // rolling hills
+                    Layer(PlanetNoiseKind.Simple, 0.008f, 12f, 3),                                                 // knolls
                     Layer(PlanetNoiseKind.Simple, 0.003f, 16f, 2),                                                 // detail
                 };
                 s.Features = new List<PlanetShapeDef.FeatureSet>
@@ -418,6 +421,7 @@ namespace Voidward.EditorTools
                 {
                     Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),
                     Layer(PlanetNoiseKind.Ridged, 0.05f, 2.6f, 5, 0.5f, 0.35f, ridgeWeight: 1.8f),       // shard ridges
+                    Layer(PlanetNoiseKind.Ridged, 0.01f, 10f, 3, 0.45f, 0.2f, ridgeWeight: 1.4f),        // crystal hills
                     Layer(PlanetNoiseKind.Simple, 0.003f, 18f, 3),
                 };
                 Canyons(s, 1.2f, 0.035f, 0.04f, 0.2f, 3f, 0.4f, 0.4f);                                  // rifts
@@ -428,7 +432,7 @@ namespace Voidward.EditorTools
                 s.DeepWater = MathUtils.Hex("#2a4fd0");
                 s.WaterEmission = new Color(0.1f, 0.45f, 0.7f);
                 s.WaterDepth = 3f;
-                s.Land = Grad((0f, "#232a5a"), (0.4f, "#3b4f9e"), (0.7f, "#6a6fc8"), (1f, "#b9b4f0"));
+                s.Land = Grad((0f, "#232a5a"), (0.4f, "#3b4f9e"), (0.7f, "#5f63bc"), (1f, "#968fdc"));
                 s.Region = Grad((0f, "#4a2f78"), (0.5f, "#7a4fa8"), (1f, "#d29ae6"));
                 s.RegionStrength = 0.55f;
                 s.Cliff = Grad((0f, "#1a1f45"), (0.6f, "#3a3570"), (1f, "#5a4a9a"));
@@ -444,7 +448,8 @@ namespace Voidward.EditorTools
                 {
                     Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),                                                 // continents
                     Layer(PlanetNoiseKind.Ridged, 0.08f, 2f, 6, 0.5f, 0.3f, 2.1f, 2.2f, new Vector2(0.48f, 0.62f)), // black mountains
-                    Layer(PlanetNoiseKind.Simple, 0.01f, 6f, 3, 0.5f),                                            // hills
+                    Layer(PlanetNoiseKind.Simple, 0.012f, 8f, 3, 0.5f),                                           // hills
+                    Layer(PlanetNoiseKind.Ridged, 0.006f, 14f, 3, 0.45f, 0.25f, ridgeWeight: 1.4f),               // lava ridges
                     Layer(PlanetNoiseKind.Ridged, 0.0015f, 30f, 2, ridgeWeight: 1f),                               // lava crust
                 };
                 s.Features = new List<PlanetShapeDef.FeatureSet>
@@ -455,10 +460,10 @@ namespace Voidward.EditorTools
                 Canyons(s, 1.8f, 0.04f, 0.03f, 0.3f, 2.5f, 0.65f, 0.55f, rivers: true);                     // lava channels
                 s.OceanCoverage = new Vector2(0.12f, 0.22f);
                 s.OceanFloorDepth = 1f;
-                s.ShallowWater = MathUtils.Hex("#ff7a2a");
+                s.ShallowWater = MathUtils.Hex("#ff5a1a");
                 s.DeepWater = MathUtils.Hex("#a0200a");
                 s.WaterDepth = 2.5f;
-                s.WaterEmission = new Color(2.2f, 0.55f, 0.1f);
+                s.WaterEmission = new Color(1.5f, 0.28f, 0.05f);
                 s.WaterGloss = 0.3f;
                 s.WaveStrength = 0.3f;
                 s.Underwater = Grad((0f, "#3a1a14"), (1f, "#5a2a1a"));
@@ -468,7 +473,7 @@ namespace Voidward.EditorTools
                 s.Cliff = Grad((0f, "#1a1618"), (1f, "#3a3034"));
                 s.CraterCount = 12;
                 Atmosphere(s, "#ff8a5c", "#ff5030", "#8a5a50", 0.22f, 2.2f, 3.5f);
-                Clouds(s, 0.5f, "#8a7f84", "#3a3034", 2.6f, 0.8f, 0.45f);
+                Clouds(s, 0.3f, "#8a7f84", "#3a3034", 3.2f, 0.8f, 0.45f);
                 Environment(s, PlanetDecorStyle.Volcanic, 1f, "#2b2629", "#4a3f3c", "#7a5a50", "#ff7a2a",
                     PlanetParticles.Ash, new Color(1f, 0.55f, 0.25f, 0.6f), PlanetWeather.AshFall, "#735450", 0.6f);
             });

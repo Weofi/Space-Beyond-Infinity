@@ -17,6 +17,8 @@ namespace Voidward.Planet
             public Vector3 LocalPos;
             public string Name;
             public float Height;
+            /// <summary>True for set pieces marking a site clearing (the site itself carries the label).</summary>
+            public bool AtSite;
         }
 
         enum Kind { Arch, Monolith, Hoodoos, Bones, IcePillars, GiantTree, Mushrooms, CrystalTower, FloatingRocks, BasaltOrgan, ObsidianSpires, BoulderPile }
@@ -69,7 +71,7 @@ namespace Voidward.Planet
                 Vector3 side = Quaternion.AngleAxis((float)rng.NextDouble() * 360f, s.Dir) * t;
                 Vector3 dir = (s.Dir + side * (s.RadiusMeters * 1.35f / R)).normalized;
                 var kind = kinds[(i + rng.Next(0, kinds.Length)) % kinds.Length];
-                Place(kind, dir, side, scale * 0.6f, rng);
+                Place(kind, dir, side, scale * 0.6f, rng, true);
             }
 
             // Free-standing discoveries away from the sites.
@@ -87,7 +89,7 @@ namespace Voidward.Planet
                         if ((l.LocalPos.normalized - dir).magnitude * R < 150f * scale) { clear = false; break; }
                     if (!clear) continue;
                     var kind = kinds[rng.Next(0, kinds.Length)];
-                    Place(kind, dir, Tangent(dir), scale * MathUtils.Range(rng, 0.9f, 1.4f), rng);
+                    Place(kind, dir, Tangent(dir), scale * MathUtils.Range(rng, 0.9f, 1.4f), rng, false);
                     break;
                 }
             }
@@ -95,7 +97,7 @@ namespace Voidward.Planet
 
         static Vector3 Tangent(Vector3 d) => Vector3.Cross(d, Mathf.Abs(d.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
 
-        void Place(Kind kind, Vector3 dir, Vector3 forward, float scale, System.Random rng)
+        void Place(Kind kind, Vector3 dir, Vector3 forward, float scale, System.Random rng, bool atSite)
         {
             if (terrain.IsUnderwater(dir)) return;
             float ground = terrain.SurfaceRadius(dir);
@@ -120,7 +122,7 @@ namespace Voidward.Planet
             mr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             objects.Add(go);
-            Landmarks.Add(new Info { LocalPos = basePos + dir * height * 0.6f, Name = label, Height = height });
+            Landmarks.Add(new Info { LocalPos = basePos + dir * height * 0.6f, Name = label, Height = height, AtSite = atSite });
         }
 
         static Matrix4x4 M(Vector3 p, Quaternion q, Vector3 s) => Matrix4x4.TRS(p, q, s);

@@ -271,8 +271,11 @@ namespace Voidward.Planet
                 }
             }
             kinds.Add(SiteKind.Cache);
-            if (fields.Count == 0) fields.Add(SiteKind.OreVein);
+            // Keep at least a third of the sites (min. 2) as resource fields.
+            int maxSet = Mathf.Max(0, n - Mathf.Max(2, n / 3));
             var rng = new System.Random(seed ^ 0x3c6ef372);
+            while (kinds.Count > maxSet) kinds.RemoveAt(rng.Next(kinds.Count));
+            if (fields.Count == 0) fields.Add(SiteKind.OreVein);
             for (int i = 0; kinds.Count < n; i++) kinds.Add(fields[(i + rng.Next(0, fields.Count)) % fields.Count]);
             // Shuffle so set pieces are spread over the planet.
             for (int i = kinds.Count - 1; i > 0; i--)
