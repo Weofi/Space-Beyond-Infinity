@@ -236,8 +236,9 @@ namespace Voidward.UI
             var s = ship.Stats;
             var stats = UIKit.Text(body,
                 $"<b>{ship.ShipName.Value}</b>   Hull {ship.Hull.Hp.Value:0}/{ship.Hull.MaxHp.Value:0}   Shield {ship.Shield.Value:0}/{s.MaxShield:0}   Fuel {ship.Fuel.Value:0}/{s.MaxFuel:0}   " +
-                $"Thrust {s.Thrust:0}   Cargo {s.CargoSlots} slots   Scanner {s.Scanner:0} m", 22);
-            UIKit.LayoutElement(stats.gameObject, -1, 40);
+                $"Thrust {s.Thrust:0}   Cargo {s.CargoSlots} slots   Scanner {s.Scanner:0} m\n" +
+                $"<size=85%><color=#b0b0d0>Aim assist {s.AimAssist:0} deg   Shots x{1 + s.ExtraShots}   Hit radius x{s.HitboxMult:0.#}   Fire rate x{s.RateMult:0.##}</color></size>", 22);
+            UIKit.LayoutElement(stats.gameObject, -1, 60);
 
             var cols = UIKit.Rect(body, "Cols");
             UIKit.HLayout(cols.gameObject, 30, 0, TextAnchor.UpperLeft);
@@ -252,13 +253,13 @@ namespace Voidward.UI
                 int slot = i;
                 var row = UIKit.Panel(mods, "Slot", UIKit.PanelLight);
                 UIKit.HLayout(row.gameObject, 10, 8);
-                UIKit.LayoutElement(row.gameObject, -1, 54);
+                UIKit.LayoutElement(row.gameObject, -1, 46);
                 var m = ship.ModuleIn(i);
-                string slotName = ((ModuleSlot)i).ToString().Replace("WeaponA", "Weapon 1").Replace("WeaponB", "Weapon 2").Replace("FuelTank", "Fuel Tank");
-                var t = UIKit.Text(row, $"<color=#a0a0c0>{slotName}</color>   {(m != null ? $"<b>{m.DisplayName}</b>" : "<color=#707090>empty</color>")}", 22);
-                UIKit.LayoutElement(t.gameObject, -1, 44, 1);
+                string slotName = ((ModuleSlot)i).ToString().Replace("WeaponA", "Weapon 1").Replace("WeaponB", "Weapon 2").Replace("FuelTank", "Fuel Tank").Replace("WeaponMod", "Weapon Mod");
+                var t = UIKit.Text(row, $"<color=#a0a0c0>{slotName}</color>   {(m != null ? $"<b>{m.DisplayName}</b>" : "<color=#707090>empty</color>")}", 21);
+                UIKit.LayoutElement(t.gameObject, -1, 38, 1);
                 if (m != null)
-                    UIKit.LayoutElement(UIKit.Button(row, "Remove", () => ship.UninstallServerRpc(slot), 42, UIKit.Accent2, 20).gameObject, 130, 42);
+                    UIKit.LayoutElement(UIKit.Button(row, "Remove", () => ship.UninstallServerRpc(slot), 36, UIKit.Accent2, 20).gameObject, 130, 36);
             }
 
             var side = UIKit.Rect(cols, "Side");
@@ -286,7 +287,7 @@ namespace Voidward.UI
                 count++;
             }
             if (count == 0) UIKit.Text(list, "No modules - find them in crates, buy them at stations or craft them.", 20, TextAlignmentOptions.Left, UIKit.TextDim);
-            details.text = "Modules change your ship's stats immediately. Weapons: Laser (fast), Missiles (homing), Flak (area). Big ships like the Ark have more slots for crew stations.";
+            details.text = "Modules change your ship's stats immediately. Weapons: Laser (fast), Missiles (homing), Flak (area). Targeting CPUs widen aim assist; Weapon Mods add shots, hit radius or fire rate. Big ships like the Ark have more slots for crew stations.";
         }
 
         // ------------------------------------------------------------ crafting tab

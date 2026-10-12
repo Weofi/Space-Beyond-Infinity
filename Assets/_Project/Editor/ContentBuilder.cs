@@ -253,13 +253,15 @@ namespace Voidward.EditorTools
                 m.Id = id; m.DisplayName = name; m.Slot = slot; m.Tier = tier; m.CreditValue = value; m.Tint = tint; m.Description = desc;
                 m.ThrustMult = 1f; m.TurnMult = 1f; m.BoostMult = 1f; m.WeaponDamageMult = 1f; m.FireRateMult = 1f; m.ShieldMaxAdd = 0; m.ShieldRegenAdd = 0;
                 m.HullMaxAdd = 0; m.CargoSlotsAdd = 0; m.ScannerRangeAdd = 0; m.FuelEfficiencyMult = 1f; m.FuelTankAdd = 0; m.Weapon = WeaponKind.None;
+                m.AimAssistAdd = 0; m.ExtraProjectiles = 0; m.HitboxMult = 1f;
                 set(m);
                 list.Add(m);
                 moduleDefs.Add((id, m));
                 return m;
             }
             Color eng = new Color(1f, 0.7f, 0.4f), wep = new Color(1f, 0.45f, 0.55f), shd = new Color(0.5f, 0.75f, 1f), hul = new Color(0.8f, 0.8f, 0.9f),
-                  car = new Color(0.85f, 0.7f, 0.5f), scn = new Color(0.6f, 1f, 0.8f), fue = new Color(1f, 0.9f, 0.4f);
+                  car = new Color(0.85f, 0.7f, 0.5f), scn = new Color(0.6f, 1f, 0.8f), fue = new Color(1f, 0.9f, 0.4f),
+                  tgt = new Color(0.4f, 0.95f, 1f), mod = new Color(1f, 0.6f, 0.9f);
             M("module_engine_mk1", "Engine Mk I", ModuleSlot.Engine, 1, 60, eng, "Standard ion drive.", m => { });
             M("module_engine_mk2", "Engine Mk II", ModuleSlot.Engine, 2, 180, eng, "Tuned drive: more thrust and agility.", m => { m.ThrustMult = 1.25f; m.TurnMult = 1.1f; });
             M("module_engine_mk3", "Engine Mk III", ModuleSlot.Engine, 3, 380, eng, "Racing drive.", m => { m.ThrustMult = 1.5f; m.TurnMult = 1.2f; m.BoostMult = 1.1f; });
@@ -282,6 +284,16 @@ namespace Voidward.EditorTools
             M("module_scanner_mk2", "Scanner Mk II", ModuleSlot.Scanner, 2, 180, scn, "Deep-space scanner.", m => { m.ScannerRangeAdd = 800; });
             M("module_fueltank_mk1", "Fuel Tank Mk I", ModuleSlot.FuelTank, 1, 70, fue, "Bigger tank, slightly more efficient.", m => { m.FuelTankAdd = 40; m.FuelEfficiencyMult = 0.95f; });
             M("module_fueltank_mk2", "Fuel Tank Mk II", ModuleSlot.FuelTank, 2, 190, fue, "Long-range tank.", m => { m.FuelTankAdd = 100; m.FuelEfficiencyMult = 0.85f; });
+            // Combat upgrades (#19): Targeting slot = aim, WeaponMod slot = more shots / bigger hitboxes / fire rate.
+            M("module_targeting_mk1", "Targeting CPU Mk I", ModuleSlot.Targeting, 1, 120, tgt, "Snaps pilot fire onto the lead point of nearby targets.", m => { m.AimAssistAdd = 4f; m.TurnMult = 1.05f; });
+            M("module_targeting_mk2", "Targeting CPU Mk II", ModuleSlot.Targeting, 2, 260, tgt, "Wider lock cone and sharper gimbals.", m => { m.AimAssistAdd = 8f; m.TurnMult = 1.1f; });
+            M("module_targeting_mk3", "Targeting CPU Mk III", ModuleSlot.Targeting, 3, 420, tgt, "Military fire control: almost nothing escapes.", m => { m.AimAssistAdd = 12f; m.TurnMult = 1.15f; });
+            M("module_splitter_mk1", "Splitter Array Mk I", ModuleSlot.WeaponMod, 1, 160, mod, "Splits every shot: +1 projectile in a narrow fan.", m => { m.ExtraProjectiles = 1; });
+            M("module_splitter_mk2", "Splitter Array Mk II", ModuleSlot.WeaponMod, 2, 340, mod, "Triple fan: +2 projectiles per shot.", m => { m.ExtraProjectiles = 2; });
+            M("module_focus_mk1", "Focus Lens Mk I", ModuleSlot.WeaponMod, 1, 130, mod, "Widens the bolt envelope: projectiles hit more easily.", m => { m.HitboxMult = 2f; });
+            M("module_focus_mk2", "Focus Lens Mk II", ModuleSlot.WeaponMod, 2, 280, mod, "Huge hit envelope. Drones hate this.", m => { m.HitboxMult = 3f; });
+            M("module_capacitor_mk1", "Capacitor Mk I", ModuleSlot.WeaponMod, 1, 140, mod, "Faster weapon cycling.", m => { m.FireRateMult = 1.3f; });
+            M("module_capacitor_mk2", "Capacitor Mk II", ModuleSlot.WeaponMod, 2, 300, mod, "Overclocked weapon cycling.", m => { m.FireRateMult = 1.6f; });
             M("module_engine_ark", "Ark Drive", ModuleSlot.Engine, 2, 300, eng, "Heavy drive for capital ships.", m => { m.ThrustMult = 1.1f; });
             return list;
         }
@@ -344,19 +356,22 @@ namespace Voidward.EditorTools
             }
             L("loot_t1", 3, ("ore", 2, 4, 3), ("crystal", 1, 3, 2), ("scrap", 2, 4, 3), ("fuel", 1, 2, 2), ("cell", 1, 1, 1.6f), ("medkit", 1, 1, 1),
                 ("module_shield_mk1", 1, 1, 0.4f), ("module_hull_mk1", 1, 1, 0.4f), ("module_cargo_mk1", 1, 1, 0.3f), ("module_scanner_mk1", 1, 1, 0.3f),
-                ("module_fueltank_mk1", 1, 1, 0.3f), ("module_missile_mk1", 1, 1, 0.3f), ("module_flak_mk1", 1, 1, 0.3f), ("gear_o2_mk2", 1, 1, 0.3f), ("gear_rifle", 1, 1, 0.25f));
+                ("module_fueltank_mk1", 1, 1, 0.3f), ("module_missile_mk1", 1, 1, 0.3f), ("module_flak_mk1", 1, 1, 0.3f), ("gear_o2_mk2", 1, 1, 0.3f), ("gear_rifle", 1, 1, 0.25f),
+                ("module_targeting_mk1", 1, 1, 0.4f), ("module_splitter_mk1", 1, 1, 0.35f), ("module_focus_mk1", 1, 1, 0.35f), ("module_capacitor_mk1", 1, 1, 0.3f));
             L("loot_t2", 3, ("ore", 3, 5, 2), ("crystal", 2, 4, 2), ("scrap", 3, 5, 2), ("fuel", 2, 3, 2), ("cell", 1, 2, 2), ("medkit", 1, 2, 1), ("repair_kit", 1, 1, 0.8f),
                 ("module_engine_mk2", 1, 1, 0.35f), ("module_laser_mk2", 1, 1, 0.35f), ("module_shield_mk2", 1, 1, 0.35f), ("module_hull_mk2", 1, 1, 0.35f),
                 ("module_missile_mk2", 1, 1, 0.25f), ("module_flak_mk2", 1, 1, 0.25f), ("module_cargo_mk2", 1, 1, 0.2f), ("module_fueltank_mk2", 1, 1, 0.2f),
-                ("gear_suit_mk2", 1, 1, 0.3f), ("gear_jetpack_mk2", 1, 1, 0.3f), ("gear_drill_mk2", 1, 1, 0.3f), ("gear_rifle", 1, 1, 0.25f));
+                ("gear_suit_mk2", 1, 1, 0.3f), ("gear_jetpack_mk2", 1, 1, 0.3f), ("gear_drill_mk2", 1, 1, 0.3f), ("gear_rifle", 1, 1, 0.25f),
+                ("module_targeting_mk2", 1, 1, 0.3f), ("module_splitter_mk2", 1, 1, 0.25f), ("module_focus_mk2", 1, 1, 0.25f), ("module_capacitor_mk2", 1, 1, 0.25f));
             L("loot_t3", 4, ("crystal", 3, 6, 2), ("scrap", 4, 6, 2), ("fuel", 2, 4, 2), ("cell", 1, 2, 2), ("medkit", 1, 2, 1), ("repair_kit", 1, 2, 1),
                 ("module_engine_mk3", 1, 1, 0.3f), ("module_laser_mk3", 1, 1, 0.3f), ("module_shield_mk3", 1, 1, 0.3f), ("module_hull_mk3", 1, 1, 0.3f),
-                ("module_scanner_mk2", 1, 1, 0.2f), ("gear_suit_mk3", 1, 1, 0.25f), ("gear_o2_mk3", 1, 1, 0.25f), ("gear_jetpack_mk3", 1, 1, 0.25f), ("gear_drill_mk3", 1, 1, 0.25f));
+                ("module_scanner_mk2", 1, 1, 0.2f), ("module_targeting_mk3", 1, 1, 0.3f), ("gear_suit_mk3", 1, 1, 0.25f), ("gear_o2_mk3", 1, 1, 0.25f), ("gear_jetpack_mk3", 1, 1, 0.25f), ("gear_drill_mk3", 1, 1, 0.25f));
             L("loot_pirate", 1, ("scrap", 1, 3, 3), ("fuel", 1, 2, 2), ("cell", 1, 1, 0.35f), ("ore", 1, 2, 1));
             L("loot_drone", 1, ("scrap", 1, 1, 3), ("crystal", 1, 1, 0.5f));
             L("loot_alien", 1, ("crystal", 1, 2, 3), ("ore", 1, 1, 1), ("medkit", 1, 1, 0.25f));
             L("loot_guardian", 2, ("crystal", 3, 5, 2), ("cell", 1, 1, 1), ("gear_drill_mk2", 1, 1, 0.3f), ("gear_suit_mk2", 1, 1, 0.2f));
-            L("loot_gunship", 3, ("scrap", 3, 6, 2), ("cell", 1, 1, 1), ("module_missile_mk1", 1, 1, 0.5f), ("module_flak_mk2", 1, 1, 0.4f), ("fuel", 2, 3, 1));
+            L("loot_gunship", 3, ("scrap", 3, 6, 2), ("cell", 1, 1, 1), ("module_missile_mk1", 1, 1, 0.5f), ("module_flak_mk2", 1, 1, 0.4f), ("fuel", 2, 3, 1),
+                ("module_splitter_mk1", 1, 1, 0.3f), ("module_targeting_mk2", 1, 1, 0.3f));
         }
 
         static List<EnemyDef> BuildEnemies()
@@ -371,9 +386,14 @@ namespace Voidward.EditorTools
                 list.Add(e);
                 return e;
             }
-            E(EnemyKind.PirateFighter, "Pirate Fighter", true, 45, 55, 140, 3.2f, 170, 1.0f, 650, 0.25f, 1, "loot_pirate");
-            E(EnemyKind.DroneSwarm, "Swarm Drone", true, 18, 66, 200, 2f, 130, 0.7f, 550, 0f, 1, "loot_drone");
-            E(EnemyKind.PirateGunship, "Pirate Gunship", true, 260, 30, 50, 6, 280, 1.3f, 750, 0.15f, 4, "loot_gunship");
+            // Space enemies: leash = chased target lost beyond this distance, pursuit = max chase distance from home.
+            // All are slower than a boosting ship, so players can always outrun them (#19).
+            var pf = E(EnemyKind.PirateFighter, "Pirate Fighter", true, 45, 55, 140, 3.2f, 170, 1.0f, 650, 0.25f, 1, "loot_pirate");
+            pf.LeashRange = 900f; pf.PursuitRange = 1600f;
+            var ds = E(EnemyKind.DroneSwarm, "Swarm Drone", true, 18, 66, 200, 2f, 130, 0.7f, 550, 0f, 1, "loot_drone");
+            ds.LeashRange = 800f; ds.PursuitRange = 1400f;
+            var gs = E(EnemyKind.PirateGunship, "Pirate Gunship", true, 260, 30, 50, 6, 280, 1.3f, 750, 0.15f, 4, "loot_gunship");
+            gs.LeashRange = 1000f; gs.PursuitRange = 1500f;
             E(EnemyKind.Crawler, "Crawler", false, 35, 7, 240, 10, 2.6f, 1f, 45, 0f, 1, "loot_alien");
             E(EnemyKind.Spitter, "Spitter", false, 30, 5, 200, 8, 28, 2f, 50, 0.3f, 1, "loot_alien");
             E(EnemyKind.FlyingCritter, "Skyskate", false, 22, 9, 200, 6, 22, 1.5f, 55, 0f, 1, "loot_alien");
@@ -417,6 +437,9 @@ namespace Voidward.EditorTools
                 s.WreckCount = wrecks; s.HasStation = true; s.BiomePool = pool; s.SpaceEnemies = space; s.SpaceEnemyCap = cap; s.SurfaceEnemies = surface;
                 s.EnemyTier = tier; s.CollapseSpeed = speed; s.CollapseStartOffset = offset; s.EventCount = events; s.Palette = pal[i - 1];
                 s.GateCellCost = cells; s.IsBossSector = boss;
+                // Pacing (#19): no space enemies right after a jump, then the cap ramps up. Gentlest in sector 1.
+                s.SpaceEnemyGrace = i == 1 ? 120f : i == 2 ? 60f : 45f;
+                s.SpaceEnemyRamp = i == 1 ? 180f : i == 2 ? 120f : 90f;
                 return s;
             }
             return new[]
@@ -456,6 +479,9 @@ namespace Voidward.EditorTools
             R("module_flak_mk1", 1, ("ore", 6), ("scrap", 4));
             R("module_cargo_mk1", 1, ("scrap", 6), ("ore", 4));
             R("module_fueltank_mk1", 1, ("scrap", 4), ("fuel", 3));
+            R("module_targeting_mk1", 1, ("crystal", 4), ("scrap", 3));
+            R("module_focus_mk1", 1, ("crystal", 5), ("ore", 3));
+            R("module_splitter_mk1", 1, ("scrap", 6), ("crystal", 3), ("ore", 2));
             R("gear_suit_mk2", 1, ("scrap", 8), ("crystal", 4));
             R("gear_o2_mk2", 1, ("crystal", 4), ("ore", 4));
             R("gear_jetpack_mk2", 1, ("scrap", 5), ("fuel", 3), ("crystal", 2));
@@ -478,11 +504,11 @@ namespace Voidward.EditorTools
             }
             return new[]
             {
-                S(ShipClass.Dart, "Dart", 110, 50, 6, 100, 0.5f, 34, 2.0f, 85, 140, 95, 0.35f, 3f, new[] { StationRole.Pilot }, 4, 2, false,
+                S(ShipClass.Dart, "Dart", 110, 50, 6, 100, 0.5f, 34, 2.0f, 110, 140, 95, 0.35f, 3f, new[] { StationRole.Pilot }, 4, 2, false,
                   new[] { "module_engine_mk1", "module_laser_mk1" }),
-                S(ShipClass.Mule, "Mule", 180, 80, 7, 160, 0.6f, 26, 1.8f, 60, 100, 80, 0.4f, 3f, new[] { StationRole.Pilot }, 6, 3, false,
+                S(ShipClass.Mule, "Mule", 180, 80, 7, 160, 0.6f, 26, 1.8f, 80, 110, 80, 0.4f, 3f, new[] { StationRole.Pilot }, 6, 3, false,
                   new[] { "module_engine_mk1", "module_laser_mk1", "module_flak_mk1", "module_cargo_mk1" }),
-                S(ShipClass.Ark, "Ark", 600, 250, 14, 300, 0.7f, 16, 1.6f, 30, 40, 70, 0.4f, 3.5f,
+                S(ShipClass.Ark, "Ark", 600, 250, 14, 300, 0.7f, 16, 1.6f, 38, 45, 70, 0.4f, 3.5f,
                   new[] { StationRole.Pilot, StationRole.Turret, StationRole.Turret, StationRole.Engineer }, 8, 4, true,
                   new[] { "module_engine_ark", "module_laser_mk2", "module_missile_mk1", "module_shield_mk2", "module_hull_mk2" }),
             };

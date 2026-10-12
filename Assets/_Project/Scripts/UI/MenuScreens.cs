@@ -459,6 +459,8 @@ namespace Voidward.UI
 
             Label(content, "Controls");
             SliderRow(content, "Mouse sensitivity", 0.2f, 3f, s.Sensitivity, v => { s.Sensitivity = v; s.Save(); });
+            SliderRow(content, "Ship sensitivity", 0.2f, 3f, s.ShipSensitivity, v => { s.ShipSensitivity = v; s.Save(); });
+            UIKit.Toggle(content, "Ship aim assist", s.ShipAimAssist, v => { s.ShipAimAssist = v; s.Save(); });
             UIKit.Toggle(content, "Invert Y", s.InvertY, v => { s.InvertY = v; s.Save(); });
             foreach (var (label, action) in VwInput.Rebindable)
             {

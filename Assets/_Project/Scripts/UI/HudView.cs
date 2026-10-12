@@ -24,6 +24,9 @@ namespace Voidward.UI
         TextMeshProUGUI hpText, o2Text, energyText, shipName, shipText, prompt, collapseText, sectorText, objective, creditsText, jumpText, deathText, bossText, o2Warn;
         RectTransform shipPanel, bossPanel, compass, markerLayer, toastLayer, hotbarRoot;
         Image crosshair, vignette;
+        RectTransform leadMarker;
+        readonly Image[] leadTicks = new Image[4];
+        Image leadLink;
         readonly Image[] hotbar = new Image[4];
         readonly TextMeshProUGUI[] hotbarLabels = new TextMeshProUGUI[4];
         readonly List<(TextMeshProUGUI t, float until)> toasts = new List<(TextMeshProUGUI, float)>();
@@ -95,6 +98,7 @@ namespace Voidward.UI
             crosshair = UIKit.Image(root, "Crosshair", new Color(1, 1, 1, 0.85f));
             crosshair.sprite = UIKit.Circle;
             UIKit.Place(crosshair.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8, 8));
+            BuildLeadMarker();
             prompt = UIKit.Text(root, "", 28, TextAlignmentOptions.Center, Color.white, FontStyles.Bold);
             UIKit.Place(prompt.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -80), new Vector2(1000, 44));
 
@@ -142,6 +146,58 @@ namespace Voidward.UI
             EventBus.PingCreated += (p, k, l) => { pings.Add(new Ping { Pos = p, Kind = k, Label = l, Until = Time.time + 14f }); Sfx.PlayUI("ping", 0.6f); };
             EventBus.LocalPlayerHurt += i => vignetteAlpha = Mathf.Max(vignetteAlpha, 0.25f + i * 0.5f);
             hook = new HealthComponentHook();
+        }
+
+        /// <summary>Ship lead indicator: four ticks around the predicted intercept point, plus a link to the target.</summary>
+        void BuildLeadMarker()
+        {
+            leadLink = UIKit.Image(markerLayer, "LeadLink", Color.white, false);
+            leadLink.raycastTarget = false;
+            leadLink.rectTransform.anchorMin = leadLink.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            leadLink.rectTransform.pivot = new Vector2(0f, 0.5f);
+            leadMarker = UIKit.Rect(markerLayer, "Lead");
+            leadMarker.anchorMin = leadMarker.anchorMax = new Vector2(0.5f, 0.5f);
+            leadMarker.sizeDelta = new Vector2(30, 30);
+            for (int i = 0; i < 4; i++)
+            {
+                leadTicks[i] = UIKit.Image(leadMarker, "Tick", Color.white, false);
+                leadTicks[i].raycastTarget = false;
+                var rt = leadTicks[i].rectTransform;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = i % 2 == 0 ? new Vector2(3, 9) : new Vector2(9, 3);
+            }
+            leadMarker.gameObject.SetActive(false);
+            leadLink.gameObject.SetActive(false);
+        }
+
+        void UpdateLeadMarker(Camera cam, PlayerPawn pawn)
+        {
+            var seat = pawn != null ? pawn.CurrentShipSeat : null;
+            bool show = seat != null && seat.Role != StationRole.Engineer && AimAssist.FreshThisFrame && AimAssist.HasLead;
+            Vector3 sp = show ? cam.WorldToScreenPoint(AimAssist.LeadPoint) : Vector3.zero;
+            Vector3 tp = show ? cam.WorldToScreenPoint(AimAssist.TargetPoint) : Vector3.zero;
+            show &= sp.z > 0f && tp.z > 0f;
+            leadMarker.gameObject.SetActive(show);
+            leadLink.gameObject.SetActive(show);
+            if (!show) return;
+            var layer = markerLayer;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(layer, sp, null, out var lead);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(layer, tp, null, out var tgt);
+            bool locked = AimAssist.Locked;
+            Color c = locked ? new Color(0.35f, 1f, 1f, 0.95f) : new Color(1f, 1f, 1f, 0.55f);
+            float r = locked ? 9f + Mathf.Sin(Time.time * 12f) * 1.5f : 14f;
+            leadMarker.anchoredPosition = lead;
+            for (int i = 0; i < 4; i++)
+            {
+                leadTicks[i].color = c;
+                float a = i * Mathf.PI * 0.5f;
+                leadTicks[i].rectTransform.anchoredPosition = new Vector2(Mathf.Sin(a), Mathf.Cos(a)) * r;
+            }
+            Vector2 d = lead - tgt;
+            leadLink.color = new Color(c.r, c.g, c.b, 0.3f);
+            leadLink.rectTransform.anchoredPosition = tgt;
+            leadLink.rectTransform.sizeDelta = new Vector2(d.magnitude, 1.5f);
+            leadLink.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
         }
 
         TextMeshProUGUI Marker(string text, Color c)
@@ -301,6 +357,7 @@ namespace Voidward.UI
             }
 
             if (cam != null) UpdateMarkers(cam);
+            if (cam != null) UpdateLeadMarker(cam, pawn);
         }
 
         void UpdateShip(PlayerPawn pawn)

@@ -18,6 +18,10 @@ namespace Voidward.Data
         public float AttackRange = 20f;
         public float AttackCooldown = 1.5f;
         public float AggroRange = 60f;
+        [Tooltip("Space enemies: a chased target farther than this is lost (0 = 1.5 x AggroRange).")]
+        public float LeashRange;
+        [Tooltip("Space enemies: max pursuit distance from their patrol home before they give up (0 = unlimited).")]
+        public float PursuitRange;
         [Tooltip("Below this HP fraction the enemy may flee.")]
         public float FleeThreshold;
         public int StardustKills = 1;

@@ -42,7 +42,26 @@ namespace Voidward.Core
         public static InputAction Cheat { get; private set; }       // F1
 
         public static float LookSensitivity = 1f;
+        public static float ShipSensitivity = 1f;
+        public static bool ShipAimAssist = true;
         public static bool InvertY;
+
+        /// <summary>Mouse speed (px/s) that requests the ship's full turn rate at sensitivity 1.</summary>
+        const float ShipMouseFullRate = 900f;
+
+        /// <summary>
+        /// Ship steering as a turn-rate request (1 = full turn rate per axis). Mouse speed maps to rate,
+        /// so steering feels the same at any frame rate; a gamepad stick is used as-is.
+        /// </summary>
+        public static Vector2 ShipLookRate(float dt)
+        {
+            if (Look == null) return Vector2.zero;
+            Vector2 v = Look.ReadValue<Vector2>();
+            bool stick = Look.activeControl != null && Look.activeControl.device is Gamepad;
+            Vector2 r = stick ? v * ShipSensitivity : v / Mathf.Max(dt, 1f / 250f) * (ShipSensitivity / ShipMouseFullRate);
+            if (InvertY) r.y = -r.y;
+            return r;
+        }
 
         /// <summary>Sensitivity- and inversion-corrected look delta for this frame.</summary>
         public static Vector2 LookDelta
