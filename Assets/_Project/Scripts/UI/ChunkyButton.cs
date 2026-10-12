@@ -84,8 +84,10 @@ namespace Voidward.UI
             if (IconPlate != null) { var p = face * Mathf.Lerp(0.72f, 0.6f, press); p.a = 1f; IconPlate.color = p; }
             if (Frame != null) Frame.color = on ? Color.Lerp(UIKit.Frame, UIKit.FrameHot, h) : UIKit.FrameShade;
             if (Glow != null) Glow.color = new Color(UIKit.Accent.r, UIKit.Accent.g, UIKit.Accent.b, 0.45f * h);
-            if (Label != null) Label.alpha = on ? 1f : 0.55f;
-            if (Icon != null) Icon.alpha = on ? 1f : 0.55f;
+            bool lightFace = on && FaceColor.r * 0.3f + FaceColor.g * 0.59f + FaceColor.b * 0.11f > 0.55f;
+            Color ink = lightFace ? new Color(0.06f, 0.1f, 0.22f) : UIKit.TextColor;
+            if (Label != null) { Label.color = ink; Label.alpha = on ? 1f : 0.55f; }
+            if (Icon != null) { Icon.color = ink; Icon.alpha = on ? 1f : 0.55f; }
         }
 
         public void SetColor(Color c)

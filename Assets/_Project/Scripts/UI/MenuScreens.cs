@@ -284,7 +284,7 @@ namespace Voidward.UI
 
         void BuildLobby(Transform root)
         {
-            var w = Window(root, Screen.Lobby, new Vector2(900, 820), "LOBBY");
+            var w = Window(root, Screen.Lobby, new Vector2(900, 750), "LOBBY");
             lobbyInfo = UIKit.Text(w, "", 22, TextAlignmentOptions.Center, UIKit.TextDim);
             UIKit.LayoutElement(lobbyInfo.gameObject, -1, 70);
             var listBg = UIKit.Panel(w, "Players", new Color(0, 0, 0, 0.2f));
