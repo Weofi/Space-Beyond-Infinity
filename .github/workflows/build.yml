@@ -23,8 +23,22 @@ jobs:
           - StandaloneWindows64
           - StandaloneOSX
     steps:
+      # Keep swap: a full Library reimport (cache miss) can exceed the runner's RAM
+      # and gets OOM-killed (exit 137) without it.
       - name: Free disk space
         uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          swap-storage: false
+
+      - name: Enlarge swap
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /mnt/swapfile
+          sudo fallocate -l 10G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -h
 
       - name: Checkout repository
         uses: actions/checkout@v4
