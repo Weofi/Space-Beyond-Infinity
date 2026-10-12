@@ -43,8 +43,14 @@ namespace Voidward.UI
             this.ui = ui;
             backdrop = UIKit.Rect(root, "MenuBackdrop");
             UIKit.Stretch(backdrop);
-            var shade = UIKit.Image(backdrop, "Shade", new Color(0.04f, 0.03f, 0.1f, 0.35f), false);
+            var shade = UIKit.Image(backdrop, "Shade", new Color(0.02f, 0.05f, 0.14f, 0.18f), false);
             UIKit.Stretch(shade.rectTransform);
+            var side = UIKit.Image(backdrop, "SideShade", new Color(0.02f, 0.05f, 0.14f, 0.75f), false);
+            side.sprite = UIKit.Gradient;
+            side.rectTransform.anchorMin = Vector2.zero;
+            side.rectTransform.anchorMax = new Vector2(0.55f, 1f);
+            side.rectTransform.offsetMin = side.rectTransform.offsetMax = Vector2.zero;
+            side.raycastTarget = false;
 
             BuildMain(root);
             BuildJoin(root);
@@ -54,18 +60,15 @@ namespace Voidward.UI
             BuildPause(root);
             BuildResults(root);
             BuildConnecting(root);
+            // Start hidden so the first Show() runs the intro animations.
+            foreach (var kv in screens) kv.Value.gameObject.SetActive(false);
         }
 
         RectTransform Window(Transform root, Screen s, Vector2 size, string title)
         {
-            var w = UIKit.Panel(root, s + "Screen");
+            var w = UIKit.FramedPanel(root, s + "Screen", title);
             UIKit.Place(w, new Vector2(0.5f, 0.5f), Vector2.zero, size);
-            UIKit.VLayout(w.gameObject, 12, 28);
-            if (!string.IsNullOrEmpty(title))
-            {
-                var t = UIKit.Text(w, title, 44, TextAlignmentOptions.Center, UIKit.Accent, FontStyles.Bold);
-                UIKit.LayoutElement(t.gameObject, -1, 60);
-            }
+            w.gameObject.AddComponent<UIScreenFx>();
             screens[s] = w;
             return w;
         }
@@ -84,17 +87,92 @@ namespace Voidward.UI
         void BuildMain(Transform root)
         {
             var w = UIKit.Rect(root, "MainScreen");
-            UIKit.Place(w, new Vector2(0.08f, 0.5f), Vector2.zero, new Vector2(560, 860), new Vector2(0f, 0.5f));
-            UIKit.VLayout(w.gameObject, 14, 0, TextAnchor.MiddleLeft);
+            UIKit.Stretch(w);
             screens[Screen.Main] = w;
 
-            var title = UIKit.Text(w, "VOIDWARD", 110, TextAlignmentOptions.Left, UIKit.Accent, FontStyles.Bold);
-            UIKit.LayoutElement(title.gameObject, -1, 120);
-            var sub = UIKit.Text(w, "Outrun the Collapse. Together.", 30, TextAlignmentOptions.Left, UIKit.Accent2);
-            UIKit.LayoutElement(sub.gameObject, -1, 44);
+            // Title block (top right)
+            var titleBlock = UIKit.Rect(w, "Title");
+            UIKit.Place(titleBlock, new Vector2(1, 1), new Vector2(-90, -56), new Vector2(1000, 290), new Vector2(1, 1));
+            titleBlock.gameObject.AddComponent<UIScreenFx>().SlideFrom = new Vector2(0, 40);
+            var title = UIKit.Text(titleBlock, "VOIDWARD", 150, TextAlignmentOptions.TopRight, Color.white, FontStyles.Bold);
+            UIKit.Place(title.rectTransform, new Vector2(1, 1), Vector2.zero, new Vector2(1000, 150), new Vector2(1, 1));
+            title.characterSpacing = 10;
+            title.enableVertexGradient = true;
+            title.colorGradient = new VertexGradient(Color.white, Color.white, new Color(0.62f, 0.8f, 1f), new Color(0.62f, 0.8f, 1f));
+            title.fontSharedMaterial = UIKit.ShadowMaterial;
+            var sub = UIKit.Text(titleBlock, "Outrun the Collapse. Together.", 40, TextAlignmentOptions.TopRight, UIKit.Accent, FontStyles.Bold | FontStyles.UpperCase);
+            UIKit.Place(sub.rectTransform, new Vector2(1, 1), new Vector2(-6, -150), new Vector2(1000, 50), new Vector2(1, 1));
+            sub.characterSpacing = 6;
+            sub.fontSharedMaterial = UIKit.ShadowMaterial;
+            var badge = UIKit.FramedPanel(titleBlock, "Badge", null, 0, 0);
+            UIKit.Place(badge, new Vector2(1, 1), new Vector2(-6, -214), new Vector2(330, 44), new Vector2(1, 1));
+            var badgeText = UIKit.Text(badge, "Co-op  |  1-4 Pilots", 22, TextAlignmentOptions.Center, UIKit.TextColor, FontStyles.Bold | FontStyles.UpperCase);
+            badgeText.characterSpacing = 4;
+            UIKit.LayoutElement(badgeText.gameObject, -1, 44);
 
-            var nameRow = UIKit.Row(w, 52);
-            UIKit.LayoutElement(UIKit.Text(nameRow, "Callsign", 24, TextAlignmentOptions.Left, UIKit.TextDim).gameObject, 130, 52);
+            // Console: chunky buttons mounted on a pillar with a pedestal (left)
+            var console = UIKit.Rect(w, "Console");
+            UIKit.Place(console, new Vector2(0, 0.5f), new Vector2(110, -10), new Vector2(520, 720), new Vector2(0, 0.5f));
+            console.gameObject.AddComponent<UIScreenFx>().SlideFrom = new Vector2(-60, 0);
+
+            var pillar = UIKit.Image(console, "Pillar", UIKit.FrameShade);
+            UIKit.Place(pillar.rectTransform, new Vector2(0, 1), new Vector2(26, -6), new Vector2(64, 640), new Vector2(0, 1));
+            var pillarCore = UIKit.Image(pillar.transform, "Core", new Color(0.06f, 0.11f, 0.24f));
+            UIKit.Stretch(pillarCore.rectTransform, 10, 10, 10, 10);
+            var powerLine = UIKit.Image(pillarCore.transform, "Power", UIKit.Accent, false);
+            UIKit.Place(powerLine.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6, 600));
+            powerLine.rectTransform.anchorMin = new Vector2(0.5f, 0f);
+            powerLine.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+            powerLine.rectTransform.offsetMin = new Vector2(-3, 8);
+            powerLine.rectTransform.offsetMax = new Vector2(3, -8);
+
+            var pedestal = UIKit.Image(console, "Pedestal", UIKit.Frame);
+            UIKit.Place(pedestal.rectTransform, new Vector2(0, 0), new Vector2(-6, 22), new Vector2(250, 74), new Vector2(0, 0));
+            var pedFace = UIKit.Image(pedestal.transform, "Face", new Color(0.1f, 0.19f, 0.38f));
+            pedFace.sprite = UIKit.ChamferFace;
+            UIKit.Stretch(pedFace.rectTransform, 14, 14, 10, 12);
+            var pedLight = UIKit.Image(pedFace.transform, "Light", UIKit.Accent, false);
+            UIKit.Place(pedLight.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150, 6));
+            for (int i = -1; i <= 1; i += 2)
+            {
+                var bolt = UIKit.Image(pedFace.transform, "Bolt", UIKit.FrameShade);
+                bolt.sprite = UIKit.Circle;
+                UIKit.Place(bolt.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(i * 94f, 0f), new Vector2(14, 14));
+            }
+            var foot = UIKit.Image(console, "Foot", UIKit.FrameShade);
+            UIKit.Place(foot.rectTransform, new Vector2(0, 0), new Vector2(-26, 0), new Vector2(290, 30), new Vector2(0, 0));
+            foot.transform.SetSiblingIndex(0);
+
+            var column = UIKit.Rect(console, "Buttons");
+            UIKit.Place(column, new Vector2(0, 1), new Vector2(0, -24), new Vector2(480, 520), new Vector2(0, 1));
+            UIKit.VLayout(column.gameObject, 22, 0, TextAnchor.UpperLeft);
+            var entries = new (string label, string icon, Color color, UnityEngine.Events.UnityAction action)[]
+            {
+                ("Host Game", Icons.Rocket, UIKit.Primary, () => { ApplyName(); SessionManager.Instance?.HostGame(); ui.Show(Screen.Connecting); }),
+                ("Join Game", Icons.Join, UIKit.Primary, () => { ApplyName(); ui.Push(Screen.Join); }),
+                ("Hangar", Icons.Hangar, UIKit.Primary, () => ui.Push(Screen.Hangar)),
+                ("Settings", Icons.Settings, UIKit.Primary, () => ui.Push(Screen.Settings)),
+                ("Exit to Desktop", Icons.Quit, UIKit.Secondary, Quit),
+            };
+            for (int i = 0; i < entries.Length; i++)
+            {
+                var e = entries[i];
+                var b = UIKit.Button(column, e.label, e.action, 86, e.color, 34, e.icon);
+                var fx = b.GetComponent<ChunkyButton>();
+                fx.HoverSlide = 16f;
+                fx.HoverScale = 1.04f;
+                fx.IntroDelay = 0.06f * i;
+            }
+
+            // Pilot card (bottom right): callsign + transport
+            var card = UIKit.FramedPanel(w, "PilotCard", null, 22, 10);
+            UIKit.Place(card, new Vector2(1, 0), new Vector2(-90, 64), new Vector2(600, 214), new Vector2(1, 0));
+            card.gameObject.AddComponent<UIScreenFx>().SlideFrom = new Vector2(0, -40);
+
+            var nameRow = UIKit.Row(card, 52);
+            var nameIcon = UIKit.IconText(nameRow, Icons.Person, 34, UIKit.Accent);
+            UIKit.LayoutElement(nameIcon.gameObject, 40, 52);
+            UIKit.LayoutElement(UIKit.Text(nameRow, "Callsign", 24, TextAlignmentOptions.Left, UIKit.TextDim, FontStyles.Bold | FontStyles.UpperCase).gameObject, 140, 52);
             nameField = UIKit.Input(nameRow, "Your name", SessionManager.Instance != null ? SessionManager.Instance.LocalPlayerName : "Pilot");
             nameField.onEndEdit.AddListener(v =>
             {
@@ -103,30 +181,28 @@ namespace Voidward.UI
                 GameSettings.Current.Save();
             });
 
-            var tRow = UIKit.Row(w, 52);
+            var tRow = UIKit.Row(card, 56);
+            var netIcon = UIKit.IconText(tRow, Icons.Lan, 34, UIKit.Accent);
+            UIKit.LayoutElement(netIcon.gameObject, 40, 56);
             transportLabel = UIKit.Text(tRow, "", 24, TextAlignmentOptions.Left, UIKit.TextDim);
-            UIKit.LayoutElement(transportLabel.gameObject, 330, 52);
+            UIKit.LayoutElement(transportLabel.gameObject, -1, 56, 1);
             UIKit.LayoutElement(UIKit.Button(tRow, "Switch", () =>
             {
                 TransportConfig.SetRequested(TransportConfig.RequestedTransport == TransportKind.UTP ? TransportKind.Steam : TransportKind.UTP);
                 RefreshTransport();
-            }, 52, UIKit.PanelLight * 2f, 22).gameObject, 160, 52);
+            }, 56, UIKit.Secondary, 22, Icons.Swap).gameObject, 170, 56);
 
-            UIKit.Button(w, "Host Game", () => { ApplyName(); SessionManager.Instance?.HostGame(); ui.Show(Screen.Connecting); }, 64);
-            UIKit.Button(w, "Join Game", () => { ApplyName(); ui.Push(Screen.Join); }, 64);
-            UIKit.Button(w, "Hangar", () => ui.Push(Screen.Hangar), 64, UIKit.Accent2);
-            UIKit.Button(w, "Settings", () => ui.Push(Screen.Settings), 64, UIKit.PanelLight * 2.2f);
-            UIKit.Button(w, "Quit", () =>
-            {
+            var hint = UIKit.Text(card, "F1 debug cheats   |   Steam test AppID 480", 18, TextAlignmentOptions.Left, UIKit.TextDim);
+            UIKit.LayoutElement(hint.gameObject, -1, 26);
+        }
+
+        static void Quit()
+        {
 #if UNITY_EDITOR
-                UnityEditor.EditorApplication.isPlaying = false;
+            UnityEditor.EditorApplication.isPlaying = false;
 #else
-                Application.Quit();
+            Application.Quit();
 #endif
-            }, 64, UIKit.Bad);
-
-            var hint = UIKit.Text(w, "F1: debug cheats   |   Co-op 1-4 players   |   Steam test AppID 480", 18, TextAlignmentOptions.Left, UIKit.TextDim);
-            UIKit.LayoutElement(hint.gameObject, -1, 30);
         }
 
         void ApplyName()
@@ -157,15 +233,15 @@ namespace Voidward.UI
                 ApplyName();
                 SessionManager.Instance?.JoinGame(ipField.text);
                 ui.Show(Screen.Connecting);
-            }, 56).gameObject, 200, 56);
+            }, 56, UIKit.Primary, 24, Icons.Join).gameObject, 200, 56);
 
             UIKit.Text(w, "Steam lobbies (AppID 480)", 24, TextAlignmentOptions.Left, UIKit.TextDim);
             var r2 = UIKit.Row(w, 50);
-            UIKit.LayoutElement(UIKit.Button(r2, "Refresh", RefreshLobbies, 50, UIKit.Accent2, 22).gameObject, 200, 50);
+            UIKit.LayoutElement(UIKit.Button(r2, "Refresh", RefreshLobbies, 50, UIKit.Secondary, 22, Icons.Refresh).gameObject, 200, 50);
             joinStatus = UIKit.Text(r2, "", 22, TextAlignmentOptions.Left, UIKit.TextDim);
             UIKit.LayoutElement(joinStatus.gameObject, -1, 50, 1);
             lobbyList = UIKit.Scroll(w, 330);
-            UIKit.Button(w, "Back", ui.Back, 56, UIKit.PanelLight * 2.2f);
+            UIKit.Button(w, "Back", ui.Back, 56, UIKit.Secondary, 26, Icons.Back);
         }
 
         void RefreshLobbies()
@@ -187,7 +263,7 @@ namespace Voidward.UI
                         var row = UIKit.Row(lobbyList, 50);
                         var t = UIKit.Text(row, $"{entry.Name}  <color=#a0a0c0>({entry.Members}/{entry.MaxMembers})</color>", 22);
                         UIKit.LayoutElement(t.gameObject, -1, 50, 1);
-                        UIKit.LayoutElement(UIKit.Button(row, "Join", () => { sm.JoinSteamLobby(entry.Id); ui.Show(Screen.Connecting); }, 46, UIKit.Accent, 22).gameObject, 140, 46);
+                        UIKit.LayoutElement(UIKit.Button(row, "Join", () => { sm.JoinSteamLobby(entry.Id); ui.Show(Screen.Connecting); }, 46, UIKit.Primary, 22, Icons.Join).gameObject, 140, 46);
                         n++;
                     }
                 joinStatus.text = n == 0 ? "No lobbies found (friends can also invite you via the Steam overlay)." : n + " lobbies";
@@ -201,7 +277,7 @@ namespace Voidward.UI
             var w = Window(root, Screen.Connecting, new Vector2(700, 300), "");
             connectingLabel = UIKit.Text(w, "Connecting...", 34, TextAlignmentOptions.Center);
             UIKit.LayoutElement(connectingLabel.gameObject, -1, 120);
-            UIKit.Button(w, "Cancel", () => SessionManager.Instance?.LeaveGame(), 56, UIKit.Bad);
+            UIKit.Button(w, "Cancel", () => SessionManager.Instance?.LeaveGame(), 56, UIKit.Bad, 26, Icons.Close);
         }
 
         // ================================================================ lobby
@@ -219,15 +295,15 @@ namespace Voidward.UI
             var tip = UIKit.Text(w, "Every player flies their own ship. Find the derelict <b>Ark</b> to crew a big ship together.", 22, TextAlignmentOptions.Center, UIKit.Accent2);
             UIKit.LayoutElement(tip.gameObject, -1, 60);
 
-            var row = UIKit.Row(w, 60);
+            var row = UIKit.Row(w, 64);
             row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-            startButton = UIKit.Button(row, "Start Run", () => SessionManager.Instance?.StartRun(), 60, UIKit.Good);
-            inviteButton = UIKit.Button(row, "Invite Friends", () => SessionManager.Instance?.Steam.InviteFriends(), 60, UIKit.Accent);
+            startButton = UIKit.Button(row, "Start Run", () => SessionManager.Instance?.StartRun(), 64, UIKit.Good, 28, Icons.Play);
+            inviteButton = UIKit.Button(row, "Invite Friends", () => SessionManager.Instance?.Steam.InviteFriends(), 64, UIKit.Primary, 28, Icons.Invite);
             var row2 = UIKit.Row(w, 60);
             row2.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-            UIKit.Button(row2, "Hangar", () => ui.Push(Screen.Hangar), 60, UIKit.Accent2);
-            UIKit.Button(row2, "Settings", () => ui.Push(Screen.Settings), 60, UIKit.PanelLight * 2.2f);
-            UIKit.Button(row2, "Leave", () => SessionManager.Instance?.LeaveGame(), 60, UIKit.Bad);
+            UIKit.Button(row2, "Hangar", () => ui.Push(Screen.Hangar), 60, UIKit.Primary, 24, Icons.Hangar);
+            UIKit.Button(row2, "Settings", () => ui.Push(Screen.Settings), 60, UIKit.Secondary, 24, Icons.Settings);
+            UIKit.Button(row2, "Leave", () => SessionManager.Instance?.LeaveGame(), 60, UIKit.Bad, 24, Icons.Quit);
         }
 
         void RefreshLobby()
@@ -271,11 +347,11 @@ namespace Voidward.UI
             UIKit.LayoutElement(stardustLabel.gameObject, -1, 44);
             var shipRow = UIKit.Row(w, 64);
             shipRow.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-            dartButton = UIKit.Button(shipRow, "Dart", () => { Meta.SelectedShip = ShipClass.Dart; RefreshHangar(); }, 64);
-            muleButton = UIKit.Button(shipRow, "Mule", () => { Meta.SelectedShip = ShipClass.Mule; RefreshHangar(); }, 64);
+            dartButton = UIKit.Button(shipRow, "Dart", () => { Meta.SelectedShip = ShipClass.Dart; RefreshHangar(); }, 64, UIKit.Primary, 26, Icons.Flight);
+            muleButton = UIKit.Button(shipRow, "Mule", () => { Meta.SelectedShip = ShipClass.Mule; RefreshHangar(); }, 64, UIKit.Primary, 26, Icons.Rocket);
             UIKit.Text(w, "Perks (unlock with Stardust, toggle to equip for the next run)", 22, TextAlignmentOptions.Center, UIKit.TextDim);
             perkList = UIKit.Scroll(w, 520);
-            UIKit.Button(w, "Back", ui.Back, 56, UIKit.PanelLight * 2.2f);
+            UIKit.Button(w, "Back", ui.Back, 56, UIKit.Secondary, 26, Icons.Back);
         }
 
         void RefreshHangar()
@@ -286,6 +362,8 @@ namespace Voidward.UI
             UIKit.SetLabel(dartButton, (Meta.SelectedShip == ShipClass.Dart ? "> " : "") + "Dart - agile fighter");
             UIKit.SetLabel(muleButton, mule ? (Meta.SelectedShip == ShipClass.Mule ? "> " : "") + "Mule - tough hauler" : "Mule (locked)");
             muleButton.interactable = mule;
+            UIKit.SetButtonColor(dartButton, Meta.SelectedShip == ShipClass.Dart ? UIKit.Primary : UIKit.Secondary);
+            UIKit.SetButtonColor(muleButton, Meta.SelectedShip == ShipClass.Mule ? UIKit.Primary : UIKit.Secondary);
             UIKit.Clear(perkList);
             foreach (var p in Meta.Perks)
             {
@@ -312,7 +390,7 @@ namespace Voidward.UI
                 else
                 {
                     bool eq = Meta.IsEquipped(p.Id);
-                    var b = UIKit.Button(row, eq ? "Equipped" : "Equip", () => { Meta.ToggleEquip(perk.Id); RefreshHangar(); }, 56, eq ? UIKit.Good : UIKit.PanelLight * 2.5f, 22);
+                    var b = UIKit.Button(row, eq ? "Equipped" : "Equip", () => { Meta.ToggleEquip(perk.Id); RefreshHangar(); }, 56, eq ? UIKit.Good : UIKit.Secondary, 22);
                     UIKit.LayoutElement(b.gameObject, 220, 56);
                 }
             }
@@ -352,18 +430,19 @@ namespace Voidward.UI
                 {
                     UIKit.SetLabel(b, "Press a key... (Esc cancels)");
                     VwInput.StartRebind(a, cancelled => UIKit.SetLabel(b, VwInput.BindingDisplay(a)));
-                }, 48, UIKit.PanelLight * 2.5f, 22);
+                }, 48, UIKit.Secondary, 22);
                 UIKit.LayoutElement(b.gameObject, 360, 48);
             }
-            UIKit.Button(content, "Reset key bindings", () => { VwInput.ResetBindings(); ui.Show(Screen.Settings); }, 48, UIKit.Accent2, 22);
+            UIKit.Button(content, "Reset key bindings", () => { VwInput.ResetBindings(); ui.Show(Screen.Settings); }, 48, UIKit.Secondary, 22, Icons.Replay);
             var fixedKeys = UIKit.Text(content, "Fixed: WASD move/thrust, Mouse look/steer, Q/E roll, Space/Ctrl up/down, 1-4 tools, Esc pause, F1 cheats", 20, TextAlignmentOptions.Left, UIKit.TextDim);
             UIKit.LayoutElement(fixedKeys.gameObject, -1, 56);
-            UIKit.Button(w, "Back", ui.Back, 56, UIKit.PanelLight * 2.2f);
+            UIKit.Button(w, "Back", ui.Back, 56, UIKit.Secondary, 26, Icons.Back);
         }
 
         static void Label(Transform parent, string text)
         {
-            var t = UIKit.Text(parent, text, 28, TextAlignmentOptions.Left, UIKit.Accent, FontStyles.Bold);
+            var t = UIKit.Text(parent, text, 28, TextAlignmentOptions.Left, UIKit.Accent, FontStyles.Bold | FontStyles.UpperCase);
+            t.characterSpacing = 4;
             UIKit.LayoutElement(t.gameObject, -1, 44);
         }
 
@@ -382,17 +461,10 @@ namespace Voidward.UI
         void BuildPause(Transform root)
         {
             var w = Window(root, Screen.Pause, new Vector2(560, 560), "PAUSED");
-            UIKit.Button(w, "Resume", ui.Back, 64);
-            UIKit.Button(w, "Settings", () => ui.Push(Screen.Settings), 64, UIKit.PanelLight * 2.2f);
-            UIKit.Button(w, "Leave to Menu", () => SessionManager.Instance?.LeaveGame(), 64, UIKit.Accent2);
-            UIKit.Button(w, "Quit Game", () =>
-            {
-#if UNITY_EDITOR
-                UnityEditor.EditorApplication.isPlaying = false;
-#else
-                Application.Quit();
-#endif
-            }, 64, UIKit.Bad);
+            UIKit.Button(w, "Resume", ui.Back, 64, UIKit.Primary, 28, Icons.Play);
+            UIKit.Button(w, "Settings", () => ui.Push(Screen.Settings), 64, UIKit.Secondary, 28, Icons.Settings);
+            UIKit.Button(w, "Leave to Menu", () => SessionManager.Instance?.LeaveGame(), 64, UIKit.Secondary, 28, Icons.Quit);
+            UIKit.Button(w, "Quit Game", Quit, 64, UIKit.Bad, 28, Icons.Close);
             var t = UIKit.Text(w, "The game keeps running while paused (co-op).", 20, TextAlignmentOptions.Center, UIKit.TextDim);
             UIKit.LayoutElement(t.gameObject, -1, 40);
         }
@@ -402,15 +474,16 @@ namespace Voidward.UI
         void BuildResults(Transform root)
         {
             var w = Window(root, Screen.Results, new Vector2(900, 760), "");
-            resultsTitle = UIKit.Text(w, "", 56, TextAlignmentOptions.Center, UIKit.Accent, FontStyles.Bold);
+            resultsTitle = UIKit.Text(w, "", 56, TextAlignmentOptions.Center, UIKit.TextColor, FontStyles.Bold);
+            resultsTitle.fontSharedMaterial = UIKit.ShadowMaterial;
             UIKit.LayoutElement(resultsTitle.gameObject, -1, 140);
             resultsBody = UIKit.Text(w, "", 30, TextAlignmentOptions.Center);
             UIKit.LayoutElement(resultsBody.gameObject, -1, 360);
             var row = UIKit.Row(w, 64);
             row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-            resultsLobby = UIKit.Button(row, "Return to Lobby", () => RunManager.Instance?.ReturnToLobbyServerRpc(), 64, UIKit.Good);
-            UIKit.Button(row, "Hangar", () => ui.Push(Screen.Hangar), 64, UIKit.Accent2);
-            UIKit.Button(row, "Leave", () => SessionManager.Instance?.LeaveGame(), 64, UIKit.Bad);
+            resultsLobby = UIKit.Button(row, "Return to Lobby", () => RunManager.Instance?.ReturnToLobbyServerRpc(), 64, UIKit.Good, 24, Icons.Replay);
+            UIKit.Button(row, "Hangar", () => ui.Push(Screen.Hangar), 64, UIKit.Primary, 24, Icons.Hangar);
+            UIKit.Button(row, "Leave", () => SessionManager.Instance?.LeaveGame(), 64, UIKit.Bad, 24, Icons.Quit);
         }
 
         void RefreshResults()

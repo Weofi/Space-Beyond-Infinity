@@ -89,7 +89,7 @@ namespace Voidward.UI
             if (refreshTimer <= 0f) { refreshTimer = 1f; dirty = true; }
             if (!dirty) return;
             dirty = false;
-            for (int i = 0; i < 3; i++) tabs[i].GetComponent<Image>().color = (int)tab == i ? UIKit.Accent : UIKit.PanelLight * 2.5f;
+            for (int i = 0; i < 3; i++) UIKit.SetButtonColor(tabs[i], (int)tab == i ? UIKit.Primary : UIKit.Secondary);
             header.text = $"{pawn.Inventory.Credits.Value} credits   <size=70%><color=#b0b0d0>{(ship != null ? "Ship in range: " + ship.ShipName.Value : "No ship in range")}</color></size>";
             Object.Destroy(body.gameObject);
             body = UIKit.Rect(panel, "Body");

@@ -71,8 +71,9 @@ namespace Voidward.EditorTools
             backdrop.AddComponent<MenuBackdrop>();
 
             var menuCamGo = new GameObject("MenuCamera");
-            menuCamGo.transform.position = new Vector3(-150f, 60f, -330f);
-            menuCamGo.transform.LookAt(new Vector3(60f, 0f, 0f));
+            // Frames the planet right of center so the left-side menu console stays clear.
+            menuCamGo.transform.position = new Vector3(-150f, 60f, -420f);
+            menuCamGo.transform.LookAt(new Vector3(-80f, 10f, 0f));
             var menuCam = menuCamGo.AddComponent<CinemachineCamera>();
             menuCam.Priority = 10;
             var lens = menuCam.Lens;

@@ -159,6 +159,7 @@ namespace Voidward.Core
             clips["trade"] = Make("trade", 0.3f, (t, u, r) => (Sin(1046f, t) * 0.3f + Sin(1568f, t) * 0.2f * (u > 0.4f ? 1 : 0)) * Env(u, 0.01f));
             clips["ui_click"] = Make("ui_click", 0.05f, (t, u, r) => Sin(1800f, t) * 0.3f * Env(u, 0.002f));
             clips["ui_back"] = Make("ui_back", 0.12f, (t, u, r) => Sin(Mathf.Lerp(500f, 300f, u), t) * 0.3f * Env(u, 0.005f));
+            clips["ui_hover"] = Make("ui_hover", 0.04f, (t, u, r) => Sin(Mathf.Lerp(2400f, 2900f, u), t) * 0.12f * Env(u, 0.05f));
             clips["alarm"] = Make("alarm", 0.9f, (t, u, r) => Sq(Sin(3f, t) > 0 ? 880f : 660f, t) * 0.15f * (1f - u));
             clips["low_oxygen"] = Make("low_oxygen", 0.4f, (t, u, r) => Sin(740f, t) * 0.3f * Env(u, 0.02f));
             clips["heal"] = Make("heal", 0.5f, (t, u, r) => Sin(Mathf.Lerp(400f, 900f, u), t) * 0.3f * Env(u, 0.05f));
