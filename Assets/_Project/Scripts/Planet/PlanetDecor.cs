@@ -148,7 +148,10 @@ namespace Voidward.Planet
                     Vector3 up = Vector3.Slerp(dir, normal, rule.Large ? 0.25f : 0.6f);
                     Quaternion rot = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, yaw, 0f);
                     float shade = 0.88f + (propSeed & 255) / 255f * 0.24f;
+                    int first = mb.VertexCount;
                     float col = Emit(mb, rule.P, pos, rot, up, sz, propSeed, shade, C(0), C(1), C(2), C(3));
+                    // Contact shading: darker where the prop meets the ground, slightly sun-bleached at the top.
+                    mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
                     if (rule.Collider > 0f && col > 0f)
                     {
                         colliders ??= new List<Vector4>();

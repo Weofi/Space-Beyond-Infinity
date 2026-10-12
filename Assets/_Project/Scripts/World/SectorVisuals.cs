@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using Voidward.Core;
 using Voidward.Data;
 
@@ -20,6 +21,8 @@ namespace Voidward.World
         Transform collapse;
         Material skyInstance;
         Light sun;
+        Volume gradeVolume;
+        VolumeProfile gradeProfile;
         int builtSeed = int.MinValue;
 
         void Awake() => Instance = this;
@@ -29,6 +32,8 @@ namespace Voidward.World
             Clear();
             if (Instance == this) Instance = null;
             if (collapse) Destroy(collapse.gameObject);
+            if (gradeVolume) Destroy(gradeVolume.gameObject);
+            if (gradeProfile) Destroy(gradeProfile);
         }
 
         public void Build(int seed, int sectorIndex)
@@ -131,6 +136,33 @@ namespace Voidward.World
             if (sun == null) sun = RenderSettings.sun != null ? RenderSettings.sun : FindSun();
             if (sun != null) sun.color = pal.SunColor;
             DynamicGI.UpdateEnvironment();
+            ApplyGrade(pal);
+        }
+
+        /// <summary>Per-sector color grade: a runtime global volume above the scene volume overrides only grading parameters.</summary>
+        void ApplyGrade(PaletteDef pal)
+        {
+            if (gradeVolume == null)
+            {
+                var go = new GameObject("SectorGrade");
+                gradeVolume = go.AddComponent<Volume>();
+                gradeVolume.isGlobal = true;
+                gradeVolume.priority = 5f;
+                gradeProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+                gradeProfile.Add<ColorAdjustments>(true);
+                gradeProfile.Add<WhiteBalance>(true);
+                gradeProfile.Add<Bloom>(true);
+                gradeVolume.sharedProfile = gradeProfile;
+            }
+            if (gradeProfile.TryGet<ColorAdjustments>(out var ca))
+            {
+                ca.colorFilter.Override(pal.GradeFilter);
+                ca.saturation.Override(pal.GradeSaturation);
+                ca.contrast.Override(pal.GradeContrast);
+                ca.postExposure.Override(pal.GradeExposure);
+            }
+            if (gradeProfile.TryGet<WhiteBalance>(out var wb)) wb.temperature.Override(pal.GradeTemperature);
+            if (gradeProfile.TryGet<Bloom>(out var bloom)) bloom.tint.Override(pal.BloomTint);
         }
 
         static Light FindSun()

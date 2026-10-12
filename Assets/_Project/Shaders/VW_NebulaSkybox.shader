@@ -12,6 +12,8 @@ Shader "VOIDWARD/NebulaSkybox"
         _StarDensity ("Star Density", Range(10,400)) = 160
         _GalaxyStrength ("Galaxy Strength", Range(0,3)) = 1
         _SunDiscStrength ("Sun Disc Strength", Range(0,4)) = 1
+        _DustStrength ("Dust Lanes", Range(0,1)) = 0.7
+        _BodyStrength ("Distant Bodies", Range(0,1)) = 1
         _Seed ("Variation Seed", Float) = 0
     }
     SubShader
@@ -45,6 +47,8 @@ Shader "VOIDWARD/NebulaSkybox"
                 float _StarDensity;
                 float _GalaxyStrength;
                 float _SunDiscStrength;
+                float _DustStrength;
+                float _BodyStrength;
                 float _Seed;
             CBUFFER_END
 
@@ -146,12 +150,45 @@ Shader "VOIDWARD/NebulaSkybox"
                     col += gcol * (exp(-d2 * 260.0) * 0.18 + exp(-d2 * 4000.0) * 0.6) * _GalaxyStrength;
                 }
 
+                // Dark dust lanes: ridged filaments that swallow nebula light and stars (layered depth).
+                float ridge = 1.0 - abs(fbm(dir * 1.6 + _Seed * 0.21 + 13.1) * 2.0 - 1.0);
+                float lane = smoothstep(0.72, 0.95, ridge) * smoothstep(0.35, 0.65, fbm(dir * 0.7 - _Seed * 0.17 + 2.9)) * _DustStrength;
+                col *= 1.0 - lane * 0.85;
+
                 // Stars: dense faint dust + sparse bright stars, slightly tinted.
                 float dust = starLayer(dir, _StarDensity * 2.2, 0.978, 4.0) * 0.55;
                 float bright = starLayer(dir, _StarDensity, 0.9965, 3.0) * 2.4;
                 float starTint = hash31(floor(dir * _StarDensity));
                 float3 sc = _StarColor.rgb * lerp(float3(0.8, 0.88, 1.0), float3(1.0, 0.92, 0.8), starTint);
-                col += sc * (dust + bright) * (1.0 - neb * 0.5);
+                col += sc * (dust + bright) * (1.0 - neb * 0.5) * (1.0 - lane * 0.9);
+
+                // Distant bodies: a large planet with an atmosphere rim and a small moon, lit by the sun.
+                for (int b = 0; b < 2; b++)
+                {
+                    float3 bd = normalize(float3(hash31(float3(b, 1.7, 3.1)), hash31(float3(b, 5.3, 0.9)) * 0.7, hash31(float3(b, 2.2, 7.7))) - 0.5 + 1e-3);
+                    float ang = b == 0 ? 0.075 : 0.022;
+                    float c = dot(dir, bd);
+                    float sinR = sin(ang), cosR = cos(ang);
+                    float3 tang = dir - bd * c;
+                    float x2 = dot(tang, tang) / (sinR * sinR);
+                    float3 lightDir = _MainLightPosition.xyz;
+                    float3 tint = b == 0 ? lerp(_NebulaColorA.rgb, float3(0.55, 0.6, 0.7), 0.55) : float3(0.62, 0.6, 0.58);
+                    if (c > cosR && x2 < 1.0)
+                    {
+                        float3 n = normalize(tang / sinR - bd * sqrt(1.0 - x2));
+                        float lit = smoothstep(-0.15, 0.35, dot(n, lightDir));
+                        float bands = b == 0 ? 0.85 + 0.15 * sin(dot(n, float3(0.2, 1.0, 0.1)) * 18.0 + _Seed) : 0.9 + 0.1 * vnoise(n * 9.0);
+                        float3 surf = tint * bands * (lit * 0.55 + 0.02);
+                        col = lerp(col, surf, _BodyStrength);
+                    }
+                    if (b == 0)
+                    {
+                        // atmosphere halo just outside the limb, brightest on the sun-facing side
+                        float edge = saturate(1.0 - abs(sqrt(max(x2, 0.0)) - 1.0) * 14.0) * step(0.0, c);
+                        float sunSide = saturate(dot(normalize(tang + 1e-5), lightDir) * 0.5 + 0.5);
+                        col += _NebulaColorB.rgb * edge * sunSide * 0.35 * _BodyStrength;
+                    }
+                }
 
                 // Sun disc + soft corona in the main light direction (bloom does the rest).
                 float3 sunCol = _MainLightColor.rgb / max(max(_MainLightColor.r, _MainLightColor.g), max(_MainLightColor.b, 0.001));

@@ -109,6 +109,8 @@ namespace Voidward.Planet
             string label;
             float height = Emit(mb, kind, rot, scale, rng.Next(), out label);
             if (mb.VertexCount == 0) return;
+            // Ground the set piece: darker at the (sunken) base, slightly lighter towards the top.
+            mb.Grade(0, dir * sink * 0.5f, dir, Mathf.Max(height * 0.5f, 4f), 0.6f, 1.05f);
 
             var mesh = mb.Build("Landmark_" + kind);
             mesh.hideFlags = HideFlags.DontSave;

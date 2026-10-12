@@ -125,6 +125,12 @@ namespace Voidward.EditorTools
             services.AddComponent<AudioManager>();
             var vfx = services.AddComponent<VfxManager>();
             vfx.ParticleMaterial = MatParticle;
+            vfx.SmokeMaterial = Mat("VW_Smoke", "VOIDWARD/AlphaParticle");
+            vfx.DebrisMaterial = MatToon;
+            var chip = new MeshBuilder();
+            chip.Surface(0.25f);
+            chip.AddRock(Matrix4x4.identity, 0.5f, 7, Color.white);
+            vfx.DebrisMesh = SaveMesh(chip, "VfxDebris");
             var ui = new GameObject("_UI");
             ui.AddComponent<UIRoot>();
 

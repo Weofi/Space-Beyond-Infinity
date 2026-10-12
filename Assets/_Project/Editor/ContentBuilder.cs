@@ -140,7 +140,9 @@ namespace Voidward.EditorTools
             MatTerrain.enableInstancing = true;
 
             MatSkybox = Mat("VW_Skybox", "VOIDWARD/NebulaSkybox");
-            MatSkybox.SetFloat("_NebulaStrength", 0.3f);
+            MatSkybox.SetFloat("_NebulaStrength", 0.45f);
+            MatSkybox.SetFloat("_DustStrength", 0.7f);
+            MatSkybox.SetFloat("_BodyStrength", 1f);
             MatSkybox.SetFloat("_StarDensity", 220f);
             MatSkybox.SetFloat("_GalaxyStrength", 1f);
             MatSkybox.SetFloat("_SunDiscStrength", 1f);
@@ -216,7 +218,11 @@ namespace Voidward.EditorTools
                 p.SunColor = sun; p.AmbientColor = amb; p.FogColor = fog; p.FogDensity = dens; p.UiPrimary = ui; p.StarColor = new Color(1f, 0.96f, 0.92f);
                 return p;
             }
-            return new[]
+            void Grade(PaletteDef p, Color filter, float sat, float contrast, float exposure, float temp, Color bloom)
+            {
+                p.GradeFilter = filter; p.GradeSaturation = sat; p.GradeContrast = contrast; p.GradeExposure = exposure; p.GradeTemperature = temp; p.BloomTint = bloom;
+            }
+            var list = new[]
             {
                 // Deep black space: barely-there sky gradient, faint tinted nebulae, very low ambient so the sun carves hard light/shadow.
                 P("Pastel Drift", new Color(0.002f, 0.003f, 0.008f), new Color(0.006f, 0.009f, 0.02f), new Color(0.15f, 0.3f, 0.75f), new Color(0.25f, 0.6f, 0.8f),
@@ -226,6 +232,11 @@ namespace Voidward.EditorTools
                 P("Ember Maw", new Color(0.004f, 0.002f, 0.006f), new Color(0.016f, 0.006f, 0.014f), new Color(0.8f, 0.32f, 0.18f), new Color(0.35f, 0.22f, 0.75f),
                   new Color(1f, 0.86f, 0.72f), new Color(0.12f, 0.09f, 0.12f), new Color(0.012f, 0.004f, 0.008f), 0.00006f, new Color(1f, 0.6f, 0.4f)),
             };
+            // Per-sector grade: cool and clean -> teal and calm -> warm, contrasty climax.
+            Grade(list[0], new Color(0.97f, 0.99f, 1f), 12f, 16f, 0.12f, -8f, new Color(0.8f, 0.9f, 1f));
+            Grade(list[1], new Color(0.95f, 1f, 0.98f), 8f, 18f, 0.08f, -3f, new Color(0.75f, 1f, 0.92f));
+            Grade(list[2], new Color(1f, 0.95f, 0.92f), 16f, 24f, 0.05f, 8f, new Color(1f, 0.82f, 0.7f));
+            return list;
         }
 
         static readonly List<(string id, ModuleDef def)> moduleDefs = new List<(string, ModuleDef)>();

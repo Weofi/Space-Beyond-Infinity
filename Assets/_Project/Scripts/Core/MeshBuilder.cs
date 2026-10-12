@@ -361,6 +361,22 @@ namespace Voidward.Core
             }
         }
 
+        /// <summary>
+        /// Height gradient for everything added since `from`: vertex colours are multiplied from `bottom` at the base
+        /// (origin) to `top` at `height` along `axis`. Cheap contact occlusion that grounds props. Thread-safe.
+        /// </summary>
+        public void Grade(int from, Vector3 origin, Vector3 axis, float height, float bottom, float top = 1f)
+        {
+            float inv = 1f / Mathf.Max(height, 1e-4f);
+            for (int i = from; i < verts.Count; i++)
+            {
+                float t = Mathf.Clamp01(Vector3.Dot(verts[i] - origin, axis) * inv);
+                float k = Mathf.Lerp(bottom, top, Mathf.Sqrt(t));
+                var c = colors[i];
+                colors[i] = new Color(c.r * k, c.g * k, c.b * k, c.a);
+            }
+        }
+
         void PaintTri(int t, Color col, float gloss, float metal)
         {
             for (int k = t * 3; k < t * 3 + 3; k++)

@@ -1612,6 +1612,16 @@ namespace Voidward.EditorTools
             ShipLighting(go, new Vector3(0, -3f, 0), 24f, new Vector3(-2.0f, -0.55f, 18.9f), new Vector3(2.0f, -0.55f, 18.9f));
             // Interior: the hull blocks the sun, so the cabin gets its own cool ceiling lights.
             for (int i = 0; i < 3; i++) AddLight(go.transform, "CabinLight", new Vector3(0, 3.6f, -8f + i * 8f), new Color(0.75f, 0.88f, 1f), 9f, 9f);
+            // Cabin reflections: one box-projected probe rendered when the ship spawns.
+            var probeGo = Child(go.transform, "CabinProbe", new Vector3(0, 2f, 0));
+            var probe = probeGo.AddComponent<ReflectionProbe>();
+            probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
+            probe.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.OnAwake;
+            probe.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.IndividualFaces;
+            probe.size = new Vector3(8f, 4.2f, 26.4f);
+            probe.boxProjection = true;
+            probe.resolution = 128;
+            probe.importance = 2;
             return SavePrefab(go);
         }
 
