@@ -52,11 +52,12 @@ jobs:
           cd build/${{ matrix.targetPlatform }}
           zip -qry "$GITHUB_WORKSPACE/Voidward-${{ matrix.targetPlatform }}.zip" .
 
+      # archive: false uploads the zip as-is (no zip-in-zip download); artifact name = file name.
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: Voidward-${{ matrix.targetPlatform }}
           path: Voidward-${{ matrix.targetPlatform }}.zip
+          archive: false
 
   release:
     needs: build
@@ -66,7 +67,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -78,4 +79,4 @@ jobs:
           name: Voidward Build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
-          files: dist/*.zip
+          files: dist/**/*.zip
