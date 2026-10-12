@@ -206,7 +206,9 @@ namespace Voidward.Ship
         /// </summary>
         Vector3 AimDirection(Vector3 from, WeaponKind weapon, float assistDeg)
         {
-            var vp = ViewPoint;
+            // The crosshair is the screen centre: aim along the rendering camera (falls back to the seat view).
+            var cam = Camera.main;
+            var vp = cam != null ? cam.transform : ViewPoint;
             // Missiles home on their own: no lead needed, but still show the indicator.
             float speed = weapon == WeaponKind.None ? 0f : CombatNet.ProjectileSpeed(ShipCore.ProjectileFor(weapon));
             if (AimAssist.Solve(vp.position, vp.forward, from, speed, weapon == WeaponKind.Missile ? 0f : assistDeg, AssistRange, out var assisted))

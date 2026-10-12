@@ -63,7 +63,8 @@ namespace Voidward.Ship
                 if ((p - eye).sqrMagnitude > range * range) continue;
                 tracks.TryGetValue(h, out var tr);
                 Vector3 lead = Intercept(muzzle, p, tr.Vel, speed);
-                float ang = Vector3.Angle(viewFwd, lead - eye);
+                // Players aim at the ship itself or at the lead marker: either counts for the cone.
+                float ang = Mathf.Min(Vector3.Angle(viewFwd, lead - eye), Vector3.Angle(viewFwd, p - eye));
                 if (ang < bestAng) { bestAng = ang; best = h; bestLead = lead; }
             }
             if (best == null) return false;
