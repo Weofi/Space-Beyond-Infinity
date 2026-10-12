@@ -57,14 +57,15 @@ One issue = one branch = one PR. Don't mix issues.
 - Quick play test via RunCommand: `SessionManager.Instance.HostGame()`, then `SessionManager.Instance.StartRun()`. Screenshot: `ScreenCapture.CaptureScreenshot("/tmp/x.png")` (Windows: a path in the scratchpad/temp dir).
 - MP test (Mac): Editor host + `Builds/macOS-Dev/Voidward.app/Contents/MacOS/Voidward -transport=utp -autojoin=127.0.0.1`; afterwards `pkill -f Voidward.app`.
 - MP test (Windows): Editor host + `Builds/Windows-Dev/Voidward.exe -transport=utp -autojoin=127.0.0.1`; afterwards `Stop-Process -Name Voidward`.
+- Target: zero console errors/warnings from Voidward code. Known foreign noise: AI Inference tensor warnings, PreviewRenderUtility leak.
+- Unity skills (`.agents/skills`, from `Unity-Technologies/skills`, lock: `skills-lock.json`): use them as domain knowledge only. Implement their recommendations in the builder code (`ContentBuilder`/`PrefabBuilder`/`SceneBuilder`) or in runtime code, never as direct edits to generated scenes/prefabs/assets. Update: `npx skills update -p`.
 
 ## Cross-platform (Mac + Windows)
 - Same Unity version on both machines (`ProjectSettings/ProjectVersion.txt`). Line endings are pinned to LF via `.gitattributes`.
 - Before switching machines: commit + push. On the other machine: `git pull` first, then open Unity.
-- `.mcp.json` is git-ignored (machine-specific Unity relay path); each machine keeps its own. GitHub MCP reads the token from env var `GITHUB_PAT`.
+- `.mcp.json` is git-ignored (machine-specific Unity relay path); each machine keeps its own.
+- GitHub auth: GitHub CLI (`gh auth login --web`). The GitHub MCP server (`https://api.githubcopilot.com/mcp/`) does not support OAuth dynamic client registration, so `.mcp.json` passes the gh token via `headersHelper` (a script that prints `{"Authorization":"Bearer <gh auth token>"}`). `gh` also works directly for issues/PRs if MCP is down.
 - After a first open/reimport on a machine, check `git status` before committing: reimport noise (package `.meta` files, emptied `m_List` in `UniversalRenderPipelineGlobalSettings.asset`) must not be committed.
-- Target: zero console errors/warnings from Voidward code. Known foreign noise: AI Inference tensor warnings, PreviewRenderUtility leak.
-- Unity skills (`.agents/skills`, from `Unity-Technologies/skills`, lock: `skills-lock.json`): use them as domain knowledge only. Implement their recommendations in the builder code (`ContentBuilder`/`PrefabBuilder`/`SceneBuilder`) or in runtime code, never as direct edits to generated scenes/prefabs/assets. Update: `npx skills update -p`.
 
 ## Status (2026-10-11)
 Full loop playable and tested: lobby → 3 sectors → boss (3 phases) → results/Stardust → restart; 2-player MP (Editor ↔ dev build) tested. Steam is untested with 2 real accounts. Release + dev macOS builds exist in `Builds/` (git-ignored).
