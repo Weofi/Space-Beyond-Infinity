@@ -65,6 +65,11 @@ jobs:
       # Unity 6000.6 inside the game-ci container sporadically gets SIGKILLed (exit 137)
       # at random points (seconds after start, or mid shader compile). Not an OOM: memory
       # peaks at ~7 GB of 16 GB, swap stays unused, dmesg has no OOM entry. Just retry.
+      # game-ci leaves its builder scripts in Assets/Editor; a retry refuses a dirty tree.
+      - name: Clean up failed attempt
+        if: steps.build1.outcome == 'failure'
+        run: sudo rm -rf Assets/Editor build && git status --porcelain
+
       - name: Build project (retry 1)
         id: build2
         if: steps.build1.outcome == 'failure'
@@ -77,6 +82,10 @@ jobs:
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
           buildName: Voidward
+
+      - name: Clean up failed retry
+        if: steps.build2.outcome == 'failure'
+        run: sudo rm -rf Assets/Editor build && git status --porcelain
 
       - name: Build project (retry 2)
         if: steps.build2.outcome == 'failure'
