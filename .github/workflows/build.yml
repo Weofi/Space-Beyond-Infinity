@@ -61,6 +61,12 @@ jobs:
           targetPlatform: ${{ matrix.targetPlatform }}
           buildName: Voidward
 
+      - name: Diagnose kill (OOM)
+        if: failure()
+        run: |
+          free -h
+          sudo dmesg -T | grep -iE "oom|killed process|out of memory" | tail -n 30 || true
+
       - name: Fix macOS executable bit
         if: matrix.targetPlatform == 'StandaloneOSX'
         run: sudo chmod -R +x build/StandaloneOSX/*.app/Contents/MacOS
