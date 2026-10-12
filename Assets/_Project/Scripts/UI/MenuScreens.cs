@@ -347,8 +347,7 @@ namespace Voidward.UI
             bool steam = sm.ActiveTransport == TransportKind.Steam;
             ulong lobbyId = sm.Steam.CurrentLobbyId;
             string info = steam
-                ? "Steam lobby - invite friends via the button or the Steam overlay (Shift+Tab)." + (lobbyId != 0 ? $"
-Lobby ID: <b>{lobbyId}</b>" : "")
+                ? "Steam lobby - invite friends via the button or the Steam overlay (Shift+Tab)." + (lobbyId != 0 ? $"\nLobby ID: <b>{lobbyId}</b>" : "")
                 : $"Direct IP - others join with <b>{LocalIp()}</b> : {TransportConfig.Port}";
             lobbyInfo.text = info + $"\nShip: <b>{Meta.SelectedShip}</b>   Stardust: <b>{Meta.Data.Stardust}</b>";
             startButton.interactable = nm.IsHost;
