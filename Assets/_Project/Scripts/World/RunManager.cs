@@ -121,6 +121,8 @@ namespace Voidward.World
             GameState.Phase = b;
             EventBus.RaisePhaseChanged(b);
             if (b == GamePhase.Lobby) Sfx.Music(0);
+            // The seed is set while still in Lobby (RebuildVisuals skips then), so build once Playing.
+            if (b == GamePhase.Playing) RebuildVisuals();
             if (a != b) Debug.Log($"[Run] Phase {a} -> {b} (sector {SectorIndex.Value}, players {PlayerPawn.All.Count})");
         }
 

@@ -28,6 +28,8 @@ namespace Voidward.UI
         InventoryView inventory;
         TradeView trade;
         EngineerView engineer;
+        IntroSequence intro;
+        GamePhase lastPhase = GamePhase.MainMenu;
         Image flash;
         float flashTime, flashDuration;
         Color flashColor;
@@ -77,6 +79,7 @@ namespace Voidward.UI
             flash = UIKit.Image(Root, "Flash", new Color(1, 1, 1, 0), false);
             UIKit.Stretch(flash.rectTransform);
             flash.raycastTarget = false;
+            intro = new IntroSequence(Root);
 
             EventBus.RunEnded += OnRunEnded;
             EventBus.PhaseChanged += OnPhase;
@@ -111,6 +114,9 @@ namespace Voidward.UI
             if (p == GamePhase.MainMenu) { CloseModals(); back.Clear(); Show(Screen.Main); }
             if (p == GamePhase.Playing) { back.Clear(); Show(Screen.None); }
             if (p == GamePhase.Lobby) { CloseModals(); back.Clear(); Show(Screen.Lobby); }
+            // Lobby -> Playing is a fresh run; late joiners arrive from MainMenu and skip the intro.
+            if (p == GamePhase.Playing && lastPhase == GamePhase.Lobby) { CloseModals(); intro.Begin(); }
+            lastPhase = p;
         }
 
         public void Show(Screen s)
@@ -164,7 +170,7 @@ namespace Voidward.UI
             { back.Clear(); Show(Screen.Main); GameState.Phase = GamePhase.MainMenu; }
             if (inSession && (screen == Screen.Main || screen == Screen.Join)) Show(DefaultScreen());
             if (inSession && screen == Screen.Connecting && RunManager.Instance != null) Show(DefaultScreen());
-            if (!inSession) GameState.Phase = GamePhase.MainMenu;
+            if (!inSession) { GameState.Phase = GamePhase.MainMenu; lastPhase = GamePhase.MainMenu; }
 
             bool playing = GameState.Phase == GamePhase.Playing;
             if (!playing && AnyModal) CloseModals();
@@ -173,6 +179,7 @@ namespace Voidward.UI
             if (VwInput.Pressed(VwInput.Pause))
             {
                 if (VwInput.IsRebinding) { }
+                else if (intro.Active) intro.Skip();
                 else if (AnyModal) CloseModals();
                 else if (screen == Screen.Settings || screen == Screen.Hangar || screen == Screen.Join) Back();
                 else if (playing && screen == Screen.None) Push(Screen.Pause);
@@ -180,7 +187,7 @@ namespace Voidward.UI
             }
 
             // Inventory toggle
-            if (playing && screen == Screen.None && VwInput.Pressed(VwInput.Inventory))
+            if (playing && screen == Screen.None && !intro.Active && VwInput.Pressed(VwInput.Inventory))
             {
                 if (inventory.IsOpen) inventory.Close();
                 else { CloseModals(); inventory.Open(InventoryView.Tab.Inventory); }
@@ -193,8 +200,9 @@ namespace Voidward.UI
             VwInput.SetCursor(uiOpen || cheatsVisible);
             if (cheatsVisible) GameState.UIOpen = true;
 
-            hud.SetVisible(playing && (screen == Screen.None || screen == Screen.Pause));
+            hud.SetVisible(playing && !intro.Active && (screen == Screen.None || screen == Screen.Pause));
             hud.Update();
+            intro.Update();
             menus.Update();
             inventory.Update();
             trade.Update();

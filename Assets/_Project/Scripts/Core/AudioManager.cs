@@ -180,6 +180,13 @@ namespace Voidward.Core
             clips["slam"] = Make("slam", 0.6f, (t, u, r) => (Sin(Mathf.Lerp(80f, 30f, u), t) * 0.8f + Noise(r) * 0.2f) * Env(u, 0.003f));
             clips["squish"] = Make("squish", 0.35f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.2f); return (lp * 1.2f + Sin(Mathf.Lerp(300f, 90f, u), t) * 0.3f) * Env(u, 0.005f); }, 9);
             clips["nest"] = Make("nest", 0.5f, (t, u, r) => Sin(Mathf.Lerp(90f, 160f, u) + Sin(8f, t) * 20f, t) * 0.4f * Env(u, 0.05f));
+            // Intro sequence: deep swell, shot whoosh, radio squelch, typewriter blip, POI highlight chime, Collapse rumble.
+            clips["intro_swell"] = Make("intro_swell", 5f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.01f); return (Sin(41f, t) * 0.35f + Sin(61.7f, t) * 0.22f + Sin(82f + Sin(0.3f, t) * 2f, t) * 0.12f + lp * 0.8f) * Mathf.Sin(Mathf.PI * u); }, 11);
+            clips["whoosh"] = Make("whoosh", 1.3f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.015f + u * 0.12f); return lp * 2.2f * Mathf.Sin(Mathf.PI * u) * Mathf.Sin(Mathf.PI * u); }, 12);
+            clips["radio"] = Make("radio", 0.4f, (t, u, r) => (Noise(r) * 0.35f * (u < 0.55f ? 1f : 0f) + Sin(u < 0.55f ? 1850f : 1250f, t) * 0.2f) * Env(u, 0.01f), 13);
+            clips["blip"] = Make("blip", 0.035f, (t, u, r) => Sq(1150f, t) * 0.12f * Env(u, 0.05f));
+            clips["highlight"] = Make("highlight", 0.6f, (t, u, r) => (Sin(u < 0.25f ? 988f : 1480f, t) * 0.28f + Sin(2960f, t) * 0.06f) * Env(u, 0.01f));
+            clips["rumble"] = Make("rumble", 3f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.012f); return (lp * 2.6f + Sin(32f + Sin(0.7f, t) * 3f, t) * 0.4f) * Mathf.Sin(Mathf.PI * u); }, 14);
             float e1 = 0f;
             clips["engine"] = Make("engine", 2f, (t, u, r) => { e1 = Mathf.Lerp(e1, Noise(r), 0.06f); return e1 * 0.9f + Sin(55f, t) * 0.25f + Sin(110f, t) * 0.12f; }, 10);
         }

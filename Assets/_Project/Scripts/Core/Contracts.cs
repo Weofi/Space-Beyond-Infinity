@@ -89,10 +89,12 @@ namespace Voidward.Core
         public static bool HasGate;
         public static string Objective = "";
         public static float FieldOfView = 75f;
+        /// <summary>The intro camera sequence owns the view; gameplay input is suppressed.</summary>
+        public static bool Cinematic;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; SectorIndex = 1; ShakeIntensity = 0f; CollapseX = -99999f; HasGate = false; Objective = ""; }
+        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; SectorIndex = 1; ShakeIntensity = 0f; CollapseX = -99999f; HasGate = false; Objective = ""; Cinematic = false; }
 
-        public static bool GameplayInputAllowed => !UIOpen && Phase == GamePhase.Playing;
+        public static bool GameplayInputAllowed => !UIOpen && !Cinematic && Phase == GamePhase.Playing;
     }
 }
