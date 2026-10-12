@@ -148,7 +148,10 @@ namespace Voidward.Networking
                 if (clientId == localId)
                 {
                     UnhookCallbacks(nm);
-                    EventBus.RaiseNotification("Connection to host lost");
+                    string reason = nm.DisconnectReason;
+                    Debug.LogWarning("[Session] Lost connection to host" + (string.IsNullOrEmpty(reason) ? "" : ": " + reason));
+                    try { Steam.LeaveLobby(); } catch { }
+                    EventBus.RaiseNotification(string.IsNullOrEmpty(reason) ? "Connection to host lost" : "Disconnected: " + reason);
                     nm.Shutdown();
                     EventBus.RaisePhaseChanged(GamePhase.MainMenu);
                 }
@@ -278,7 +281,10 @@ namespace Voidward.Networking
                 ActiveTransport = TransportKind.Steam;
                 HookCallbacks(nm);
                 if (!nm.StartClient())
+                {
+                    Steam.LeaveLobby();
                     EventBus.RaiseNotification("Failed to connect via Steam");
+                }
                 else
                     EventBus.RaiseNotification("Connecting via Steam relay...");
             });
