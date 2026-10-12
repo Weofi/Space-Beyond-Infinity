@@ -14,6 +14,7 @@ Shader "VOIDWARD/ToonFlat"
         _ShadowFloor ("Shadow Floor (direct)", Range(0,0.5)) = 0.18
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 0.75
         _LocalLightStrength ("Local Light Strength", Range(0,3)) = 1
+        _TerminatorWrap ("Terminator Wrap", Range(0,0.5)) = 0.25
         _SpecStrength ("Specular Strength (x UV0.x gloss)", Range(0,3)) = 1
         _ReflStrength ("Env Reflection (x gloss^2)", Range(0,2)) = 0.8
         _GlowIntensity ("Glow Intensity (x UV0.y)", Range(0,8)) = 3
@@ -64,6 +65,7 @@ Shader "VOIDWARD/ToonFlat"
                 float4 color      : COLOR;
                 float  fogCoord   : TEXCOORD2;
                 float2 surface    : TEXCOORD3;
+                float3 positionRWS : TEXCOORD4; // camera-relative: precise derivatives far from the origin
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -77,6 +79,7 @@ Shader "VOIDWARD/ToonFlat"
                 float _ShadowFloor;
                 float _ShadowStrength;
                 float _LocalLightStrength;
+                float _TerminatorWrap;
                 float _SpecStrength;
                 float _ReflStrength;
                 float _GlowIntensity;
@@ -88,6 +91,7 @@ Shader "VOIDWARD/ToonFlat"
                 Varyings OUT;
                 UNITY_SETUP_INSTANCE_ID(IN);
                 OUT.positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.positionRWS = OUT.positionWS - _WorldSpaceCameraPos;
                 OUT.positionCS = TransformWorldToHClip(OUT.positionWS);
                 OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.color = IN.color;
@@ -99,7 +103,7 @@ Shader "VOIDWARD/ToonFlat"
             half4 frag(Varyings IN) : SV_Target
             {
             #ifdef _FLATSHADING_ON
-                float3 n = normalize(cross(ddy(IN.positionWS), ddx(IN.positionWS)));
+                float3 n = normalize(cross(ddy(IN.positionRWS), ddx(IN.positionRWS)));
                 n *= sign(dot(n, IN.normalWS) + 1e-5);
             #else
                 float3 n = normalize(IN.normalWS);
@@ -124,7 +128,7 @@ Shader "VOIDWARD/ToonFlat"
                 float atten = lerp(1.0, mainLight.shadowAttenuation, _ShadowStrength);
                 float ndl = dot(n, mainLight.direction);
                 // Soft stylized bands: a stepped ramp blended with a wrapped smooth ramp.
-                float smoothLit = smoothstep(-0.25, 0.65, ndl);
+                float smoothLit = smoothstep(-_TerminatorWrap, 0.65 - _TerminatorWrap * 0.6, ndl);
                 float stepped = floor(smoothLit * _Steps + 0.5) / max(_Steps, 1.0);
                 float lit = lerp(stepped, smoothLit, _Softness) * atten * ao.directAmbientOcclusion;
                 lit = lerp(_ShadowFloor, 1.0, lit);
@@ -196,8 +200,8 @@ Shader "VOIDWARD/ToonFlat"
             {
                 Varyings OUT;
                 UNITY_SETUP_INSTANCE_ID(IN);
-                OUT.positionWS = TransformObjectToWorld(IN.positionOS.xyz);
-                OUT.positionCS = TransformWorldToHClip(OUT.positionWS);
+                OUT.positionWS = TransformObjectToWorld(IN.positionOS.xyz) - _WorldSpaceCameraPos;
+                OUT.positionCS = TransformWorldToHClip(OUT.positionWS + _WorldSpaceCameraPos);
                 OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
                 return OUT;
             }

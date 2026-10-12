@@ -147,7 +147,7 @@ Shader "VOIDWARD/NebulaSkybox"
                 }
 
                 // Stars: dense faint dust + sparse bright stars, slightly tinted.
-                float dust = starLayer(dir, _StarDensity * 2.2, 0.985, 4.0) * 0.35;
+                float dust = starLayer(dir, _StarDensity * 2.2, 0.978, 4.0) * 0.55;
                 float bright = starLayer(dir, _StarDensity, 0.9965, 3.0) * 2.4;
                 float starTint = hash31(floor(dir * _StarDensity));
                 float3 sc = _StarColor.rgb * lerp(float3(0.8, 0.88, 1.0), float3(1.0, 0.92, 0.8), starTint);

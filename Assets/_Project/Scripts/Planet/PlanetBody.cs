@@ -176,7 +176,7 @@ namespace Voidward.Planet
             _colliderMesh = PlanetMeshGenerator.GenerateCollider(seed, radius, biome, 5);
 
             var catalog = ContentCatalog.Instance;
-            Material toonMat = catalog != null ? catalog.ToonMaterial : null;
+            Material toonMat = catalog == null ? null : catalog.TerrainMaterial != null ? catalog.TerrainMaterial : catalog.ToonMaterial;
 
             // Visual0 (LOD0 — subdiv 4).
             _visual0 = CreateVisualChild("Visual0", _lod0Mesh, toonMat);

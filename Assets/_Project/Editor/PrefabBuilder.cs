@@ -356,7 +356,7 @@ namespace Voidward.EditorTools
             Set(pawn, "muzzle", muzzle.transform);
             Set(pawn, "beam", lr);
 
-            var lamp = AddLight(go.transform, "Headlamp", new Vector3(0, 1.74f, 0.4f), LampWhite, 90f, 55f, 58f);
+            var lamp = AddLight(go.transform, "Headlamp", new Vector3(0, 1.74f, 0.4f), LampWhite, 180f, 60f, 58f);
             Set(go.AddComponent<PlayerHeadlamp>(), "lamp", lamp);
             return SavePrefab(go);
         }

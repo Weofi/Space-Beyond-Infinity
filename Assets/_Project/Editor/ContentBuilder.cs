@@ -88,7 +88,7 @@ namespace Voidward.EditorTools
 
         // ================================================================ materials
 
-        public static Material MatToon, MatSkybox, MatCollapse, MatAtmosphere, MatUnlit, MatParticle, MatGlass, MatGlow;
+        public static Material MatToon, MatTerrain, MatSkybox, MatCollapse, MatAtmosphere, MatUnlit, MatParticle, MatGlass, MatGlow;
 
         static Material Mat(string name, string shader)
         {
@@ -116,9 +116,11 @@ namespace Voidward.EditorTools
             MatToon.SetFloat("_Steps", 3f);
             MatToon.SetFloat("_Softness", 0.65f);
             MatToon.SetFloat("_AmbientBoost", 0.55f);
-            MatToon.SetFloat("_ShadowFloor", 0.03f);
+            // Direct-light floor stays tiny: in linear space even 0.03 reads as ~20% grey after sRGB conversion.
+            MatToon.SetFloat("_ShadowFloor", 0.008f);
             MatToon.SetFloat("_ShadowStrength", 0.95f);
             MatToon.SetFloat("_LocalLightStrength", 1f);
+            MatToon.SetFloat("_TerminatorWrap", 0.05f);
             MatToon.SetFloat("_RimStrength", 0.3f);
             MatToon.SetFloat("_RimPower", 3f);
             MatToon.SetColor("_RimColor", new Color(0.35f, 0.55f, 1f));
@@ -127,8 +129,16 @@ namespace Voidward.EditorTools
             MatToon.SetFloat("_GlowIntensity", 3f);
             MatToon.enableInstancing = true;
 
+            // Planet surfaces: same look, but almost no rim (grazing ground would otherwise glow on the night side).
+            MatTerrain = Mat("VW_Terrain", "VOIDWARD/ToonFlat");
+            MatTerrain.CopyPropertiesFromMaterial(MatToon);
+            MatTerrain.shaderKeywords = MatToon.shaderKeywords;
+            MatTerrain.SetFloat("_RimStrength", 0.05f);
+            MatTerrain.SetFloat("_ShadowFloor", 0f);
+            MatTerrain.enableInstancing = true;
+
             MatSkybox = Mat("VW_Skybox", "VOIDWARD/NebulaSkybox");
-            MatSkybox.SetFloat("_NebulaStrength", 0.6f);
+            MatSkybox.SetFloat("_NebulaStrength", 0.3f);
             MatSkybox.SetFloat("_StarDensity", 220f);
             MatSkybox.SetFloat("_GalaxyStrength", 1f);
             MatSkybox.SetFloat("_SunDiscStrength", 1f);
@@ -173,6 +183,7 @@ namespace Voidward.EditorTools
             catalog.Ships = ships;
             catalog.LootTables = new[] { loot["loot_t1"], loot["loot_t2"], loot["loot_t3"], loot["loot_pirate"], loot["loot_drone"], loot["loot_alien"], loot["loot_guardian"], loot["loot_gunship"] };
             catalog.ToonMaterial = MatToon;
+            catalog.TerrainMaterial = MatTerrain;
             catalog.SkyboxMaterial = MatSkybox;
             catalog.CollapseMaterial = MatCollapse;
             catalog.AtmosphereMaterial = MatAtmosphere;
