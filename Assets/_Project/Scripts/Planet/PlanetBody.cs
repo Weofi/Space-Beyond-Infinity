@@ -120,7 +120,7 @@ namespace Voidward.Planet
 
             if (_lod0Mesh != null) { Destroy(_lod0Mesh); _lod0Mesh = null; }
             if (_lod1Mesh != null) { Destroy(_lod1Mesh); _lod1Mesh = null; }
-            _colliderMesh = null;
+            if (_colliderMesh != null) { Destroy(_colliderMesh); _colliderMesh = null; }
             foreach (var m in _decorMeshes) if (m != null) Destroy(m);
             _decorMeshes.Clear();
             if (_atmosphereMesh != null) { Destroy(_atmosphereMesh); _atmosphereMesh = null; }
@@ -170,10 +170,10 @@ namespace Voidward.Planet
             float radius = Radius.Value;
             var biome = Biome;
 
-            // Generate meshes. The collider reuses the LOD0 mesh so feet never float or sink.
+            // Generate meshes. The welded collider matches LOD0's geometry exactly so feet never float or sink.
             _lod0Mesh = PlanetMeshGenerator.GenerateVisualAt(seed, radius, biome, 5);
             _lod1Mesh = PlanetMeshGenerator.GenerateVisualAt(seed, radius, biome, 3);
-            _colliderMesh = _lod0Mesh;
+            _colliderMesh = PlanetMeshGenerator.GenerateCollider(seed, radius, biome, 5);
 
             var catalog = ContentCatalog.Instance;
             Material toonMat = catalog != null ? catalog.ToonMaterial : null;
@@ -213,7 +213,7 @@ namespace Voidward.Planet
         void BuildDecor(int seed, float radius, BiomeDef biome, Material mat)
         {
             var rng = new System.Random(seed ^ 0x2b7e1516);
-            int count = Mathf.RoundToInt(radius * 1.3f);
+            int count = Mathf.RoundToInt(radius * 3f);
             const int perChunk = 70;
             MeshBuilder mb = null;
             GameObject chunk = null;
@@ -227,7 +227,7 @@ namespace Voidward.Planet
                 Quaternion rot = Quaternion.FromToRotation(Vector3.up, dir) * Quaternion.Euler(0f, MathUtils.Range(rng, 0f, 360f), 0f);
                 if (mb == null)
                 {
-                    mb = new MeshBuilder();
+                    mb = new MeshBuilder { Gloss = 0.08f };
                     chunk = new GameObject("Decor");
                     chunk.transform.SetParent(transform, false);
                     n = 0;
