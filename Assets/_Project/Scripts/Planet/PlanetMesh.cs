@@ -17,7 +17,18 @@ namespace Voidward.Planet
             var verts = new Vector3[count];
             var uvs = new Vector2[count];
             float r = terrain.Radius;
-            for (int i = 0; i < count; i++)
+            // Each vertex is independent and PlanetTerrain is read-only, so this is deterministic on any thread count.
+#if UNITY_WEBGL && !UNITY_EDITOR
+            for (int i = 0; i < count; i++) Displace(i);
+#else
+            const int chunk = 1024;
+            System.Threading.Tasks.Parallel.For(0, (count + chunk - 1) / chunk, c =>
+            {
+                int end = Mathf.Min(count, (c + 1) * chunk);
+                for (int i = c * chunk; i < end; i++) Displace(i);
+            });
+#endif
+            void Displace(int i)
             {
                 float e = terrain.ElevationFrac(dirs[i]);
                 verts[i] = dirs[i] * (r * (1f + e));

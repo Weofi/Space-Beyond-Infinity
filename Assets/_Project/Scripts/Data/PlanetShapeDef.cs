@@ -47,7 +47,7 @@ namespace Voidward.Data
         [Tooltip("Quads per cube-face edge for the near LOD (also used for the collider).")]
         [Range(16, 160)] public int Resolution = 96;
         [Tooltip("Quads per cube-face edge for the far LOD.")]
-        [Range(8, 64)] public int FarResolution = 32;
+        [Range(8, 64)] public int FarResolution = 48;
 
         [Header("Terrain")]
         [Tooltip("Global multiplier for all layer and crater heights.")]
