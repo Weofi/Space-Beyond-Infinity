@@ -48,6 +48,7 @@ namespace Voidward.EditorTools
             }
             BuildFonts();
             BuildPrefabs();
+            BuildItemArt();
             BuildScene();
             BuildPlanetPreviewScene();
             UnityEditor.SceneManagement.EditorSceneManager.OpenScene(ScenePath);

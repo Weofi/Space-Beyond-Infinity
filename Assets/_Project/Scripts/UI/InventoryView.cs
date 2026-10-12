@@ -199,11 +199,28 @@ namespace Voidward.UI
                 });
                 if (def != null)
                 {
-                    var swatch = UIKit.Image(cell.transform, "Tint", def.Tint);
-                    UIKit.Place(swatch.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -10), new Vector2(40, 30), new Vector2(0.5f, 1f));
-                    swatch.raycastTarget = false;
-                    var t = UIKit.Text(cell.transform, ShortName(def) + $"\n<b>x{st.Count}</b>", 17, TextAlignmentOptions.Bottom);
-                    UIKit.Stretch(t.rectTransform, 4, 4, 40, 6);
+                    int tier = UIKit.TierOf(def);
+                    if (tier > 0)
+                    {
+                        var edge = UIKit.Image(cell.transform, "Tier", UIKit.TierColor(tier), false);
+                        UIKit.Place(edge.rectTransform, new Vector2(0.5f, 0f), Vector2.zero, new Vector2(0, 4), new Vector2(0.5f, 0f));
+                        edge.rectTransform.anchorMin = new Vector2(0f, 0f); edge.rectTransform.anchorMax = new Vector2(1f, 0f);
+                        edge.raycastTarget = false;
+                        var tl = UIKit.Text(cell.transform, UIKit.TierLabel(tier), 15, TextAlignmentOptions.TopRight, UIKit.TierColor(tier), FontStyles.Bold);
+                        UIKit.Stretch(tl.rectTransform, 4, 6, 3, 4);
+                        tl.raycastTarget = false;
+                    }
+                    var icon = UIKit.ItemIcon(cell.transform, def, 58);
+                    UIKit.Place(icon.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -4), new Vector2(58, 58), new Vector2(0.5f, 1f));
+                    var t = UIKit.Text(cell.transform, ShortName(def), 15, TextAlignmentOptions.Bottom, UIKit.TextDim);
+                    UIKit.Stretch(t.rectTransform, 4, 4, 60, 5);
+                    t.raycastTarget = false;
+                    if (st.Count > 1)
+                    {
+                        var q = UIKit.Text(cell.transform, "x" + st.Count, 18, TextAlignmentOptions.TopLeft, UIKit.TextColor, FontStyles.Bold);
+                        UIKit.Stretch(q.rectTransform, 6, 4, 3, 4);
+                        q.raycastTarget = false;
+                    }
                 }
             }
         }
@@ -309,8 +326,7 @@ namespace Voidward.UI
                 var row = UIKit.Panel(list, "Recipe", UIKit.PanelLight);
                 UIKit.HLayout(row.gameObject, 12, 8);
                 UIKit.LayoutElement(row.gameObject, -1, 64);
-                var sw = UIKit.Image(row, "Tint", r.Output.Tint);
-                UIKit.LayoutElement(sw.gameObject, 36, 36);
+                UIKit.ItemIcon(row, r.Output, 52);
                 var sb = new System.Text.StringBuilder();
                 foreach (var ing in r.Inputs)
                 {

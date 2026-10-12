@@ -4,6 +4,7 @@ using TMPro;
 using Unity.Cinemachine;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using Voidward.AI;
 using Voidward.Combat;
@@ -19,8 +20,9 @@ namespace Voidward.UI
     /// <summary>
     /// Client-local intro cinematic at the start of a run: a title card, then eased camera moves over
     /// the key POIs (own ship, Collapse, Ark, planet, nest, station, gate) with fades, letterbox,
-    /// radio-style captions and POI highlights. Esc or hold Space skips. The last shot ends behind the
-    /// local cockpit and Cinemachine blends into the player camera. Driven by UIRoot.
+    /// radio-style captions and POI highlights. Each caption waits for the player (#24): click or any key
+    /// reveals the full text, the next press moves on. Esc or hold Space skips. The last shot ends behind
+    /// the local cockpit and Cinemachine blends into the player camera. Driven by UIRoot.
     /// </summary>
     public class IntroSequence
     {
@@ -47,10 +49,10 @@ namespace Voidward.UI
 
         enum State { Idle, Playing, SkipFade, Release }
 
-        readonly RectTransform root, caption, marker, markerLabelBg, skipHint, titleCard;
+        readonly RectTransform root, caption, marker, markerLabelBg, skipHint, titleCard, continueHint;
         readonly Image black, barTop, barBottom, skipFill, liveDot;
         readonly TextMeshProUGUI captionTitle, captionBody, markerLabel, cardSector, cardName;
-        readonly CanvasGroup captionGroup, markerGroup, cardGroup;
+        readonly CanvasGroup captionGroup, markerGroup, cardGroup, continueGroup;
         readonly List<Func<Shot>> builders = new List<Func<Shot>>();
 
         CinemachineCamera cam;
@@ -61,7 +63,9 @@ namespace Voidward.UI
         int shotIndex;
         float shotTime, totalTime, stateTime, holdTime, releaseDuration, blackAtSkip;
         int typed;
-        bool highlightPlayed;
+        bool highlightPlayed, revealAll;
+        float outTime = -1f;     // >= 0 once the player asked for the next caption (fade-out clock)
+        float spaceDown;
         Vector3 anchor;
 
         public bool Active => state != State.Idle;
@@ -126,13 +130,24 @@ namespace Voidward.UI
             var live = UIKit.Text(caption, "MISSION CONTROL // LIVE", 16, TextAlignmentOptions.Left, UIKit.TextDim, FontStyles.Bold);
             UIKit.Place(live.rectTransform, new Vector2(1f, 1f), new Vector2(-226f, -22f), new Vector2(220f, 24f), new Vector2(0f, 0.5f));
             captionBody = UIKit.Text(caption, "", 25, TextAlignmentOptions.TopLeft, UIKit.TextColor);
-            UIKit.Stretch(captionBody.rectTransform, 30, 30, 50, 16);
+            UIKit.Stretch(captionBody.rectTransform, 30, 30, 50, 34);
+
+            // "Continue" prompt pinned to the caption's lower-right corner (pulses while waiting).
+            var cont = UIKit.Image(caption, "Continue", UIKit.Accent2);
+            cont.sprite = UIKit.ChamferFace;
+            continueHint = cont.rectTransform;
+            UIKit.Place(continueHint, new Vector2(1f, 0f), new Vector2(-16f, -20f), new Vector2(250f, 40f), new Vector2(1f, 0f));
+            continueGroup = cont.gameObject.AddComponent<CanvasGroup>();
+            var contText = UIKit.Text(continueHint, "CLICK / ANY KEY  >", 19, TextAlignmentOptions.Center, new Color(0.05f, 0.07f, 0.15f), FontStyles.Bold);
+            UIKit.Stretch(contText.rectTransform, 8, 8, 0, 2);
+            contText.characterSpacing = 3;
+            continueGroup.alpha = 0f;
 
             // Skip hint with hold progress, inside the bottom letterbox bar.
             skipHint = UIKit.Rect(root, "SkipHint");
-            UIKit.Place(skipHint, new Vector2(1f, 0f), new Vector2(-70f, Letterbox * 0.5f), new Vector2(520f, 50f), new Vector2(1f, 0.5f));
-            var hint = UIKit.Text(skipHint, "<color=#FFBD40>ESC</color> SKIP     HOLD <color=#FFBD40>SPACE</color> SKIP", 20, TextAlignmentOptions.Right, UIKit.TextDim, FontStyles.Bold);
-            UIKit.Place(hint.rectTransform, new Vector2(1f, 1f), Vector2.zero, new Vector2(520f, 30f), new Vector2(1f, 1f));
+            UIKit.Place(skipHint, new Vector2(1f, 0f), new Vector2(-70f, Letterbox * 0.5f), new Vector2(720f, 50f), new Vector2(1f, 0.5f));
+            var hint = UIKit.Text(skipHint, "<color=#FFBD40>CLICK</color> CONTINUE     <color=#FFBD40>ESC</color> SKIP     HOLD <color=#FFBD40>SPACE</color> SKIP", 20, TextAlignmentOptions.Right, UIKit.TextDim, FontStyles.Bold);
+            UIKit.Place(hint.rectTransform, new Vector2(1f, 1f), Vector2.zero, new Vector2(720f, 30f), new Vector2(1f, 1f));
             var track = UIKit.Image(skipHint, "Track", new Color(1f, 1f, 1f, 0.12f), false);
             UIKit.Place(track.rectTransform, new Vector2(1f, 0f), Vector2.zero, new Vector2(200f, 5f), new Vector2(1f, 0f));
             skipFill = UIKit.Image(track.transform, "Fill", UIKit.Accent2, false);
@@ -307,34 +322,65 @@ namespace Voidward.UI
             bool last = IsLastShot();
             float d = shot.Duration;
             float fadeIn = shotIndex == 0 ? FirstFade : ShotFade;
+
+            // Caption text: typed out, a press reveals it all, the next press advances (no auto-advance).
+            int visible = revealAll ? shot.Body.Length : Mathf.Clamp((int)((shotTime - 0.4f) * TypeSpeed), 0, shot.Body.Length);
+            bool typedOut = visible >= shot.Body.Length;
+            if (outTime < 0f && shotTime > 0.35f && AdvancePressed())
+            {
+                if (!typedOut) { revealAll = true; visible = shot.Body.Length; typed = visible; }
+                else { outTime = 0f; Sfx.PlayUI("ui_click", 0.6f); }
+            }
+            if (outTime >= 0f) outTime += dt;
+
             float aIn = 1f - Mathf.Clamp01(shotTime / fadeIn);
-            float aOut = last ? 0f : Mathf.Clamp01((shotTime - (d - ShotFade)) / ShotFade);
+            float aOut = last || outTime < 0f ? 0f : Mathf.Clamp01(outTime / ShotFade);
             black.color = new Color(0, 0, 0, Mathf.Max(aIn, aOut));
             cardGroup.alpha = 0f;
 
+            // Eased move, then a slow drift past the end so a waiting shot never freezes.
             float e = Ease(Mathf.Clamp01(shotTime / d));
-            Vector3 pos = Vector3.Lerp(shot.FromPos, shot.ToPos, e);
-            Vector3 look = Vector3.Lerp(shot.FromLook, shot.ToLook, e);
+            float over = Mathf.Max(0f, shotTime - d);
+            Vector3 drift = (shot.ToPos - shot.FromPos) * (0.06f * (1f - Mathf.Exp(-over / 6f)));
+            Vector3 pos = Vector3.Lerp(shot.FromPos, shot.ToPos, e) + drift;
+            Vector3 look = Vector3.Lerp(shot.FromLook, shot.ToLook, e) + drift;
             if ((look - pos).sqrMagnitude > 0.01f)
                 cam.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(look - pos, shot.Up));
 
-            // Caption: slide in, type out with radio blips, fade before the cut.
+            // Caption: slide in, type out with radio blips, fade once the player moves on.
             float capIn = Mathf.Clamp01((shotTime - 0.25f) / 0.35f);
-            float capOut = last ? 1f : Mathf.Clamp01((d - ShotFade - shotTime) / 0.3f);
+            float capOut = outTime < 0f ? 1f : 1f - Mathf.Clamp01(outTime / 0.3f);
             captionGroup.alpha = capIn * capOut;
             caption.anchoredPosition = new Vector2(90f - (1f - Ease(capIn)) * 40f, Letterbox + 34f);
-            int visible = Mathf.Clamp((int)((shotTime - 0.4f) * TypeSpeed), 0, shot.Body.Length);
             captionBody.maxVisibleCharacters = visible;
             for (; typed < visible; typed++)
                 if (typed % 3 == 0 && !char.IsWhiteSpace(shot.Body[typed])) Sfx.PlayUI("blip", 0.35f);
+            continueGroup.alpha = typedOut && outTime < 0f ? 0.8f + 0.2f * Mathf.Sin(Time.unscaledTime * 5f) : 0f;
 
             UpdateMarker();
 
-            if (shotTime >= d)
+            if (outTime >= 0f && (last || outTime >= ShotFade))
             {
-                if (last) Release(EndBlend, false);
-                else if (!NextShot()) Release(EndBlend, false);
+                if (last || !NextShot()) Release(EndBlend, false);
             }
+        }
+
+        /// <summary>Click or any key except Esc (skip) and a held Space (hold-to-skip); a short Space tap counts.</summary>
+        bool AdvancePressed()
+        {
+            var kb = Keyboard.current;
+            var ms = Mouse.current;
+            bool tap = false;
+            if (kb != null)
+            {
+                if (kb.spaceKey.wasPressedThisFrame) spaceDown = 0f;
+                if (kb.spaceKey.isPressed) spaceDown += Time.unscaledDeltaTime;
+                tap = kb.spaceKey.wasReleasedThisFrame && spaceDown < 0.3f;
+            }
+            if (tap) return true;
+            if (ms != null && (ms.leftButton.wasPressedThisFrame || ms.rightButton.wasPressedThisFrame)) return true;
+            if (kb == null || !kb.anyKey.wasPressedThisFrame) return false;
+            return !kb.escapeKey.wasPressedThisFrame && !kb.spaceKey.wasPressedThisFrame;
         }
 
         void UpdateMarker()
@@ -373,6 +419,9 @@ namespace Voidward.UI
                 shotTime = 0f;
                 typed = 0;
                 highlightPlayed = false;
+                revealAll = false;
+                outTime = -1f;
+                continueGroup.alpha = 0f;
                 captionTitle.text = s.Title;
                 captionBody.text = s.Body;
                 captionBody.maxVisibleCharacters = 0;

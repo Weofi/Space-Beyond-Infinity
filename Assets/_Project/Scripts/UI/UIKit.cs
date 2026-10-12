@@ -515,7 +515,36 @@ namespace Voidward.UI
             return fill;
         }
 
+        // ---------------------------------------------------------------- items
+
+        static readonly Color TierGrey = new Color(0.39f, 0.45f, 0.55f);
+        static readonly Color TierCyan = new Color(0.22f, 0.74f, 0.97f);
+        static readonly Color TierPurple = new Color(0.66f, 0.33f, 0.97f);
+
+        /// <summary>Quality colour (DESIGN.md): tier 1 grey, 2 cyan, 3 purple.</summary>
+        public static Color TierColor(int tier) => tier >= 3 ? TierPurple : tier == 2 ? TierCyan : TierGrey;
+
+        /// <summary>Tier of modules and gear, 0 for resources and consumables.</summary>
+        public static int TierOf(Voidward.Data.ItemDef d) =>
+            d == null ? 0 : d.Module != null ? d.Module.Tier : d.Kind == Voidward.Core.ItemKind.Gear ? d.GearTier : 0;
+
+        /// <summary>The item's rendered icon (falls back to a tinted swatch), aspect preserved, not raycastable.</summary>
+        public static Image ItemIcon(Transform parent, Voidward.Data.ItemDef d, float size)
+        {
+            var img = Image(parent, "Icon", Color.white, false);
+            img.raycastTarget = false;
+            if (d != null && d.Icon != null) { img.sprite = d.Icon; img.preserveAspect = true; }
+            else { img.sprite = Rounded; img.type = UnityEngine.UI.Image.Type.Sliced; img.color = d != null ? d.Tint : Color.gray; size *= 0.6f; }
+            img.rectTransform.sizeDelta = new Vector2(size, size);
+            LayoutElement(img.gameObject, size, size);
+            return img;
+        }
+
+        /// <summary>Tier badge text ("II") for item cells; empty for untiered items.</summary>
+        public static string TierLabel(int tier) => tier >= 3 ? "III" : tier == 2 ? "II" : tier == 1 ? "I" : "";
+
         static Sprite white;
+        public static Sprite White => MakeWhite();
         static Sprite MakeWhite()
         {
             if (white == null)
@@ -555,7 +584,27 @@ namespace Voidward.UI
         public const string Star = "\ue838";
         public const string Lan = "\ueb2f";
         public const string Person = "\ue7fd";
+        // HUD (#24)
+        public const string Heart = "\ue87d";
+        public const string Air = "\uefd8";
+        public const string Bolt = "\uea0b";
+        public const string Fuel = "\ue546";
+        public const string Shield = "\ue9e0";
+        public const string Wrench = "\ue869";
+        public const string Ship = "\ueba5";
+        public const string Gate = "\ue57b";
+        public const string Store = "\uea12";
+        public const string Warning = "\ue002";
+        public const string Pin = "\ue55f";
+        public const string Credits = "\uf041";
+        public const string Respawn = "\ue863";
+        public const string Speed = "\ue9e4";
+        public const string Target = "\ue1b3";
+        public const string Danger = "\ue99a";
+        public const string Explore = "\ue87a";
+        public const string Diamond = "\uead5";
 
-        public const string All = Rocket + Join + Hangar + Settings + Quit + Group + Invite + Back + Play + Refresh + Swap + Close + Pause + Replay + Flight + Star + Lan + Person;
+        public const string All = Rocket + Join + Hangar + Settings + Quit + Group + Invite + Back + Play + Refresh + Swap + Close + Pause + Replay + Flight + Star + Lan + Person
+            + Heart + Air + Bolt + Fuel + Shield + Wrench + Ship + Gate + Store + Warning + Pin + Credits + Respawn + Speed + Target + Danger + Explore + Diamond;
     }
 }

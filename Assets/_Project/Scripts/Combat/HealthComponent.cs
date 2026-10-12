@@ -62,11 +62,16 @@ namespace Voidward.Combat
         float nextImmuneFx;
         static float nextImmuneHint;
 
+        /// <summary>Every client: any component took damage (HUD hit markers).</summary>
+        public static event Action<HealthComponent, DamageInfo> AnyDamagedClient;
+        /// <summary>Every client: a shot was absorbed by an invulnerable component (point, shooter).</summary>
+        public static event Action<HealthComponent, Vector3, ulong> AnyImmuneClient;
+
         /// <summary>All spawned health components (every client) — used for targeting.</summary>
         public static readonly List<HealthComponent> All = new List<HealthComponent>();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => All.Clear();
+        static void ResetStatics() { All.Clear(); AnyDamagedClient = null; AnyImmuneClient = null; }
 
         public override void OnNetworkSpawn()
         {
@@ -159,6 +164,7 @@ namespace Voidward.Combat
         {
             Vfx.ShieldHit(point);
             Sfx.Play("shield_hit", point, 0.8f, UnityEngine.Random.Range(0.9f, 1.1f));
+            AnyImmuneClient?.Invoke(this, point, shooter);
             if (shooter != NetworkManager.LocalClientId || string.IsNullOrEmpty(ImmuneHint) || Time.time < nextImmuneHint) return;
             nextImmuneHint = Time.time + 6f;
             EventBus.RaiseNotification(ImmuneHint);
@@ -169,6 +175,7 @@ namespace Voidward.Combat
         void DamagedClientRpc(DamageInfo info)
         {
             DamagedClient?.Invoke(info);
+            AnyDamagedClient?.Invoke(this, info);
         }
 
         /// <summary>Damage whatever IDamageable owns the hit collider, from any peer.</summary>

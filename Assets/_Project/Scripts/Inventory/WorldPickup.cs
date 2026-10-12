@@ -95,15 +95,24 @@ namespace Voidward.Inventory
 
         public override void OnNetworkDespawn() => All.Remove(this);
 
+        /// <summary>Shows the item's own model (fallback: the generic capsule tinted in the item colour).</summary>
         void ApplyTint()
         {
             var d = Def;
             if (d == null || visual == null) return;
+            var mf = visual.GetComponentInChildren<MeshFilter>();
+            if (mf != null && genericMesh == null) genericMesh = mf.sharedMesh;
+            bool model = d.Model != null && mf != null;
+            if (mf != null) mf.sharedMesh = model ? d.Model : genericMesh;
+            if (mf != null) mf.transform.localScale = Vector3.one * (model ? 1.25f : 1f);
+            if (mf != null) mf.transform.localPosition = model ? new Vector3(0f, -0.25f, 0f) : Vector3.zero;
             var mpb = new MaterialPropertyBlock();
-            mpb.SetColor("_BaseColor", d.Tint);
-            mpb.SetColor("_EmissionColor", d.Tint * 0.35f);
+            mpb.SetColor("_BaseColor", model ? Color.white : d.Tint);
+            mpb.SetColor("_EmissionColor", model ? Color.black : d.Tint * 0.35f);
             foreach (var r in visual.GetComponentsInChildren<Renderer>()) r.SetPropertyBlock(mpb);
         }
+
+        Mesh genericMesh;
 
         void Update()
         {

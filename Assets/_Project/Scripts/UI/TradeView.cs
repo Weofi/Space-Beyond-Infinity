@@ -80,8 +80,7 @@ namespace Voidward.UI
                 var row = UIKit.Panel(bl, "Item", UIKit.PanelLight);
                 UIKit.HLayout(row.gameObject, 10, 8);
                 UIKit.LayoutElement(row.gameObject, -1, 62);
-                var sw = UIKit.Image(row, "Tint", d.Tint);
-                UIKit.LayoutElement(sw.gameObject, 30, 30);
+                UIKit.ItemIcon(row, d, 52);
                 string desc = d.Module != null ? d.Module.StatsSummary().Replace("\n", ", ") : d.Description;
                 var t = UIKit.Text(row, $"<b>{d.DisplayName}</b>\n<size=75%><color=#b0b0d0>{desc}</color></size>", 21);
                 UIKit.LayoutElement(t.gameObject, -1, 58, 1);
@@ -107,6 +106,7 @@ namespace Voidward.UI
                 var row = UIKit.Panel(sl, "Item", UIKit.PanelLight);
                 UIKit.HLayout(row.gameObject, 10, 8);
                 UIKit.LayoutElement(row.gameObject, -1, 56);
+                UIKit.ItemIcon(row, d, 46);
                 var t = UIKit.Text(row, $"<b>{d.DisplayName}</b> x{st.Count}  <size=75%><color=#ffe0a0>{TraderStation.SellPrice(d)} cr each</color></size>", 21);
                 UIKit.LayoutElement(t.gameObject, -1, 50, 1);
                 UIKit.LayoutElement(UIKit.Button(row, "Sell 1", () => station.SellServerRpc(slot, false), 44, UIKit.Accent, 20).gameObject, 100, 44);

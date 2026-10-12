@@ -16,8 +16,12 @@ namespace Voidward.Data
         public ResourceType Resource;
         public int MaxStack = 99;
         public int CreditValue = 5;
-        [Tooltip("Tint used for inventory icons and world pickups.")]
+        [Tooltip("Accent colour for item names and fallback swatches.")]
         public Color Tint = Color.white;
+        [Tooltip("Generated (ContentBuilder item art): UI icon rendered from Model.")]
+        public Sprite Icon;
+        [Tooltip("Generated (ContentBuilder item art): world pickup model, ~0.5 m, vertex-coloured for VW_Hull.")]
+        public Mesh Model;
         [Tooltip("Set when Kind=Module: which module this item installs.")]
         public ModuleDef Module;
         [Tooltip("Set when Kind=Gear.")]
