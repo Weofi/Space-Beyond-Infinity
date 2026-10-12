@@ -4,6 +4,7 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 using Voidward.AI;
+using Voidward.Combat;
 using Voidward.Core;
 using Voidward.Data;
 using Voidward.Planet;
@@ -14,33 +15,89 @@ using Voidward.World;
 namespace Voidward.UI
 {
     /// <summary>
-    /// In-game HUD: vitals, ship status, hotbar, crosshair + prompts, bearing compass, Collapse
-    /// distance, objective/gate marker, ping markers, toasts, boss bar and damage feedback.
+    /// In-game HUD (#24, DESIGN.md "HUD Layout Specifications", 1080p reference): vitals plate with ghost-fill
+    /// gauges (bottom-left), ship card (bottom-right), icon hotbar (bottom-centre), Collapse threat meter with
+    /// collapse/player/gate pips and a bearing compass with gate/station/Ark/own-ship markers (top-centre),
+    /// objective card (top-left), sector card + toasts with item icons (top-right), ring crosshair with hit
+    /// markers and keycap prompt, edge-clamped world markers, boss bar, damage and low-oxygen vignettes.
     /// </summary>
     public class HudView
     {
-        readonly RectTransform root;
-        Image hpFill, o2Fill, energyFill, hullFill, shieldFill, fuelFill, collapseFill, bossFill;
-        TextMeshProUGUI hpText, o2Text, energyText, shipName, shipText, prompt, collapseText, sectorText, objective, creditsText, jumpText, deathText, bossText, o2Warn;
-        RectTransform shipPanel, bossPanel, compass, markerLayer, toastLayer, hotbarRoot;
-        Image crosshair, vignette;
+        const float Edge = 48f;
+        const float CompassWidth = 600f;
+        const float CompassRange = 95f;   // degrees visible either side of the centre
+
+        readonly RectTransform root, markerLayer, toastLayer;
+
+        // vitals + ship
+        readonly HudGauge hpGauge, o2Gauge, jetGauge, hullGauge, shieldGauge, fuelGauge;
+        readonly RectTransform shipPlate;
+        readonly TextMeshProUGUI shipName, shipRole, speedText;
+        readonly Image speedFill;
+
+        // hotbar
+        class Slot { public Image Bg, Icon; public Outline Border; public TextMeshProUGUI Num, Qty; }
+        readonly Slot[] slots = new Slot[4];
+        readonly RectTransform hotbarRoot;
+        readonly TextMeshProUGUI toolName;
+
+        // centre
+        readonly Image crossRing, crossPip;
+        readonly Image[] hitTicks = new Image[4];
+        readonly TextMeshProUGUI hitLabel;
+        float hitTime = -9f;
+        Color hitColor;
+        readonly RectTransform promptPlate;
+        readonly TextMeshProUGUI prompt;
+        string promptShown = null;
         RectTransform leadMarker;
         readonly Image[] leadTicks = new Image[4];
         Image leadLink;
-        readonly Image[] hotbar = new Image[4];
-        readonly TextMeshProUGUI[] hotbarLabels = new TextMeshProUGUI[4];
-        readonly List<(TextMeshProUGUI t, float until)> toasts = new List<(TextMeshProUGUI, float)>();
-        readonly List<Ping> pings = new List<Ping>();
-        readonly Dictionary<string, TextMeshProUGUI> compassMarks = new Dictionary<string, TextMeshProUGUI>();
-        readonly List<TextMeshProUGUI> pingLabels = new List<TextMeshProUGUI>();
-        readonly List<TextMeshProUGUI> siteLabels = new List<TextMeshProUGUI>();
-        TextMeshProUGUI gateMarker, stationMarker, arkMarker;
-        readonly TextMeshProUGUI[] bossMarkers = new TextMeshProUGUI[4];
+
+        // top-centre: collapse meter + compass
+        readonly Image meterFill;
+        readonly RectTransform meterTrack, pipCollapse, pipPlayer, pipGate;
+        readonly TextMeshProUGUI collapseText;
+        readonly RectTransform compassStrip;
+        readonly List<(RectTransform rt, float deg)> compassTicks = new List<(RectTransform, float)>();
+        class CompassMark { public RectTransform Rt; public TextMeshProUGUI Icon, Dist; }
+        readonly Dictionary<string, CompassMark> compassMarks = new Dictionary<string, CompassMark>();
+        int layoutSeed;
+        float sectorStartX, sectorEndX = 1f;
+
+        // boss
+        readonly RectTransform bossPanel;
+        readonly TextMeshProUGUI bossTitle;
+        readonly Image[] bossSegs = new Image[3];
+        readonly Image bossHull, bossGhost;
+        readonly RectTransform bossSegRow, bossHullTrack;
+        float bossGhostFrac = 1f;
+
+        // cards
+        readonly TextMeshProUGUI objHeader, objText, objHint;
+        readonly TextMeshProUGUI sectorTitle, sectorName, respawnText, creditsText;
+
+        // overlays
+        readonly TextMeshProUGUI jumpText, deathText, o2Warn;
+        readonly RectTransform jumpPlate, deathPlate, o2Plate;
+        readonly Image vignette, o2Vignette;
         float vignetteAlpha;
         float lowO2Beep;
         bool lowO2;
         bool stormWarned;
-        HealthComponentHook hook;
+        readonly HealthComponentHook hook;
+
+        // world markers
+        readonly HudMarker gateMarker, stationMarker, arkMarker, shipMarker;
+        readonly HudMarker[] bossMarkers = new HudMarker[4];
+        readonly List<HudMarker> pingMarkers = new List<HudMarker>();
+        readonly List<HudMarker> siteMarkers = new List<HudMarker>();
+        readonly List<Ping> pings = new List<Ping>();
+
+        // toasts
+        class Toast { public RectTransform Rt, Body; public CanvasGroup Group; public float Born, Until; }
+        readonly List<Toast> toasts = new List<Toast>();
+        List<ItemDef> itemsByName;
 
         struct Ping { public Vector3 Pos; public PingKind Kind; public string Label; public float Until; }
 
@@ -49,106 +106,808 @@ namespace Voidward.UI
             root = UIKit.Rect(canvas, "HUD");
             UIKit.Stretch(root);
 
-            vignette = UIKit.Image(root, "Vignette", new Color(1f, 0.15f, 0.3f, 0f), false);
+            vignette = UIKit.Image(root, "Vignette", new Color(0.86f, 0.15f, 0.15f, 0f), false);
             UIKit.Stretch(vignette.rectTransform);
             vignette.sprite = MakeVignette();
             vignette.raycastTarget = false;
+            o2Vignette = UIKit.Image(root, "O2Vignette", new Color(0.03f, 0.57f, 0.7f, 0f), false);
+            UIKit.Stretch(o2Vignette.rectTransform);
+            o2Vignette.sprite = vignette.sprite;
+            o2Vignette.raycastTarget = false;
 
             markerLayer = UIKit.Rect(root, "Markers");
             UIKit.Stretch(markerLayer);
-            gateMarker = Marker("[ GATE ]", UIKit.Accent);
-            stationMarker = Marker("[ STATION ]", UIKit.Warn);
-            arkMarker = Marker("[ ARK ]", UIKit.Accent2);
-            for (int i = 0; i < bossMarkers.Length; i++) bossMarkers[i] = Marker("", UIKit.Bad);
+            gateMarker = new HudMarker(markerLayer);
+            stationMarker = new HudMarker(markerLayer);
+            arkMarker = new HudMarker(markerLayer);
+            shipMarker = new HudMarker(markerLayer);
+            for (int i = 0; i < bossMarkers.Length; i++) bossMarkers[i] = new HudMarker(markerLayer);
 
-            // Vitals (bottom-left)
-            var vit = UIKit.Panel(root, "Vitals");
-            UIKit.Place(vit, new Vector2(0, 0), new Vector2(30, 30), new Vector2(420, 170), Vector2.zero);
-            UIKit.VLayout(vit.gameObject, 6, 14, TextAnchor.UpperLeft);
-            hpFill = BarRow(vit, "HEALTH", UIKit.Good, out hpText);
-            o2Fill = BarRow(vit, "OXYGEN", UIKit.Accent, out o2Text);
-            energyFill = BarRow(vit, "JETPACK", UIKit.Warn, out energyText);
+            // ---------------------------------------------------------- vitals (bottom-left)
+            var vit = HudKit.Plate(root, "Vitals").rectTransform;
+            UIKit.Place(vit, Vector2.zero, new Vector2(Edge, Edge), new Vector2(456, 112), Vector2.zero);
+            UIKit.VLayout(vit.gameObject, 2, 12, TextAnchor.MiddleLeft);
+            hpGauge = new HudGauge(vit, Icons.Heart, "Health", HudKit.Health, 250, 18, 32);
+            o2Gauge = new HudGauge(vit, Icons.Air, "Oxygen", HudKit.Oxygen, 250, 12, 28);
+            jetGauge = new HudGauge(vit, Icons.Bolt, "Jetpack", HudKit.Energy, 250, 12, 28);
 
-            o2Warn = UIKit.Text(root, "LOW OXYGEN - RETURN TO A SHIP OR ATMOSPHERE", 30, TextAlignmentOptions.Center, UIKit.Bad, FontStyles.Bold);
-            UIKit.Place(o2Warn.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -170), new Vector2(1000, 50));
+            o2Plate = HudKit.Plate(root, "O2Warn", HudKit.Hex(0x7F1D1D, 0.85f)).rectTransform;
+            UIKit.Place(o2Plate, new Vector2(0.5f, 0.5f), new Vector2(0, -190), new Vector2(620, 46));
+            o2Warn = HudKit.Micro(o2Plate, "LOW OXYGEN - RETURN TO A SHIP OR ATMOSPHERE", 18f, HudKit.TextHi, TextAlignmentOptions.Center);
+            UIKit.Stretch(o2Warn.rectTransform);
 
-            // Ship (bottom-right)
-            shipPanel = UIKit.Panel(root, "Ship");
-            UIKit.Place(shipPanel, new Vector2(1, 0), new Vector2(-30, 30), new Vector2(420, 210), new Vector2(1, 0));
-            UIKit.VLayout(shipPanel.gameObject, 6, 14, TextAnchor.UpperLeft);
-            shipName = UIKit.Text(shipPanel, "", 24, TextAlignmentOptions.Left, UIKit.Accent, FontStyles.Bold);
-            UIKit.LayoutElement(shipName.gameObject, -1, 30);
-            hullFill = BarRow(shipPanel, "HULL", UIKit.Accent2, out _);
-            shieldFill = BarRow(shipPanel, "SHIELD", new Color(0.5f, 0.75f, 1f), out _);
-            fuelFill = BarRow(shipPanel, "FUEL", UIKit.Warn, out shipText);
+            // ---------------------------------------------------------- ship card (bottom-right)
+            shipPlate = HudKit.Plate(root, "Ship").rectTransform;
+            UIKit.Place(shipPlate, new Vector2(1, 0), new Vector2(-Edge, Edge), new Vector2(456, 176), new Vector2(1, 0));
+            UIKit.VLayout(shipPlate.gameObject, 2, 12, TextAnchor.UpperLeft);
+            var head = UIKit.Row(shipPlate, 30, 8);
+            var shipIcon = UIKit.IconText(head, Icons.Ship, 24, HudKit.Shield);
+            UIKit.LayoutElement(shipIcon.gameObject, 26, 30);
+            shipName = UIKit.Text(head, "", 22, TextAlignmentOptions.Left, HudKit.TextHi, FontStyles.Bold);
+            shipName.textWrappingMode = TextWrappingModes.NoWrap;
+            UIKit.LayoutElement(shipName.gameObject, 250, 30);
+            shipRole = HudKit.Micro(head, "", 14f, HudKit.KeyText, TextAlignmentOptions.Right);
+            UIKit.LayoutElement(shipRole.gameObject, 140, 30);
+            hullGauge = new HudGauge(shipPlate, Icons.Wrench, "Hull", HudKit.Hull, 250, 14, 28);
+            shieldGauge = new HudGauge(shipPlate, Icons.Shield, "Shield", HudKit.Shield, 250, 14, 28);
+            fuelGauge = new HudGauge(shipPlate, Icons.Fuel, "Fuel", HudKit.Fuel, 250, 12, 28);
+            var spRow = UIKit.Row(shipPlate, 28, 8);
+            var spIcon = UIKit.IconText(spRow, Icons.Speed, 20, HudKit.TextDim);
+            UIKit.LayoutElement(spIcon.gameObject, 26, 28);
+            UIKit.LayoutElement(HudKit.Micro(spRow, "Speed", 13f).gameObject, 74, 28);
+            var spTrack = UIKit.Image(spRow, "Track", HudKit.Inset, false);
+            spTrack.sprite = HudKit.Soft; spTrack.type = Image.Type.Sliced;
+            UIKit.LayoutElement(spTrack.gameObject, 250, 6);
+            speedFill = UIKit.Image(spTrack.transform, "Fill", HudKit.TextHi, false);
+            UIKit.Stretch(speedFill.rectTransform, 1, 1, 1, 1);
+            speedFill.sprite = UIKit.White; speedFill.type = Image.Type.Filled; speedFill.fillMethod = Image.FillMethod.Horizontal;
+            speedText = UIKit.Text(spRow, "", 19, TextAlignmentOptions.Right, HudKit.TextHi, FontStyles.Bold);
+            UIKit.LayoutElement(speedText.gameObject, 58, 28);
 
-            // Hotbar (bottom-center)
-            var hb = UIKit.Rect(root, "Hotbar");
-            hotbarRoot = hb;
-            UIKit.Place(hb, new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(560, 96), new Vector2(0.5f, 0));
-            UIKit.HLayout(hb.gameObject, 12, 0, TextAnchor.MiddleCenter);
-            string[] names = { "Drill", "Blaster", "Rifle", "Medkit" };
+            // ---------------------------------------------------------- hotbar (bottom-centre)
+            hotbarRoot = UIKit.Rect(root, "Hotbar");
+            UIKit.Place(hotbarRoot, new Vector2(0.5f, 0), new Vector2(0, 36), new Vector2(4 * 76 + 3 * 10, 76), new Vector2(0.5f, 0));
+            UIKit.HLayout(hotbarRoot.gameObject, 10, 0, TextAnchor.MiddleCenter);
             for (int i = 0; i < 4; i++)
             {
-                hotbar[i] = UIKit.Image(hb, "Slot", UIKit.PanelColor);
-                UIKit.LayoutElement(hotbar[i].gameObject, 128, 90);
-                hotbarLabels[i] = UIKit.Text(hotbar[i].transform, $"<size=70%>{i + 1}</size>\n{names[i]}", 22, TextAlignmentOptions.Center);
-                UIKit.Stretch(hotbarLabels[i].rectTransform, 4, 4, 4, 4);
+                var s = new Slot();
+                s.Bg = UIKit.Image(hotbarRoot, "Slot", HudKit.Hex(0x0E1420, 0.9f), false);
+                s.Bg.sprite = HudKit.Soft; s.Bg.type = Image.Type.Sliced;
+                UIKit.LayoutElement(s.Bg.gameObject, 76, 76);
+                s.Border = s.Bg.gameObject.AddComponent<Outline>();
+                s.Border.useGraphicAlpha = false;
+                s.Icon = UIKit.Image(s.Bg.transform, "Icon", Color.white, false);
+                s.Icon.preserveAspect = true;
+                s.Icon.raycastTarget = false;
+                UIKit.Place(s.Icon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 2), new Vector2(56, 56));
+                s.Num = UIKit.Text(s.Bg.transform, (i + 1).ToString(), 14, TextAlignmentOptions.TopLeft, HudKit.TextDim, FontStyles.Bold);
+                UIKit.Stretch(s.Num.rectTransform, 6, 4, 3, 4);
+                s.Qty = UIKit.Text(s.Bg.transform, "", 16, TextAlignmentOptions.BottomRight, HudKit.TextHi, FontStyles.Bold);
+                UIKit.Stretch(s.Qty.rectTransform, 4, 7, 4, 4);
+                slots[i] = s;
             }
+            toolName = HudKit.Micro(root, "", 15f, HudKit.TextHead, TextAlignmentOptions.Center);
+            UIKit.Place(toolName.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 36 + 76 + 6), new Vector2(400, 22), new Vector2(0.5f, 0));
 
-            // Crosshair + prompt
-            crosshair = UIKit.Image(root, "Crosshair", new Color(1, 1, 1, 0.85f));
-            crosshair.sprite = UIKit.Circle;
-            UIKit.Place(crosshair.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8, 8));
+            // ---------------------------------------------------------- crosshair, hit markers, prompt
+            crossRing = UIKit.Image(root, "CrossRing", HudKit.Hex(0xE2E8F0, 0.42f), false);
+            crossRing.sprite = HudKit.Ring;
+            crossRing.raycastTarget = false;
+            UIKit.Place(crossRing.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(24, 24));
+            crossPip = UIKit.Image(root, "CrossPip", new Color(1f, 1f, 1f, 0.9f), false);
+            crossPip.sprite = UIKit.Circle;
+            crossPip.raycastTarget = false;
+            UIKit.Place(crossPip.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4, 4));
+            for (int i = 0; i < 4; i++)
+            {
+                hitTicks[i] = UIKit.Image(root, "Hit", Color.white, false);
+                hitTicks[i].raycastTarget = false;
+                var rt = hitTicks[i].rectTransform;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(2.5f, 11f);
+                rt.localRotation = Quaternion.Euler(0, 0, 45f + 90f * i);
+                hitTicks[i].enabled = false;
+            }
+            hitLabel = HudKit.Micro(root, "", 13f, HudKit.TextDim, TextAlignmentOptions.Center);
+            UIKit.Place(hitLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 34), new Vector2(240, 20));
             BuildLeadMarker();
-            prompt = UIKit.Text(root, "", 28, TextAlignmentOptions.Center, Color.white, FontStyles.Bold);
-            UIKit.Place(prompt.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -80), new Vector2(1000, 44));
+            promptPlate = HudKit.Plate(root, "Prompt").rectTransform;
+            UIKit.Place(promptPlate, new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(240, 38));
+            prompt = UIKit.Text(promptPlate, "", 18, TextAlignmentOptions.Center, HudKit.TextHi, FontStyles.Bold);
+            prompt.textWrappingMode = TextWrappingModes.NoWrap;
+            prompt.characterSpacing = 2f;
+            UIKit.Stretch(prompt.rectTransform, 12, 12, 0, 0);
 
-            // Compass (top-center)
-            compass = UIKit.Panel(root, "Compass", new Color(0.09f, 0.08f, 0.17f, 0.6f));
-            UIKit.Place(compass, new Vector2(0.5f, 1), new Vector2(0, -20), new Vector2(760, 46), new Vector2(0.5f, 1));
-            compass.gameObject.AddComponent<RectMask2D>();
-            var tick = UIKit.Image(compass, "Center", Color.white, false);
-            UIKit.Place(tick.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(2, 34));
+            // ---------------------------------------------------------- collapse threat meter (top-centre)
+            var meter = HudKit.Plate(root, "CollapseMeter").rectTransform;
+            UIKit.Place(meter, new Vector2(0.5f, 1), new Vector2(0, -18), new Vector2(480, 62), new Vector2(0.5f, 1));
+            var trackImg = UIKit.Image(meter, "Track", HudKit.VoidTrack, false);
+            trackImg.sprite = HudKit.Soft; trackImg.type = Image.Type.Sliced;
+            meterTrack = trackImg.rectTransform;
+            UIKit.Place(meterTrack, new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(440, 14), new Vector2(0.5f, 1));
+            meterFill = UIKit.Image(meterTrack, "Fill", Color.white, false);
+            UIKit.Stretch(meterFill.rectTransform, 1, 1, 1, 1);
+            meterFill.sprite = HudKit.Gradient(HudKit.Violet, HudKit.Crimson);
+            meterFill.type = Image.Type.Filled; meterFill.fillMethod = Image.FillMethod.Horizontal;
+            pipGate = Pip(meterTrack, HudKit.Gold, HudKit.Ring, 18);
+            pipCollapse = Pip(meterTrack, HudKit.Danger, HudKit.Diamond, 16);
+            pipPlayer = Pip(meterTrack, HudKit.Shield, HudKit.Chevron, 14);
+            collapseText = UIKit.Text(meter, "", 19, TextAlignmentOptions.Center, HudKit.Teal, FontStyles.Bold);
+            UIKit.Place(collapseText.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(440, 26), new Vector2(0.5f, 0));
+            collapseText.characterSpacing = 3f;
 
-            bossPanel = UIKit.Panel(root, "Boss", new Color(0.12f, 0.04f, 0.12f, 0.8f));
-            UIKit.Place(bossPanel, new Vector2(0.5f, 1), new Vector2(0, -80), new Vector2(900, 70), new Vector2(0.5f, 1));
-            UIKit.VLayout(bossPanel.gameObject, 4, 8);
-            bossText = UIKit.Text(bossPanel, "THE WARDEN", 24, TextAlignmentOptions.Center, UIKit.Bad, FontStyles.Bold);
-            UIKit.LayoutElement(bossText.gameObject, -1, 26);
-            bossFill = UIKit.Bar(bossPanel, "BossHp", UIKit.Bad, new Vector2(860, 20));
+            // ---------------------------------------------------------- compass (below the meter)
+            var compassWrap = UIKit.Rect(root, "Compass");
+            UIKit.Place(compassWrap, new Vector2(0.5f, 1), new Vector2(0, -88), new Vector2(CompassWidth, 50), new Vector2(0.5f, 1));
+            compassWrap.gameObject.AddComponent<RectMask2D>().softness = new Vector2Int(60, 0);
+            var strip = HudKit.Plate(compassWrap, "Strip").rectTransform;
+            UIKit.Place(strip, new Vector2(0.5f, 1), Vector2.zero, new Vector2(CompassWidth, 26), new Vector2(0.5f, 1));
+            compassStrip = compassWrap;
+            string[] cardinal = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+            for (int d = 0; d < 360; d += 15)
+            {
+                bool major = d % 45 == 0;
+                RectTransform rt;
+                if (major)
+                {
+                    var t = UIKit.Text(compassWrap, cardinal[d / 45], d % 90 == 0 ? 15 : 12, TextAlignmentOptions.Center, d == 0 ? HudKit.Gold : HudKit.TextDim, FontStyles.Bold);
+                    rt = t.rectTransform;
+                    rt.sizeDelta = new Vector2(30, 26);
+                }
+                else
+                {
+                    var t = UIKit.Image(compassWrap, "Tick", HudKit.Hex(0x94A3B8, 0.5f), false);
+                    t.raycastTarget = false;
+                    rt = t.rectTransform;
+                    rt.sizeDelta = new Vector2(1.5f, 8);
+                }
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                compassTicks.Add((rt, d));
+            }
+            var centre = UIKit.Image(compassWrap, "Centre", HudKit.TextHi, false);
+            centre.sprite = HudKit.Chevron;
+            UIKit.Place(centre.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -1), new Vector2(10, 7), new Vector2(0.5f, 1));
 
-            // Collapse + sector (top-right)
-            var cp = UIKit.Panel(root, "Collapse");
-            UIKit.Place(cp, new Vector2(1, 1), new Vector2(-30, -20), new Vector2(380, 150), new Vector2(1, 1));
-            UIKit.VLayout(cp.gameObject, 4, 12, TextAnchor.UpperRight);
-            sectorText = UIKit.Text(cp, "", 22, TextAlignmentOptions.Right, UIKit.TextDim);
-            UIKit.LayoutElement(sectorText.gameObject, -1, 28);
-            collapseText = UIKit.Text(cp, "", 28, TextAlignmentOptions.Right, UIKit.Bad, FontStyles.Bold);
-            UIKit.LayoutElement(collapseText.gameObject, -1, 34);
-            collapseFill = UIKit.Bar(cp, "CollapseBar", UIKit.Bad, new Vector2(356, 14));
-            creditsText = UIKit.Text(cp, "", 22, TextAlignmentOptions.Right, UIKit.Warn);
-            UIKit.LayoutElement(creditsText.gameObject, -1, 28);
+            // ---------------------------------------------------------- boss bar
+            bossPanel = UIKit.Rect(root, "Boss");
+            UIKit.Place(bossPanel, new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(660, 60), new Vector2(0.5f, 1));
+            bossTitle = HudKit.Micro(bossPanel, "THE WARDEN", 18f, HudKit.BossTitle, TextAlignmentOptions.Center);
+            UIKit.Place(bossTitle.rectTransform, new Vector2(0.5f, 1), Vector2.zero, new Vector2(660, 24), new Vector2(0.5f, 1));
+            bossSegRow = UIKit.Rect(bossPanel, "Segments");
+            UIKit.Place(bossSegRow, new Vector2(0.5f, 1), new Vector2(0, -28), new Vector2(640, 24), new Vector2(0.5f, 1));
+            UIKit.HLayout(bossSegRow.gameObject, 6, 0, TextAnchor.MiddleCenter);
+            for (int i = 0; i < 3; i++)
+            {
+                var bg = HudKit.Plate(bossSegRow, "Seg", HudKit.BossEmpty);
+                UIKit.LayoutElement(bg.gameObject, 209, 24);
+                bossSegs[i] = UIKit.Image(bg.transform, "Fill", HudKit.BossFill, false);
+                UIKit.Stretch(bossSegs[i].rectTransform, 2, 2, 2, 2);
+                bossSegs[i].sprite = UIKit.White; bossSegs[i].type = Image.Type.Filled; bossSegs[i].fillMethod = Image.FillMethod.Horizontal;
+            }
+            var hullBg = HudKit.Plate(bossPanel, "Hull", HudKit.BossEmpty);
+            bossHullTrack = hullBg.rectTransform;
+            UIKit.Place(bossHullTrack, new Vector2(0.5f, 1), new Vector2(0, -28), new Vector2(640, 24), new Vector2(0.5f, 1));
+            bossGhost = UIKit.Image(bossHullTrack, "Ghost", new Color(1f, 0.85f, 0.88f, 0.6f), false);
+            UIKit.Stretch(bossGhost.rectTransform, 2, 2, 2, 2);
+            bossGhost.sprite = UIKit.White; bossGhost.type = Image.Type.Filled; bossGhost.fillMethod = Image.FillMethod.Horizontal;
+            bossHull = UIKit.Image(bossHullTrack, "Fill", HudKit.BossFill, false);
+            UIKit.Stretch(bossHull.rectTransform, 2, 2, 2, 2);
+            bossHull.sprite = UIKit.White; bossHull.type = Image.Type.Filled; bossHull.fillMethod = Image.FillMethod.Horizontal;
 
-            // Objective (top-left)
-            objective = UIKit.Text(root, "", 26, TextAlignmentOptions.TopLeft, Color.white);
-            UIKit.Place(objective.rectTransform, new Vector2(0, 1), new Vector2(30, -24), new Vector2(620, 120), new Vector2(0, 1));
+            // ---------------------------------------------------------- objective card (top-left)
+            var obj = HudKit.Plate(root, "Objective").rectTransform;
+            UIKit.Place(obj, new Vector2(0, 1), new Vector2(Edge, -18), new Vector2(560, 0), new Vector2(0, 1));
+            HudKit.AccentBar(obj, HudKit.Gold);
+            var ov = UIKit.VLayout(obj.gameObject, 4, 0, TextAnchor.UpperLeft);
+            ov.padding = new RectOffset(20, 16, 12, 12);
+            ov.childControlHeight = true;
+            ov.childForceExpandHeight = false;
+            var fit = obj.gameObject.AddComponent<ContentSizeFitter>();
+            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            objHeader = HudKit.Micro(obj, "OBJECTIVE", 15f, HudKit.Gold);
+            objText = UIKit.Text(obj, "", 21, TextAlignmentOptions.TopLeft, HudKit.TextHi, FontStyles.Bold);
+            objHint = UIKit.Text(obj, "", 15, TextAlignmentOptions.TopLeft, HudKit.TextDim);
+            objHint.lineSpacing = 18f;
 
-            jumpText = UIKit.Text(root, "", 54, TextAlignmentOptions.Center, UIKit.Accent, FontStyles.Bold);
-            UIKit.Place(jumpText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 200), new Vector2(1200, 80));
-            deathText = UIKit.Text(root, "", 46, TextAlignmentOptions.Center, UIKit.Bad, FontStyles.Bold);
-            UIKit.Place(deathText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(1200, 160));
+            // ---------------------------------------------------------- sector card (top-right)
+            var sec = HudKit.Plate(root, "Sector").rectTransform;
+            UIKit.Place(sec, new Vector2(1, 1), new Vector2(-Edge, -18), new Vector2(340, 98), new Vector2(1, 1));
+            sectorTitle = HudKit.Micro(sec, "", 15f, HudKit.KeyText, TextAlignmentOptions.Right);
+            UIKit.Place(sectorTitle.rectTransform, new Vector2(1, 1), new Vector2(-16, -10), new Vector2(310, 18), new Vector2(1, 1));
+            sectorName = UIKit.Text(sec, "", 24, TextAlignmentOptions.Right, HudKit.TextHi, FontStyles.Bold | FontStyles.UpperCase);
+            sectorName.textWrappingMode = TextWrappingModes.NoWrap;
+            sectorName.characterSpacing = 3f;
+            UIKit.Place(sectorName.rectTransform, new Vector2(1, 1), new Vector2(-16, -28), new Vector2(310, 30), new Vector2(1, 1));
+            var respIcon = UIKit.IconText(sec, Icons.Respawn, 20, HudKit.TextHead);
+            UIKit.Place(respIcon.rectTransform, new Vector2(0, 0), new Vector2(14, 10), new Vector2(24, 26), new Vector2(0, 0));
+            respawnText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Left, HudKit.TextHead, FontStyles.Bold);
+            UIKit.Place(respawnText.rectTransform, new Vector2(0, 0), new Vector2(42, 10), new Vector2(150, 26), new Vector2(0, 0));
+            var credIcon = UIKit.IconText(sec, Icons.Credits, 20, HudKit.Hex(0xFCD34D));
+            UIKit.Place(credIcon.rectTransform, new Vector2(1, 0), new Vector2(-16, 10), new Vector2(24, 26), new Vector2(1, 0));
+            creditsText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Right, HudKit.Hex(0xFCD34D), FontStyles.Bold);
+            UIKit.Place(creditsText.rectTransform, new Vector2(1, 0), new Vector2(-44, 10), new Vector2(150, 26), new Vector2(1, 0));
 
+            // ---------------------------------------------------------- toasts (top-right, below the sector card)
             toastLayer = UIKit.Rect(root, "Toasts");
-            UIKit.Place(toastLayer, new Vector2(0, 0.5f), new Vector2(30, 40), new Vector2(720, 420), new Vector2(0, 0.5f));
-            var v = UIKit.VLayout(toastLayer.gameObject, 6, 0, TextAnchor.LowerLeft);
-            v.childForceExpandWidth = false;
+            UIKit.Place(toastLayer, new Vector2(1, 1), new Vector2(-Edge, -130), new Vector2(380, 420), new Vector2(1, 1));
+            var tv = UIKit.VLayout(toastLayer.gameObject, 8, 0, TextAnchor.UpperRight, false);
+            tv.childControlHeight = true;
+            tv.childForceExpandHeight = false;
+
+            // ---------------------------------------------------------- big centre messages
+            jumpPlate = HudKit.Plate(root, "Jump").rectTransform;
+            UIKit.Place(jumpPlate, new Vector2(0.5f, 0.5f), new Vector2(0, 210), new Vector2(560, 84));
+            HudKit.AccentBar(jumpPlate, HudKit.Shield, 6);
+            jumpText = UIKit.Text(jumpPlate, "", 46, TextAlignmentOptions.Center, HudKit.Shield, FontStyles.Bold);
+            jumpText.characterSpacing = 8f;
+            UIKit.Stretch(jumpText.rectTransform);
+            deathPlate = HudKit.Plate(root, "Death", HudKit.Hex(0x0A0E17, 0.86f)).rectTransform;
+            UIKit.Place(deathPlate, new Vector2(0.5f, 0.5f), new Vector2(0, 70), new Vector2(820, 150));
+            HudKit.AccentBar(deathPlate, HudKit.Danger, 6);
+            deathText = UIKit.Text(deathPlate, "", 48, TextAlignmentOptions.Center, HudKit.Danger, FontStyles.Bold);
+            deathText.characterSpacing = 6f;
+            UIKit.Stretch(deathText.rectTransform, 16, 16, 10, 10);
 
             EventBus.Notification += OnNotification;
             EventBus.PingCreated += (p, k, l) => { pings.Add(new Ping { Pos = p, Kind = k, Label = l, Until = Time.time + 14f }); Sfx.PlayUI("ping", 0.6f); };
             EventBus.LocalPlayerHurt += i => vignetteAlpha = Mathf.Max(vignetteAlpha, 0.25f + i * 0.5f);
+            HealthComponent.AnyDamagedClient += OnAnyDamaged;
+            HealthComponent.AnyImmuneClient += OnAnyImmune;
             hook = new HealthComponentHook();
         }
+
+        static RectTransform Pip(RectTransform track, Color c, Sprite sprite, float size)
+        {
+            var img = UIKit.Image(track, "Pip", c, false);
+            img.sprite = sprite;
+            img.raycastTarget = false;
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0f, 0.5f);
+            rt.sizeDelta = new Vector2(size, size);
+            return rt;
+        }
+
+        // ================================================================ events
+
+        static ulong LocalId => NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : 0;
+
+        void OnAnyDamaged(HealthComponent h, DamageInfo info)
+        {
+            if (!info.ByPlayer || info.SourceClientId != LocalId || h == null || h.Team == Team.Players) return;
+            hitTime = Time.unscaledTime;
+            hitColor = info.IsWeakPoint ? HudKit.Fuel : HudKit.Hex(0xF87171);
+            hitLabel.text = !h.IsAlive ? "KILL" : info.IsWeakPoint ? "WEAK POINT" : "";
+            hitLabel.color = hitColor;
+        }
+
+        void OnAnyImmune(HealthComponent h, Vector3 point, ulong shooter)
+        {
+            if (shooter != LocalId) return;
+            hitTime = Time.unscaledTime;
+            hitColor = HudKit.TextDim;
+            hitLabel.text = "SHIELDED";
+            hitLabel.color = hitColor;
+        }
+
+        void OnNotification(string msg)
+        {
+            if (string.IsNullOrWhiteSpace(msg)) return;
+            Color accent = ToastColor(msg);
+            var rt = UIKit.Rect(toastLayer, "Toast");
+            var le = rt.gameObject.AddComponent<LayoutElement>();
+            le.preferredWidth = 380;
+            var body = HudKit.Plate(rt, "Body").rectTransform;
+            UIKit.Stretch(body);
+            HudKit.AccentBar(body, accent);
+            var group = rt.gameObject.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            var item = ItemIn(msg);
+            float textLeft = 16f;
+            if (item != null && item.Icon != null)
+            {
+                var ic = UIKit.ItemIcon(body, item, 38);
+                UIKit.Place(ic.rectTransform, new Vector2(0, 0.5f), new Vector2(12, 0), new Vector2(38, 38), new Vector2(0, 0.5f));
+                textLeft = 58f;
+            }
+            var t = UIKit.Text(body, msg, 18, TextAlignmentOptions.MidlineLeft, HudKit.TextHi);
+            t.textWrappingMode = TextWrappingModes.Normal;
+            UIKit.Stretch(t.rectTransform, textLeft, 12, 8, 8);
+            float h = Mathf.Max(46f, t.GetPreferredValues(msg, 380f - textLeft - 12f, 0f).y + 18f);
+            le.preferredHeight = h;
+            rt.sizeDelta = new Vector2(380, h);
+            toasts.Add(new Toast { Rt = rt, Body = body, Group = group, Born = Time.unscaledTime, Until = Time.unscaledTime + 4.5f });
+            while (toasts.Count > 4) { if (toasts[0].Rt) Object.Destroy(toasts[0].Rt.gameObject); toasts.RemoveAt(0); }
+        }
+
+        static Color ToastColor(string m)
+        {
+            string l = m.ToLowerInvariant();
+            if (l.Contains("warning") || l.Contains("collapse") || l.Contains("enraged") || l.Contains("destroyed!") || l.Contains("lost") || l.Contains("storm") || l.Contains("blizzard")) return HudKit.Danger;
+            if (l.Contains("+") || l.Contains("received") || l.Contains("installed") || l.Contains("crafted") || l.Contains("bought")) return HudKit.Gold;
+            if (l.Contains("joined") || l.Contains("jump")) return HudKit.Health;
+            return HudKit.Shield;
+        }
+
+        /// <summary>First item whose display name appears in the message (longest names first).</summary>
+        ItemDef ItemIn(string msg)
+        {
+            if (itemsByName == null)
+            {
+                itemsByName = new List<ItemDef>();
+                var cat = ContentCatalog.Instance;
+                if (cat != null) foreach (var it in cat.Items) if (it != null && !string.IsNullOrEmpty(it.DisplayName)) itemsByName.Add(it);
+                itemsByName.Sort((a, b) => b.DisplayName.Length.CompareTo(a.DisplayName.Length));
+            }
+            foreach (var it in itemsByName)
+                if (msg.IndexOf(it.DisplayName, System.StringComparison.OrdinalIgnoreCase) >= 0) return it;
+            return null;
+        }
+
+        public void SetVisible(bool v)
+        {
+            if (root.gameObject.activeSelf != v) root.gameObject.SetActive(v);
+        }
+
+        // ================================================================ per frame
+
+        public void Update()
+        {
+            UpdateToasts();
+            if (!root.gameObject.activeInHierarchy) return;
+
+            // Weather warning when a storm builds up around the player.
+            bool storm = PlanetAmbience.Storm > 0.35f;
+            if (storm && !stormWarned && PlanetAmbience.Weather != PlanetWeather.None && PlanetAmbience.Weather != PlanetWeather.Shimmer)
+                OnNotification(PlanetAmbience.Weather switch
+                {
+                    PlanetWeather.Sandstorm => "Sandstorm rolling in - visibility dropping",
+                    PlanetWeather.Blizzard => "Blizzard incoming - stay close to your crew",
+                    PlanetWeather.AshFall => "Ash fall - the sky is going dark",
+                    _ => "Spore bloom - the air is thick",
+                });
+            if (storm) stormWarned = true;
+            else if (PlanetAmbience.Storm < 0.1f) stormWarned = false;
+
+            var pawn = PlayerPawn.Local;
+            var cam = Camera.main;
+            hook.Track(pawn);
+
+            vignetteAlpha = Mathf.MoveTowards(vignetteAlpha, 0f, Time.deltaTime * 1.4f);
+            vignette.color = new Color(0.86f, 0.15f, 0.15f, vignetteAlpha);
+
+            if (pawn != null)
+            {
+                UpdateVitals(pawn);
+                UpdateHotbar(pawn);
+                UpdateCentre(pawn);
+                UpdateShip(pawn);
+                creditsText.text = HudKit.Num(HudKit.F(pawn.Inventory.Credits.Value, "N0"));
+                UpdateDeath(pawn);
+            }
+
+            var rm = RunManager.Instance;
+            if (rm != null && pawn != null)
+            {
+                UpdateMeter(rm, pawn);
+                var def = ContentCatalog.GetSector(rm.SectorIndex.Value);
+                sectorTitle.text = $"SECTOR {rm.SectorIndex.Value} / 3";
+                sectorName.text = def != null ? def.DisplayName : "";
+                respawnText.text = HudKit.Num(rm.RespawnsLeft.Value.ToString()) + " <size=70%><color=#94A3B8>RESPAWNS</color></size>";
+                bool jumping = rm.JumpCountdown.Value >= 0f;
+                jumpPlate.gameObject.SetActive(jumping);
+                if (jumping) jumpText.text = "JUMPING IN " + HudKit.Num(Mathf.CeilToInt(rm.JumpCountdown.Value).ToString());
+                UpdateObjective(pawn);
+            }
+            else jumpPlate.gameObject.SetActive(false);
+
+            UpdateBoss();
+            if (cam != null)
+            {
+                UpdateMarkers(cam, pawn);
+                UpdateLeadMarker(cam, pawn);
+                UpdateCompass(cam, pawn);
+            }
+        }
+
+        void UpdateToasts()
+        {
+            float now = Time.unscaledTime;
+            for (int i = toasts.Count - 1; i >= 0; i--)
+            {
+                var t = toasts[i];
+                if (t.Rt == null) { toasts.RemoveAt(i); continue; }
+                float left = t.Until - now;
+                if (left <= 0f) { Object.Destroy(t.Rt.gameObject); toasts.RemoveAt(i); continue; }
+                float inK = Mathf.Clamp01((now - t.Born) / 0.22f);
+                float outK = Mathf.Clamp01(left / 0.35f);
+                float slide = (1f - Ease(inK)) * 60f + (1f - outK) * 80f;
+                t.Body.offsetMin = new Vector2(slide, 0f);
+                t.Body.offsetMax = new Vector2(slide, 0f);
+                t.Group.alpha = Mathf.Min(inK, outK);
+            }
+        }
+
+        static float Ease(float t) => 1f - (1f - t) * (1f - t) * (1f - t);
+
+        void UpdateVitals(PlayerPawn pawn)
+        {
+            var h = pawn.Health;
+            hpGauge.Set(h.Fraction, Mathf.CeilToInt(h.Hp.Value).ToString(), h.Fraction < 0.25f && h.IsAlive);
+            float maxO2 = pawn.Gear != null ? pawn.Gear.MaxOxygen : 90f;
+            float o2 = pawn.Oxygen.Value / Mathf.Max(1f, maxO2);
+            o2Gauge.Set(o2, Mathf.CeilToInt(pawn.Oxygen.Value) + "s", o2 < 0.2f);
+            float maxE = pawn.Gear != null ? pawn.Gear.JetpackEnergy : 100f;
+            jetGauge.Set(pawn.SuitEnergy / Mathf.Max(1f, maxE), Mathf.CeilToInt(pawn.SuitEnergy).ToString());
+
+            bool low = o2 < 0.25f && !pawn.IsDown.Value && pawn.Active.Value;
+            if (low != lowO2) { lowO2 = low; EventBus.RaiseLowOxygenChanged(low); }
+            o2Plate.gameObject.SetActive(low && Mathf.Repeat(Time.time, 1f) < 0.65f);
+            float pulse = low ? 0.22f + 0.18f * Mathf.Sin(Time.time * Mathf.PI * 2f) : 0f;
+            o2Vignette.color = new Color(0.03f, 0.57f, 0.7f, Mathf.MoveTowards(o2Vignette.color.a, pulse, Time.deltaTime * 2f));
+            if (low) { lowO2Beep -= Time.deltaTime; if (lowO2Beep <= 0f) { lowO2Beep = 1.6f; Sfx.PlayUI("low_oxygen", 0.7f); } }
+        }
+
+        void UpdateHotbar(PlayerPawn pawn)
+        {
+            bool seated = pawn.CurrentSeat != null;
+            hotbarRoot.gameObject.SetActive(!seated);
+            toolName.gameObject.SetActive(!seated);
+            if (seated) return;
+            var cat = ContentCatalog.Instance;
+            var medkit = ContentCatalog.GetItem("medkit");
+            Sprite[] icons = { cat != null ? cat.IconDrill : null, cat != null ? cat.IconBlaster : null, cat != null ? cat.IconRifle : null, medkit != null ? medkit.Icon : null };
+            string[] names = { "Mining Drill", "Blaster", "Pulse Rifle", "Medkit" };
+            int medkits = pawn.Inventory != null ? pawn.Inventory.Count("medkit") : 0;
+            for (int i = 0; i < 4; i++)
+            {
+                var s = slots[i];
+                bool sel = (int)pawn.CurrentTool == i;
+                bool avail = i == 2 ? pawn.Gear != null && pawn.Gear.HasRifle.Value : i != 3 || medkits > 0;
+                s.Bg.color = sel ? HudKit.Hex(0x1E293B, 0.95f) : HudKit.Hex(0x0E1420, 0.88f);
+                s.Border.effectColor = sel ? HudKit.Shield : HudKit.Hex(0x334155);
+                s.Border.effectDistance = sel ? new Vector2(2f, -2f) : new Vector2(1f, -1f);
+                s.Icon.sprite = icons[i];
+                s.Icon.enabled = icons[i] != null;
+                s.Icon.color = avail ? Color.white : new Color(1f, 1f, 1f, 0.25f);
+                s.Num.color = sel ? HudKit.Shield : HudKit.TextDim;
+                s.Qty.text = i == 3 ? HudKit.Num(medkits.ToString()) : "";
+                s.Bg.rectTransform.localScale = Vector3.one * (sel ? 1.06f : 1f);
+            }
+            int cur = Mathf.Clamp((int)pawn.CurrentTool, 0, 3);
+            toolName.text = names[cur];
+        }
+
+        void UpdateCentre(PlayerPawn pawn)
+        {
+            var seat = pawn.CurrentShipSeat;
+            bool cross = seat == null ? pawn.CurrentSeat == null : seat.Role != StationRole.Engineer;
+            crossRing.enabled = crossPip.enabled = cross;
+
+            // Hit marker: 4 diagonal ticks bloom 12 -> 24 px over 80 ms, then fade.
+            float t = Time.unscaledTime - hitTime;
+            bool show = t < 0.35f;
+            for (int i = 0; i < 4; i++)
+            {
+                hitTicks[i].enabled = show;
+                if (!show) continue;
+                float r = Mathf.Lerp(12f, 24f, Mathf.Clamp01(t / 0.08f));
+                float a = (45f + 90f * i) * Mathf.Deg2Rad;
+                hitTicks[i].rectTransform.anchoredPosition = new Vector2(-Mathf.Sin(a), Mathf.Cos(a)) * r;
+                hitTicks[i].color = new Color(hitColor.r, hitColor.g, hitColor.b, 1f - Mathf.Clamp01((t - 0.12f) / 0.23f));
+            }
+            hitLabel.alpha = show ? 1f - Mathf.Clamp01((t - 0.2f) / 0.15f) : 0f;
+
+            string p = pawn.Prompt;
+            if (p != promptShown)
+            {
+                promptShown = p;
+                promptPlate.gameObject.SetActive(!string.IsNullOrEmpty(p));
+                if (!string.IsNullOrEmpty(p))
+                {
+                    prompt.text = HudKit.Keycap(p);
+                    promptPlate.sizeDelta = new Vector2(Mathf.Clamp(prompt.GetPreferredValues(prompt.text).x + 34f, 160f, 900f), 38f);
+                }
+            }
+        }
+
+        void UpdateShip(PlayerPawn pawn)
+        {
+            ShipCore ship = pawn.CurrentShipSeat != null ? pawn.CurrentShipSeat.Ship : ShipCore.OwnedBy(pawn.OwnerClientId);
+            shipPlate.gameObject.SetActive(ship != null);
+            if (ship == null) return;
+            var s = ship.Stats;
+            shipName.text = ship.ShipName.Value.ToString();
+            shipRole.text = pawn.CurrentShipSeat != null ? pawn.CurrentShipSeat.Role.ToString() : HudKit.Dist(Vector3.Distance(ship.transform.position, pawn.transform.position)) + " AWAY";
+            hullGauge.Set(ship.Hull.Fraction, Mathf.CeilToInt(ship.Hull.Hp.Value).ToString(), ship.Hull.Fraction < 0.25f);
+            float sh = s.MaxShield > 0f ? ship.Shield.Value / s.MaxShield : 0f;
+            shieldGauge.Set(sh, Mathf.CeilToInt(ship.Shield.Value).ToString());
+            float fuel = s.MaxFuel > 0f ? ship.Fuel.Value / s.MaxFuel : 0f;
+            fuelGauge.Set(fuel, Mathf.CeilToInt(ship.Fuel.Value).ToString(), fuel < 0.15f);
+            float spd = ship.Flight != null ? ship.Flight.Speed : 0f;
+            speedFill.fillAmount = s.MaxSpeed > 0f ? Mathf.Clamp01(spd / (s.MaxSpeed * 1.6f)) : 0f;
+            speedFill.color = spd > s.MaxSpeed * 1.02f ? HudKit.Fuel : HudKit.TextHi;
+            speedText.text = HudKit.Num(HudKit.F(spd, "0"));
+        }
+
+        void UpdateDeath(PlayerPawn pawn)
+        {
+            string text = "";
+            if (pawn.IsLost.Value) text = "LOST\n<size=50%><color=#CBD5E1>Spectating - your crew fights on</color></size>";
+            else if (pawn.IsDown.Value)
+            {
+                float t = pawn.RespawnAt.Value - Time.time;
+                var rm0 = RunManager.Instance;
+                text = t > 0f
+                    ? $"YOU DIED\n<size=50%><color=#CBD5E1>Respawning in {HudKit.Num(Mathf.CeilToInt(t).ToString())}s   |   team respawns left: {(rm0 != null ? rm0.RespawnsLeft.Value : 0)}</color></size>"
+                    : "YOU DIED\n<size=50%><color=#CBD5E1>Waiting for a ship to respawn at...</color></size>";
+            }
+            deathPlate.gameObject.SetActive(text.Length > 0);
+            deathText.text = text;
+        }
+
+        // ---------------------------------------------------------------- collapse meter
+
+        void UpdateMeter(RunManager rm, PlayerPawn pawn)
+        {
+            if (rm.SectorSeed.Value != layoutSeed && rm.SectorSeed.Value != 0)
+            {
+                layoutSeed = rm.SectorSeed.Value;
+                var def = ContentCatalog.GetSector(rm.SectorIndex.Value);
+                var layout = SectorLayout.Build(layoutSeed, def);
+                sectorStartX = layout.StartX - (def != null ? def.CollapseStartOffset : 1200f);
+                sectorEndX = layout.EndX;
+            }
+            float len = Mathf.Max(1f, sectorEndX - sectorStartX);
+            float cx = GameState.CollapseX;
+            float px = pawn.transform.position.x;
+            float cf = Mathf.Clamp01((cx - sectorStartX) / len);
+            float pf = Mathf.Clamp01((px - sectorStartX) / len);
+            meterFill.fillAmount = cf;
+            float w = meterTrack.rect.width;
+            pipCollapse.anchoredPosition = new Vector2(cf * w, 0f);
+            pipPlayer.anchoredPosition = new Vector2(pf * w, 13f);
+            pipGate.anchoredPosition = new Vector2(w, 0f);
+
+            float dist = Mathf.Max(0f, px - cx);
+            Color c = dist > 1500f ? HudKit.Teal : dist > 800f ? HudKit.Fuel : HudKit.Danger;
+            if (dist <= 800f && Mathf.Repeat(Time.time * 2.5f, 1f) > 0.6f) c = new Color(c.r, c.g, c.b, 0.35f);
+            collapseText.color = c;
+            collapseText.text = cx < -90000f ? "COLLAPSE  --" : "COLLAPSE  " + HudKit.Num(HudKit.F(dist, "N0")) + " m";
+        }
+
+        // ---------------------------------------------------------------- objective
+
+        void UpdateObjective(PlayerPawn pawn)
+        {
+            var gate = JumpGate.Instance;
+            string text, header = "OBJECTIVE";
+            if (BossBrain.Instance != null || GameState.Objective == "Defeat the Warden")
+            {
+                header = "FINAL OBJECTIVE";
+                text = BossBrain.Instance != null
+                    ? (BossBrain.Instance.Phase.Value == 1 ? "Destroy the Warden's 3 core pods" : "Destroy the Warden")
+                    : "Fly to the end of the sector and face the Warden";
+            }
+            else if (gate != null)
+            {
+                float d = Vector3.Distance(pawn.transform.position, gate.transform.position);
+                text = !gate.Powered
+                    ? $"Bring Energy Cells to the Jump Gate  <color=#F59E0B>{HudKit.Num(gate.CellsInserted.Value + "/" + gate.CellsRequired.Value)}</color>\n<size=80%><color=#94A3B8>{HudKit.Dist(d)} to the gate</color></size>"
+                    : $"Gather everyone at the Jump Gate\n<size=80%><color=#94A3B8>{HudKit.Dist(d)} to the gate</color></size>";
+            }
+            else text = string.IsNullOrEmpty(GameState.Objective) ? "Survive" : GameState.Objective;
+            objHeader.text = header;
+            objText.text = text;
+            bool pilot = pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Role == StationRole.Pilot;
+            string hint = pilot ? Key("LMB") + " " + Key("RMB") + " FIRE    " + Key("SHIFT") + " BOOST    " + Key("X") + " BRAKE    " + Key("F") + " LEAVE" : "";
+            objHint.text = hint;
+            objHint.gameObject.SetActive(hint.Length > 0);
+        }
+
+        static string Key(string k) => $"<mark=#1E293BFF padding=\"6,6,2,2\"><color=#38BDF8><b>{k}</b></color></mark>";
+
+        // ---------------------------------------------------------------- boss
+
+        void UpdateBoss()
+        {
+            var boss = BossBrain.Instance;
+            bool on = boss != null && boss.IsSpawned;
+            bossPanel.gameObject.SetActive(on);
+            if (!on) return;
+            var bh = boss.GetComponent<HealthComponent>();
+            int phase = boss.Phase.Value;
+            bossTitle.text = phase == 1 ? "THE WARDEN  -  DESTROY THE CORE PODS" : phase == 2 ? "THE WARDEN  -  SHIELD DOWN" : "THE WARDEN  -  ENRAGED";
+            bool pods = phase == 1;
+            bossSegRow.gameObject.SetActive(pods);
+            bossHullTrack.gameObject.SetActive(!pods);
+            if (pods)
+            {
+                for (int i = 0; i < bossSegs.Length; i++)
+                    bossSegs[i].fillAmount = i < boss.Pods.Length && boss.Pods[i] != null ? boss.Pods[i].Fraction : 0f;
+            }
+            else
+            {
+                float f = bh.Fraction;
+                bossHull.fillAmount = f;
+                bossGhostFrac = Mathf.Max(f, Mathf.MoveTowards(bossGhostFrac, f, Time.unscaledDeltaTime / 0.5f * 0.25f));
+                bossGhost.fillAmount = bossGhostFrac;
+                bossHull.color = phase == 3 ? Color.Lerp(HudKit.BossFill, HudKit.Danger, 0.5f + 0.5f * Mathf.Sin(Time.time * 8f)) : HudKit.BossFill;
+            }
+        }
+
+        // ---------------------------------------------------------------- world markers
+
+        void UpdateMarkers(Camera cam, PlayerPawn pawn)
+        {
+            var gate = JumpGate.Instance;
+            gateMarker.Place(cam, markerLayer, gate != null ? gate.transform.position : (Vector3?)null, Icons.Gate, "JUMP GATE", HudKit.Gold, true);
+            var st = TraderStation.Instance;
+            stationMarker.Place(cam, markerLayer, st != null ? st.transform.position : (Vector3?)null, Icons.Store, "STATION", HudKit.Fuel, false);
+            var ark = FindArk();
+            arkMarker.Place(cam, markerLayer, ark != null ? ark.transform.position + ark.transform.up * 8f : (Vector3?)null, Icons.Rocket,
+                ark != null && ark.Derelict.Value ? "DERELICT ARK" : "ARK", UIKit.Accent2, false);
+
+            var own = OwnShip(pawn);
+            bool aboard = own != null && pawn != null && (pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Ship == own || Vector3.Distance(own.transform.position, pawn.transform.position) < 14f);
+            shipMarker.Place(cam, markerLayer, own != null && !aboard ? own.transform.position + own.transform.up * 3f : (Vector3?)null, Icons.Ship, "YOUR SHIP", HudKit.Shield, true);
+
+            UpdateBossMarkers(cam);
+
+            pings.RemoveAll(p => Time.time > p.Until);
+            while (pingMarkers.Count < pings.Count) pingMarkers.Add(new HudMarker(markerLayer));
+            for (int i = 0; i < pingMarkers.Count; i++)
+            {
+                if (i >= pings.Count) { pingMarkers[i].Hide(); continue; }
+                var p = pings[i];
+                Color c = p.Kind == PingKind.Enemy ? HudKit.Danger : p.Kind == PingKind.Loot ? HudKit.Fuel : p.Kind == PingKind.Gate ? HudKit.Gold : HudKit.TextHi;
+                pingMarkers[i].Place(cam, markerLayer, p.Pos, p.Kind == PingKind.Enemy ? Icons.Danger : Icons.Pin, p.Label, c, true);
+            }
+            UpdateSiteMarkers(cam);
+        }
+
+        static ShipCore FindArk()
+        {
+            foreach (var s in ShipCore.All) if (s != null && s.Class == ShipClass.Ark) return s;
+            return null;
+        }
+
+        static ShipCore OwnShip(PlayerPawn pawn) => pawn != null ? ShipCore.OwnedBy(pawn.OwnerClientId) : null;
+
+        /// <summary>Planet points of interest (from approach/orbit) and nearby landmark names.</summary>
+        void UpdateSiteMarkers(Camera cam)
+        {
+            const int MaxSites = 8, MaxLandmarks = 3;
+            int used = 0;
+            Vector3 camPos = cam.transform.position;
+            var planet = PlanetBody.Nearest(camPos);
+            if (planet != null && planet.Terrain != null && Vector3.Distance(camPos, planet.transform.position) < planet.AtmosphereRadius + 3000f)
+            {
+                var t = planet.Terrain;
+                Vector3 center = planet.transform.position;
+                for (int i = 0; i < t.Sites.Count && used < MaxSites; i++)
+                {
+                    Vector3 p = planet.SiteWorldPoint(i);
+                    if (!AboveHorizon(center, p, camPos, 45f, 5000f)) continue;
+                    var kind = planet.SiteKinds[i];
+                    Color c = kind == SiteKind.Hive ? HudKit.Danger : kind == SiteKind.CrashSite ? UIKit.Accent2 : kind == SiteKind.Ruins || kind == SiteKind.Cache ? HudKit.Fuel : HudKit.Health;
+                    string glyph = kind == SiteKind.Hive ? Icons.Danger : kind == SiteKind.CrashSite ? Icons.Flight : kind == SiteKind.CrystalGrove || kind == SiteKind.OreVein ? Icons.Diamond : kind == SiteKind.FuelVent ? Icons.Fuel : Icons.Explore;
+                    SiteMarker(used++).Place(cam, markerLayer, p + (p - center).normalized * 8f, glyph, PlanetBody.SiteLabel(kind), c, false);
+                }
+                var visuals = planet.Visuals;
+                if (visuals != null && visuals.Landmarks != null)
+                {
+                    int shown = 0;
+                    foreach (var lm in visuals.Landmarks.Landmarks)
+                    {
+                        if (shown >= MaxLandmarks) break;
+                        if (lm.AtSite) continue;
+                        Vector3 p = planet.transform.TransformPoint(lm.LocalPos);
+                        if (!AboveHorizon(center, p, camPos, 60f, 1100f)) continue;
+                        SiteMarker(used++).Place(cam, markerLayer, p, Icons.Pin, lm.Name, HudKit.TextDim, false, 0.8f);
+                        shown++;
+                    }
+                }
+            }
+            for (int i = used; i < siteMarkers.Count; i++) siteMarkers[i].Hide();
+        }
+
+        HudMarker SiteMarker(int i)
+        {
+            while (siteMarkers.Count <= i) siteMarkers.Add(new HudMarker(markerLayer));
+            return siteMarkers[i];
+        }
+
+        static bool AboveHorizon(Vector3 center, Vector3 p, Vector3 camPos, float minDist, float maxDist)
+        {
+            Vector3 to = camPos - p;
+            float d = to.magnitude;
+            if (d < minDist || d > maxDist) return false;
+            return Vector3.Dot((p - center).normalized, to / d) > -0.05f;
+        }
+
+        /// <summary>Boss fight: mark the live core pods while the hull is shielded, then the hull itself.</summary>
+        void UpdateBossMarkers(Camera cam)
+        {
+            var boss = BossBrain.Instance;
+            bool fight = boss != null && boss.IsSpawned;
+            for (int i = 0; i < bossMarkers.Length; i++)
+            {
+                if (fight && boss.Phase.Value == 1 && i < boss.Pods.Length && boss.Pods[i] != null && boss.Pods[i].IsAlive)
+                    bossMarkers[i].Place(cam, markerLayer, boss.Pods[i].transform.position, Icons.Target, "CORE", HudKit.BossTitle, true);
+                else if (fight && boss.Phase.Value >= 2 && i == bossMarkers.Length - 1)
+                    bossMarkers[i].Place(cam, markerLayer, boss.transform.position, Icons.Target, "HULL - FIRE!", HudKit.BossTitle, true);
+                else bossMarkers[i].Hide();
+            }
+        }
+
+        // ---------------------------------------------------------------- compass
+
+        void UpdateCompass(Camera cam, PlayerPawn pawn)
+        {
+            Vector3 up = cam.transform.up;
+            Vector3 fwd = Vector3.ProjectOnPlane(cam.transform.forward, up);
+            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.ProjectOnPlane(cam.transform.up * -1f, up);
+            Vector3 north = Vector3.ProjectOnPlane(Vector3.right, up);
+            if (north.sqrMagnitude < 0.04f) north = Vector3.ProjectOnPlane(Vector3.forward, up);
+            float heading = Vector3.SignedAngle(north, fwd, up);
+            float pxPerDeg = CompassWidth * 0.5f / CompassRange;
+
+            foreach (var (rt, deg) in compassTicks)
+            {
+                float off = Mathf.DeltaAngle(heading, deg);
+                bool vis = Mathf.Abs(off) <= CompassRange + 5f;
+                rt.gameObject.SetActive(vis);
+                if (vis) rt.anchoredPosition = new Vector2(off * pxPerDeg, rt.sizeDelta.y > 20f ? -13f : -18f);
+            }
+
+            Vector3 camPos = cam.transform.position;
+            var marks = new List<(string id, string glyph, Vector3 pos, Color c)>();
+            var gate = JumpGate.Instance;
+            if (gate != null) marks.Add(("gate", Icons.Gate, gate.transform.position, HudKit.Gold));
+            var st = TraderStation.Instance;
+            if (st != null) marks.Add(("station", Icons.Store, st.transform.position, HudKit.Fuel));
+            var ark = FindArk();
+            if (ark != null) marks.Add(("ark", Icons.Rocket, ark.transform.position, UIKit.Accent2));
+            var own = OwnShip(pawn);
+            if (own != null && (pawn == null || pawn.CurrentShipSeat == null || pawn.CurrentShipSeat.Ship != own))
+                marks.Add(("ship", Icons.Ship, own.transform.position, HudKit.Shield));
+            var boss = BossBrain.Instance;
+            if (boss != null && boss.IsSpawned) marks.Add(("boss", Icons.Danger, boss.transform.position, HudKit.BossTitle));
+            if (GameState.CollapseX > -90000f) marks.Add(("collapse", Icons.Warning, new Vector3(GameState.CollapseX, camPos.y, camPos.z), HudKit.Danger));
+            for (int i = 0; i < pings.Count; i++) marks.Add(("ping" + i, Icons.Pin, pings[i].Pos, HudKit.TextHi));
+
+            var used = new HashSet<string>();
+            foreach (var m in marks)
+            {
+                used.Add(m.id);
+                if (!compassMarks.TryGetValue(m.id, out var cm))
+                {
+                    cm = new CompassMark { Rt = UIKit.Rect(compassStrip, "Mark") };
+                    cm.Rt.anchorMin = cm.Rt.anchorMax = new Vector2(0.5f, 1f);
+                    cm.Rt.sizeDelta = new Vector2(30, 50);
+                    cm.Rt.pivot = new Vector2(0.5f, 1f);
+                    cm.Icon = UIKit.IconText(cm.Rt, m.glyph, 19, m.c);
+                    UIKit.Place(cm.Icon.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -2), new Vector2(30, 22), new Vector2(0.5f, 1f));
+                    cm.Dist = UIKit.Text(cm.Rt, "", 12, TextAlignmentOptions.Center, m.c, FontStyles.Bold);
+                    cm.Dist.textWrappingMode = TextWrappingModes.NoWrap;
+                    UIKit.Place(cm.Dist.rectTransform, new Vector2(0.5f, 1f), new Vector2(0, -27), new Vector2(70, 18), new Vector2(0.5f, 1f));
+                    compassMarks[m.id] = cm;
+                }
+                Vector3 to = m.pos - camPos;
+                float ang = Vector3.SignedAngle(fwd, Vector3.ProjectOnPlane(to, up), up);
+                bool edge = Mathf.Abs(ang) > CompassRange - 4f;
+                cm.Rt.anchoredPosition = new Vector2(Mathf.Clamp(ang, -(CompassRange - 4f), CompassRange - 4f) * pxPerDeg, 0f);
+                cm.Icon.alpha = edge ? 0.45f : 1f;
+                // Distances only for the key bearings, so clustered markers don't overprint each other.
+                bool key = m.id == "gate" || m.id == "ship" || m.id == "boss" || m.id.StartsWith("ping");
+                cm.Dist.text = key ? HudKit.Dist(to.magnitude) : "";
+                cm.Dist.alpha = edge ? 0f : 0.9f;
+            }
+            foreach (var kv in compassMarks) kv.Value.Rt.gameObject.SetActive(used.Contains(kv.Key));
+        }
+
+        // ---------------------------------------------------------------- lead indicator
 
         /// <summary>Ship lead indicator: four ticks around the predicted intercept point, plus a link to the target.</summary>
         void BuildLeadMarker()
@@ -182,9 +941,8 @@ namespace Voidward.UI
             leadMarker.gameObject.SetActive(show);
             leadLink.gameObject.SetActive(show);
             if (!show) return;
-            var layer = markerLayer;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(layer, sp, null, out var lead);
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(layer, tp, null, out var tgt);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(markerLayer, sp, null, out var lead);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(markerLayer, tp, null, out var tgt);
             bool locked = AimAssist.Locked;
             Color c = locked ? new Color(0.35f, 1f, 1f, 0.95f) : new Color(1f, 1f, 1f, 0.55f);
             float r = locked ? 9f + Mathf.Sin(Time.time * 12f) * 1.5f : 14f;
@@ -202,25 +960,6 @@ namespace Voidward.UI
             leadLink.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
         }
 
-        TextMeshProUGUI Marker(string text, Color c)
-        {
-            var t = UIKit.Text(markerLayer, text, 22, TextAlignmentOptions.Center, c, FontStyles.Bold);
-            t.rectTransform.sizeDelta = new Vector2(260, 60);
-            t.gameObject.SetActive(false);
-            return t;
-        }
-
-        static Image BarRow(Transform parent, string label, Color c, out TextMeshProUGUI valueText)
-        {
-            var row = UIKit.Row(parent, 30, 8);
-            var l = UIKit.Text(row, label, 18, TextAlignmentOptions.Left, UIKit.TextDim, FontStyles.Bold);
-            UIKit.LayoutElement(l.gameObject, 90, 26);
-            var fill = UIKit.Bar(row, label, c, new Vector2(210, 22));
-            valueText = UIKit.Text(row, "", 18, TextAlignmentOptions.Right);
-            UIKit.LayoutElement(valueText.gameObject, 70, 26);
-            return fill;
-        }
-
         static Sprite MakeVignette()
         {
             const int S = 128;
@@ -234,305 +973,6 @@ namespace Voidward.UI
                 }
             tex.Apply();
             return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f));
-        }
-
-        void OnNotification(string msg)
-        {
-            if (string.IsNullOrWhiteSpace(msg)) return;
-            var bg = UIKit.Panel(toastLayer, "Toast", new Color(0.09f, 0.08f, 0.17f, 0.82f));
-            var fit = bg.gameObject.AddComponent<ContentSizeFitter>();
-            fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            var h = UIKit.HLayout(bg.gameObject, 0, 12);
-            h.childControlWidth = true;
-            var t = UIKit.Text(bg, msg, 24);
-            t.textWrappingMode = TextWrappingModes.Normal;
-            UIKit.LayoutElement(t.gameObject, Mathf.Min(680f, t.GetPreferredValues(msg, 680f, 0f).x + 8f));
-            toasts.Add((t, Time.time + 5f));
-            if (toasts.Count > 6) { if (toasts[0].t) Object.Destroy(toasts[0].t.transform.parent.gameObject); toasts.RemoveAt(0); }
-        }
-
-        public void SetVisible(bool v)
-        {
-            if (root.gameObject.activeSelf != v) root.gameObject.SetActive(v);
-        }
-
-        public void Update()
-        {
-            // Toasts fade regardless of HUD visibility.
-            for (int i = toasts.Count - 1; i >= 0; i--)
-            {
-                var (t, until) = toasts[i];
-                if (t == null) { toasts.RemoveAt(i); continue; }
-                float left = until - Time.time;
-                if (left <= 0f) { Object.Destroy(t.transform.parent.gameObject); toasts.RemoveAt(i); continue; }
-                t.alpha = Mathf.Clamp01(left / 0.6f);
-            }
-            if (!root.gameObject.activeInHierarchy) return;
-
-            // Weather warning when a storm builds up around the player.
-            bool storm = PlanetAmbience.Storm > 0.35f;
-            if (storm && !stormWarned && PlanetAmbience.Weather != PlanetWeather.None && PlanetAmbience.Weather != PlanetWeather.Shimmer)
-                OnNotification(PlanetAmbience.Weather switch
-                {
-                    PlanetWeather.Sandstorm => "Sandstorm rolling in - visibility dropping",
-                    PlanetWeather.Blizzard => "Blizzard incoming - stay close to your crew",
-                    PlanetWeather.AshFall => "Ash fall - the sky is going dark",
-                    _ => "Spore bloom - the air is thick",
-                });
-            if (storm) stormWarned = true;
-            else if (PlanetAmbience.Storm < 0.1f) stormWarned = false;
-
-            var pawn = PlayerPawn.Local;
-            var cam = Camera.main;
-            hook.Track(pawn);
-
-            vignetteAlpha = Mathf.MoveTowards(vignetteAlpha, 0f, Time.deltaTime * 0.8f);
-            vignette.color = new Color(1f, 0.15f, 0.3f, vignetteAlpha);
-
-            if (pawn != null)
-            {
-                var h = pawn.Health;
-                hpFill.fillAmount = h.Fraction;
-                hpText.text = Mathf.CeilToInt(h.Hp.Value).ToString();
-                float maxO2 = pawn.Gear != null ? pawn.Gear.MaxOxygen : 90f;
-                float o2 = pawn.Oxygen.Value / Mathf.Max(1f, maxO2);
-                o2Fill.fillAmount = o2;
-                o2Text.text = Mathf.CeilToInt(pawn.Oxygen.Value) + "s";
-                float maxE = pawn.Gear != null ? pawn.Gear.JetpackEnergy : 100f;
-                energyFill.fillAmount = pawn.SuitEnergy / Mathf.Max(1f, maxE);
-                energyText.text = Mathf.CeilToInt(pawn.SuitEnergy).ToString();
-
-                bool low = o2 < 0.25f && !pawn.IsDown.Value && pawn.Active.Value;
-                if (low != lowO2) { lowO2 = low; EventBus.RaiseLowOxygenChanged(low); }
-                o2Warn.gameObject.SetActive(low && Mathf.Repeat(Time.time, 1f) < 0.6f);
-                if (low) { lowO2Beep -= Time.deltaTime; if (lowO2Beep <= 0f) { lowO2Beep = 1.6f; Sfx.PlayUI("low_oxygen", 0.7f); } }
-
-                bool seated = pawn.CurrentSeat != null;
-                hotbarRoot.gameObject.SetActive(!seated);
-                for (int i = 0; i < 4; i++)
-                {
-                    bool sel = (int)pawn.CurrentTool == i && !seated;
-                    bool avail = i != 2 || (pawn.Gear != null && pawn.Gear.HasRifle.Value);
-                    hotbar[i].color = sel ? UIKit.Accent * new Color(1, 1, 1, 0.9f) : UIKit.PanelColor;
-                    hotbarLabels[i].color = sel ? new Color(0.08f, 0.07f, 0.16f) : avail ? UIKit.TextColor : new Color(1, 1, 1, 0.3f);
-                }
-                if (pawn.Gear != null && pawn.Inventory != null)
-                    hotbarLabels[3].text = $"<size=70%>4</size>\nMedkit x{pawn.Inventory.Count("medkit")}";
-
-                prompt.text = pawn.Prompt;
-                crosshair.enabled = !seated || pawn.CurrentShipSeat == null || pawn.CurrentShipSeat.Role != StationRole.Engineer;
-                creditsText.text = $"{pawn.Inventory.Credits.Value} credits";
-
-                // Death overlay
-                if (pawn.IsLost.Value) deathText.text = "LOST\n<size=55%>Spectating - your crew fights on</size>";
-                else if (pawn.IsDown.Value)
-                {
-                    float t = pawn.RespawnAt.Value - Time.time;
-                    var rm0 = RunManager.Instance;
-                    deathText.text = t > 0f ? $"YOU DIED\n<size=55%>Respawning in {Mathf.CeilToInt(t)}s  (team respawns left: {(rm0 != null ? rm0.RespawnsLeft.Value : 0)})</size>" : "YOU DIED\n<size=55%>Waiting for a ship to respawn at...</size>";
-                }
-                else deathText.text = "";
-
-                UpdateShip(pawn);
-            }
-
-            var rm = RunManager.Instance;
-            if (rm != null && pawn != null)
-            {
-                float dist = pawn.transform.position.x - GameState.CollapseX;
-                collapseText.text = $"COLLAPSE  {Mathf.Max(0, dist):0} m";
-                collapseText.color = dist < 400 ? UIKit.Bad : dist < 1200 ? UIKit.Warn : UIKit.Good;
-                collapseFill.fillAmount = Mathf.Clamp01(1f - dist / 3000f);
-                sectorText.text = $"SECTOR {rm.SectorIndex.Value}/3   |   respawns {rm.RespawnsLeft.Value}";
-                jumpText.text = rm.JumpCountdown.Value >= 0f ? $"JUMPING IN {Mathf.CeilToInt(rm.JumpCountdown.Value)}" : "";
-                UpdateObjective(pawn);
-            }
-
-            var boss = BossBrain.Instance;
-            bossPanel.gameObject.SetActive(boss != null && boss.IsSpawned);
-            if (boss != null && boss.IsSpawned)
-            {
-                var bh = boss.GetComponent<Combat.HealthComponent>();
-                bossFill.fillAmount = bh.Fraction;
-                bossText.text = boss.Phase.Value == 1 ? "THE WARDEN - destroy the core pods!" : boss.Phase.Value == 2 ? "THE WARDEN - shield down!" : "THE WARDEN - ENRAGED";
-            }
-
-            if (cam != null) UpdateMarkers(cam);
-            if (cam != null) UpdateLeadMarker(cam, pawn);
-        }
-
-        void UpdateShip(PlayerPawn pawn)
-        {
-            ShipCore ship = pawn.CurrentShipSeat != null ? pawn.CurrentShipSeat.Ship : ShipCore.OwnedBy(pawn.OwnerClientId);
-            shipPanel.gameObject.SetActive(ship != null);
-            if (ship == null) return;
-            var s = ship.Stats;
-            shipName.text = ship.ShipName.Value + (pawn.CurrentShipSeat != null ? $"  <size=75%><color=#c0c0e0>[{pawn.CurrentShipSeat.Role}]</color></size>" : $"  <size=75%><color=#c0c0e0>{Vector3.Distance(ship.transform.position, pawn.transform.position):0} m</color></size>");
-            hullFill.fillAmount = ship.Hull.Fraction;
-            shieldFill.fillAmount = s.MaxShield > 0f ? ship.Shield.Value / s.MaxShield : 0f;
-            fuelFill.fillAmount = s.MaxFuel > 0f ? ship.Fuel.Value / s.MaxFuel : 0f;
-            shipText.text = ship.Flight != null ? $"{ship.Flight.Speed:0} m/s" : "";
-        }
-
-        void UpdateObjective(PlayerPawn pawn)
-        {
-            var gate = JumpGate.Instance;
-            var sb = new System.Text.StringBuilder();
-            sb.Append("<b>OBJECTIVE</b>\n");
-            if (BossBrain.Instance != null || GameState.Objective == "Defeat the Warden")
-                sb.Append(BossBrain.Instance != null ? "Defeat the Warden!" : "Fly to the end of the sector and face the Warden");
-            else if (gate != null)
-            {
-                float d = Vector3.Distance(pawn.transform.position, gate.transform.position);
-                if (!gate.Powered) sb.Append($"Bring Energy Cells to the Jump Gate ({gate.CellsInserted.Value}/{gate.CellsRequired.Value})  <color=#a0a0c0>{d / 1000f:0.0} km</color>");
-                else sb.Append($"Gather everyone at the Jump Gate  <color=#a0a0c0>{d:0} m</color>");
-            }
-            if (pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Role == StationRole.Pilot)
-                sb.Append("\n<size=75%><color=#b0b0d0>LMB/RMB fire  |  Shift boost  |  X brake  |  F leave seat</color></size>");
-            objective.text = sb.ToString();
-        }
-
-        void UpdateMarkers(Camera cam)
-        {
-            Vector3 camPos = cam.transform.position;
-            var gate = JumpGate.Instance;
-            Place(gateMarker, cam, gate != null ? gate.transform.position : (Vector3?)null, "[ GATE ]");
-            var st = TraderStation.Instance;
-            Place(stationMarker, cam, st != null ? st.transform.position : (Vector3?)null, "[ STATION ]");
-            ShipCore ark = null;
-            foreach (var s in ShipCore.All) if (s != null && s.Class == ShipClass.Ark) ark = s;
-            Place(arkMarker, cam, ark != null ? ark.transform.position + ark.transform.up * 8f : (Vector3?)null, ark != null && ark.Derelict.Value ? "[ DERELICT ARK ]" : "[ ARK ]");
-
-            UpdateBossMarkers(cam);
-
-            pings.RemoveAll(p => Time.time > p.Until);
-            while (pingLabels.Count < pings.Count) pingLabels.Add(Marker("", Color.white));
-            for (int i = 0; i < pingLabels.Count; i++)
-            {
-                if (i >= pings.Count) { pingLabels[i].gameObject.SetActive(false); continue; }
-                var p = pings[i];
-                Color c = p.Kind == PingKind.Enemy ? UIKit.Bad : p.Kind == PingKind.Loot ? UIKit.Warn : p.Kind == PingKind.Gate ? UIKit.Accent : Color.white;
-                pingLabels[i].color = c;
-                Place(pingLabels[i], cam, p.Pos, "v " + p.Label);
-            }
-            UpdateSiteMarkers(cam);
-
-            // Bearing compass
-            var marks = new List<(string id, string label, Vector3 pos, Color c)>();
-            if (gate != null) marks.Add(("gate", "G", gate.transform.position, UIKit.Accent));
-            if (st != null) marks.Add(("station", "S", st.transform.position, UIKit.Warn));
-            if (ark != null) marks.Add(("ark", "A", ark.transform.position, UIKit.Accent2));
-            marks.Add(("collapse", "!", new Vector3(GameState.CollapseX, camPos.y, camPos.z), UIKit.Bad));
-            for (int i = 0; i < pings.Count; i++) marks.Add(("ping" + i, "v", pings[i].Pos, Color.white));
-            var used = new HashSet<string>();
-            foreach (var m in marks)
-            {
-                used.Add(m.id);
-                if (!compassMarks.TryGetValue(m.id, out var t))
-                {
-                    t = UIKit.Text(compass, m.label, 26, TextAlignmentOptions.Center, m.c, FontStyles.Bold);
-                    t.rectTransform.sizeDelta = new Vector2(40, 40);
-                    compassMarks[m.id] = t;
-                }
-                Vector3 to = m.pos - camPos;
-                Vector3 flat = Vector3.ProjectOnPlane(to, cam.transform.up);
-                float ang = Vector3.SignedAngle(Vector3.ProjectOnPlane(cam.transform.forward, cam.transform.up), flat, cam.transform.up);
-                t.rectTransform.anchoredPosition = new Vector2(Mathf.Clamp(ang / 100f, -1f, 1f) * 360f, 0f);
-                t.alpha = Mathf.Abs(ang) > 100f ? 0.35f : 1f;
-            }
-            foreach (var kv in compassMarks) kv.Value.gameObject.SetActive(used.Contains(kv.Key));
-        }
-
-        /// <summary>Planet points of interest (from approach/orbit) and nearby landmark names.</summary>
-        void UpdateSiteMarkers(Camera cam)
-        {
-            const int MaxSites = 8, MaxLandmarks = 3;
-            int used = 0;
-            Vector3 camPos = cam.transform.position;
-            var planet = PlanetBody.Nearest(camPos);
-            if (planet != null && planet.Terrain != null && Vector3.Distance(camPos, planet.transform.position) < planet.AtmosphereRadius + 3000f)
-            {
-                var t = planet.Terrain;
-                Vector3 center = planet.transform.position;
-                for (int i = 0; i < t.Sites.Count && used < MaxSites; i++)
-                {
-                    Vector3 p = planet.SiteWorldPoint(i);
-                    if (!AboveHorizon(center, p, camPos, 45f, 5000f)) continue;
-                    var kind = planet.SiteKinds[i];
-                    var label = SiteLabel(used++);
-                    label.color = kind == SiteKind.Hive ? UIKit.Bad : kind == SiteKind.CrashSite ? UIKit.Accent2 : kind == SiteKind.Ruins || kind == SiteKind.Cache ? UIKit.Warn : UIKit.Good;
-                    Place(label, cam, p + (p - center).normalized * 8f, "[ " + PlanetBody.SiteLabel(kind) + " ]");
-                }
-                var visuals = planet.Visuals;
-                if (visuals != null && visuals.Landmarks != null)
-                {
-                    int shown = 0;
-                    foreach (var lm in visuals.Landmarks.Landmarks)
-                    {
-                        if (shown >= MaxLandmarks) break;
-                        if (lm.AtSite) continue;
-                        Vector3 p = planet.transform.TransformPoint(lm.LocalPos);
-                        if (!AboveHorizon(center, p, camPos, 60f, 1100f)) continue;
-                        var label = SiteLabel(used++);
-                        label.color = UIKit.TextDim;
-                        Place(label, cam, p, "<size=80%>" + lm.Name + "</size>");
-                        shown++;
-                    }
-                }
-            }
-            for (int i = used; i < siteLabels.Count; i++) siteLabels[i].gameObject.SetActive(false);
-        }
-
-        TextMeshProUGUI SiteLabel(int i)
-        {
-            while (siteLabels.Count <= i) siteLabels.Add(Marker("", Color.white));
-            return siteLabels[i];
-        }
-
-        static bool AboveHorizon(Vector3 center, Vector3 p, Vector3 camPos, float minDist, float maxDist)
-        {
-            Vector3 to = camPos - p;
-            float d = to.magnitude;
-            if (d < minDist || d > maxDist) return false;
-            return Vector3.Dot((p - center).normalized, to / d) > -0.05f;
-        }
-
-        /// <summary>Boss fight: mark the live core pods while the hull is shielded, then the hull itself.</summary>
-        void UpdateBossMarkers(Camera cam)
-        {
-            var boss = BossBrain.Instance;
-            bool fight = boss != null && boss.IsSpawned;
-            for (int i = 0; i < bossMarkers.Length; i++)
-            {
-                Vector3? at = null;
-                string label = "";
-                if (fight && boss.Phase.Value == 1 && i < boss.Pods.Length && boss.Pods[i] != null && boss.Pods[i].IsAlive)
-                {
-                    at = boss.Pods[i].transform.position;
-                    label = "> CORE <";
-                }
-                else if (fight && boss.Phase.Value >= 2 && i == bossMarkers.Length - 1)
-                {
-                    at = boss.transform.position;
-                    label = "[ HULL - FIRE! ]";
-                }
-                Place(bossMarkers[i], cam, at, label);
-            }
-        }
-
-        static void Place(TextMeshProUGUI marker, Camera cam, Vector3? world, string label)
-        {
-            if (world == null) { marker.gameObject.SetActive(false); return; }
-            Vector3 sp = cam.WorldToScreenPoint(world.Value);
-            if (sp.z <= 0f) { marker.gameObject.SetActive(false); return; }
-            marker.gameObject.SetActive(true);
-            float d = Vector3.Distance(cam.transform.position, world.Value);
-            marker.text = $"{label}\n<size=80%>{(d > 1000f ? (d / 1000f).ToString("0.0") + " km" : d.ToString("0") + " m")}</size>";
-            var canvasRt = (RectTransform)marker.rectTransform.parent;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRt, sp, null, out var local);
-            marker.rectTransform.anchoredPosition = local;
-            marker.rectTransform.anchorMin = marker.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
         }
 
         /// <summary>Raises LocalPlayerHurt when the local pawn takes damage.</summary>

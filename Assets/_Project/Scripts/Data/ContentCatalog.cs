@@ -54,6 +54,11 @@ namespace Voidward.Data
         public GameObject GameDirector;
         public GameObject Wreck;
 
+        [Header("HUD tool icons (generated with the item art)")]
+        public Sprite IconDrill;
+        public Sprite IconBlaster;
+        public Sprite IconRifle;
+
         [Header("Shared rendering")]
         public Material ToonMaterial;
         public Material TerrainMaterial;

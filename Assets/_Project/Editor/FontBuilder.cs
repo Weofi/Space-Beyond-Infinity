@@ -22,7 +22,7 @@ namespace Voidward.EditorTools
 
             var bold = BakeFont(FontDir + "/Rajdhani-Bold.ttf", UIResDir + "/VW_Font_Bold.asset", ascii.ToString(), 90, 10, 1024);
             var regular = BakeFont(FontDir + "/Rajdhani-SemiBold.ttf", UIResDir + "/VW_Font.asset", ascii.ToString(), 90, 10, 1024);
-            var icons = BakeFont(FontDir + "/MaterialIcons-Regular.ttf", UIResDir + "/VW_Icons.asset", Icons.All, 96, 10, 512);
+            var icons = BakeFont(FontDir + "/MaterialIcons-Regular.ttf", UIResDir + "/VW_Icons.asset", Icons.All, 96, 10, 1024);
             if (bold == null || regular == null || icons == null) return;
 
             // Real bold face for FontStyles.Bold / <b>, and a fallback for non-ASCII player names.
