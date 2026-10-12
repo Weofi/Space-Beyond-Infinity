@@ -37,6 +37,16 @@ User speaks German – answer in German.
 - Editor ↔ release build = "NetworkConfig mismatch". Use a Development build (`Voidward/Build/macOS (Development)`) or MPPM.
 - Owning a ship in its spawn frame breaks positioning for remote clients → `RunManager.SeatLater` delays it by 0.6 s.
 
+## Issue workflow (mandatory)
+Repo: `Weofi/Space-Beyond-Infinity`, default branch `main`. When the user hands over an issue:
+1. Read the issue (incl. images/mockups) via GitHub MCP.
+2. `git checkout main && git pull`, then create a dedicated branch `issue-<nr>-<short-slug>` (never work on `main`).
+3. Push the branch early and open a **draft PR** against `main` with `Closes #<nr>` in the body (check for a PR template first).
+4. Implement on that branch with small, descriptive commits (`#<nr>: ...`), push regularly.
+5. When done: compile check + play test, update the PR description (changes, test notes, screenshots), mark it ready for review.
+6. If everything works and the issue is fully done: merge the PR into `main` yourself (user-approved), then `git checkout main && git pull`. If anything is broken or open, don't merge; report back instead.
+One issue = one branch = one PR. Don't mix issues.
+
 ## Agent workflow (Unity MCP)
 - Don't edit C# while Unity is in Play Mode (a domain reload breaks statics).
 - Compile check: read `Logs/Editor.log` after the last "Requested script compilation" and grep `): error CS`.
