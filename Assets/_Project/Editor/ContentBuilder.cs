@@ -45,6 +45,7 @@ namespace Voidward.EditorTools
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
             }
+            BuildFonts();
             BuildPrefabs();
             BuildScene();
             ConfigureProject();
