@@ -7,24 +7,30 @@ using UnityEngine.UI;
 namespace Voidward.UI
 {
     /// <summary>
-    /// Tiny code-first uGUI/TMP toolkit with the Voidward pastel style (rounded, soft, chunky).
+    /// Tiny code-first uGUI/TMP toolkit with the Voidward "stylized low-poly" style
+    /// (chamfered frames, bold blue faces, white accents, chunky 3D buttons).
     /// Every screen is assembled from these helpers at runtime — no prefabs to keep in sync.
     /// </summary>
     public static class UIKit
     {
-        public static readonly Color PanelColor = new Color(0.09f, 0.08f, 0.17f, 0.88f);
-        public static readonly Color PanelLight = new Color(0.16f, 0.14f, 0.28f, 0.92f);
-        public static readonly Color Accent = new Color(0.36f, 0.86f, 0.92f);
-        public static readonly Color Accent2 = new Color(1f, 0.62f, 0.55f);
-        public static readonly Color Good = new Color(0.55f, 0.95f, 0.6f);
-        public static readonly Color Warn = new Color(1f, 0.78f, 0.35f);
-        public static readonly Color Bad = new Color(1f, 0.38f, 0.5f);
-        public static readonly Color TextColor = new Color(0.95f, 0.94f, 1f);
-        public static readonly Color TextDim = new Color(0.7f, 0.68f, 0.85f);
+        public static readonly Color PanelColor = new Color(0.04f, 0.08f, 0.18f, 0.9f);
+        public static readonly Color PanelLight = new Color(0.09f, 0.16f, 0.32f, 0.94f);
+        public static readonly Color Accent = new Color(0.25f, 0.6f, 1f);
+        public static readonly Color Accent2 = new Color(1f, 0.74f, 0.25f);
+        public static readonly Color Primary = new Color(0.12f, 0.4f, 0.9f);
+        public static readonly Color Secondary = new Color(0.2f, 0.3f, 0.5f);
+        public static readonly Color Good = new Color(0.22f, 0.72f, 0.45f);
+        public static readonly Color Warn = new Color(1f, 0.74f, 0.25f);
+        public static readonly Color Bad = new Color(0.86f, 0.26f, 0.32f);
+        public static readonly Color TextColor = new Color(0.96f, 0.98f, 1f);
+        public static readonly Color TextDim = new Color(0.64f, 0.74f, 0.9f);
+        public static readonly Color Frame = new Color(0.88f, 0.92f, 0.97f);
+        public static readonly Color FrameHot = new Color(1f, 1f, 1f);
+        public static readonly Color FrameShade = new Color(0.55f, 0.62f, 0.74f);
 
-        static Sprite rounded;
-        static Sprite circle;
-        static TMP_FontAsset font;
+        static Sprite rounded, circle, chamfer, chamferFace, gradient;
+        static TMP_FontAsset font, iconFont;
+        static Material shadowMat;
 
         public static Sprite Rounded
         {
@@ -44,13 +50,108 @@ namespace Voidward.UI
             }
         }
 
+        /// <summary>Box with 45-degree cut corners - the base shape of the low-poly UI.</summary>
+        public static Sprite Chamfer
+        {
+            get
+            {
+                if (chamfer == null) chamfer = MakeChamfer(64, 14, false);
+                return chamfer;
+            }
+        }
+
+        /// <summary>Chamfer with a baked top-to-bottom shading ramp for button faces.</summary>
+        public static Sprite ChamferFace
+        {
+            get
+            {
+                if (chamferFace == null) chamferFace = MakeChamfer(64, 14, true);
+                return chamferFace;
+            }
+        }
+
+        /// <summary>Horizontal alpha ramp (opaque left, transparent right).</summary>
+        public static Sprite Gradient
+        {
+            get
+            {
+                if (gradient == null)
+                {
+                    var tex = new Texture2D(256, 4, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+                    var px = new Color32[256 * 4];
+                    for (int x = 0; x < 256; x++)
+                    {
+                        float u = x / 255f;
+                        byte a = (byte)(255 * (1f - u) * (1f - u));
+                        for (int y = 0; y < 4; y++) px[y * 256 + x] = new Color32(255, 255, 255, a);
+                    }
+                    tex.SetPixels32(px);
+                    tex.Apply();
+                    gradient = Sprite.Create(tex, new Rect(0, 0, 256, 4), new Vector2(0.5f, 0.5f));
+                }
+                return gradient;
+            }
+        }
+
         public static TMP_FontAsset Font
         {
             get
             {
+                if (font == null) font = Resources.Load<TMP_FontAsset>("UI/VW_Font");
                 if (font == null) font = TMP_Settings.defaultFontAsset;
                 return font;
             }
+        }
+
+        public static TMP_FontAsset IconFont
+        {
+            get
+            {
+                if (iconFont == null) iconFont = Resources.Load<TMP_FontAsset>("UI/VW_Icons");
+                return iconFont;
+            }
+        }
+
+        /// <summary>Shared font material with a soft drop shadow (underlay) for text on bright faces.</summary>
+        public static Material ShadowMaterial
+        {
+            get
+            {
+                if (shadowMat == null)
+                {
+                    shadowMat = new Material(Font.material) { name = "VW_Font_Shadow" };
+                    shadowMat.EnableKeyword(ShaderUtilities.Keyword_Underlay);
+                    shadowMat.SetColor(ShaderUtilities.ID_UnderlayColor, new Color(0.02f, 0.05f, 0.15f, 0.65f));
+                    shadowMat.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, -0.7f);
+                    shadowMat.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0.25f);
+                }
+                return shadowMat;
+            }
+        }
+
+        static Sprite MakeChamfer(int size, int cut, bool shaded)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float ax = Mathf.Min(x + 0.5f, size - x - 0.5f);
+                    float ay = Mathf.Min(y + 0.5f, size - y - 0.5f);
+                    float a = Mathf.Min(Mathf.Clamp01(ax), Mathf.Min(Mathf.Clamp01(ay), Mathf.Clamp01((ax + ay - cut) * 0.7071f + 0.5f)));
+                    float v = 1f;
+                    if (shaded)
+                    {
+                        v = Mathf.Lerp(0.74f, 1f, y / (float)(size - 1));
+                        if (y < 4) v *= 0.82f;
+                    }
+                    byte g = (byte)(v * 255);
+                    px[y * size + x] = new Color32(g, g, g, (byte)(a * 255));
+                }
+            tex.SetPixels32(px);
+            tex.Apply();
+            float b = cut + 2;
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(b, b, b, b));
         }
 
         static Sprite MakeRounded(int size, int radius)
@@ -104,7 +205,7 @@ namespace Voidward.UI
             var rt = Rect(parent, name);
             var img = rt.gameObject.AddComponent<Image>();
             img.color = c;
-            if (roundedSprite) { img.sprite = Rounded; img.type = UnityEngine.UI.Image.Type.Sliced; }
+            if (roundedSprite) { img.sprite = Chamfer; img.type = UnityEngine.UI.Image.Type.Sliced; }
             return img;
         }
 
@@ -112,6 +213,41 @@ namespace Voidward.UI
         {
             var img = Image(parent, name, c ?? PanelColor);
             return img.rectTransform;
+        }
+
+        /// <summary>Window with a light chamfered frame, navy interior and an optional blue title plate. Has a VerticalLayoutGroup.</summary>
+        public static RectTransform FramedPanel(Transform parent, string name, string title = null, int padding = 28, float spacing = 12)
+        {
+            var frame = Image(parent, name, Frame);
+            var inner = Image(frame.transform, "Inner", new Color(PanelColor.r, PanelColor.g, PanelColor.b, 0.96f));
+            Stretch(inner.rectTransform, 6, 6, 6, 6);
+            inner.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            VLayout(frame.gameObject, spacing, padding);
+            if (!string.IsNullOrEmpty(title))
+            {
+                var plate = Image(frame.transform, "Title", Primary);
+                plate.sprite = ChamferFace;
+                LayoutElement(plate.gameObject, -1, 66);
+                var t = Text(plate.transform, title, 40, TextAlignmentOptions.Center, TextColor, FontStyles.Bold | FontStyles.UpperCase);
+                Stretch(t.rectTransform, 10, 10, 0, 4);
+                t.characterSpacing = 6;
+                t.fontSharedMaterial = ShadowMaterial;
+            }
+            return frame.rectTransform;
+        }
+
+        public static TextMeshProUGUI IconText(Transform parent, string icon, float size, Color? color = null)
+        {
+            var rt = Rect(parent, "Icon");
+            var t = rt.gameObject.AddComponent<TextMeshProUGUI>();
+            t.font = IconFont != null ? IconFont : Font;
+            t.text = IconFont != null ? icon : "";
+            t.fontSize = size;
+            t.alignment = TextAlignmentOptions.Center;
+            t.color = color ?? TextColor;
+            t.textWrappingMode = TextWrappingModes.NoWrap;
+            t.raycastTarget = false;
+            return t;
         }
 
         public static TextMeshProUGUI Text(Transform parent, string text, float size = 26, TextAlignmentOptions align = TextAlignmentOptions.Left, Color? color = null, FontStyles style = FontStyles.Normal)
@@ -129,30 +265,81 @@ namespace Voidward.UI
             return t;
         }
 
-        public static Button Button(Transform parent, string label, UnityAction onClick, float height = 56, Color? color = null, float fontSize = 26)
+        /// <summary>Chunky 3D button: dark base lip, light chamfered frame, shaded colored face, optional icon plate.</summary>
+        public static Button Button(Transform parent, string label, UnityAction onClick, float height = 56, Color? color = null, float fontSize = 26, string icon = null)
         {
-            var img = Image(parent, "Button", color ?? Accent);
-            var b = img.gameObject.AddComponent<Button>();
-            var colors = b.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.15f, 1.15f, 1.15f);
-            colors.pressedColor = new Color(0.8f, 0.8f, 0.85f);
-            colors.disabledColor = new Color(0.45f, 0.45f, 0.5f, 0.6f);
-            colors.colorMultiplier = 1f;
-            b.colors = colors;
-            var t = Text(img.transform, label, fontSize, TextAlignmentOptions.Center, new Color(0.08f, 0.07f, 0.16f), FontStyles.Bold);
-            Stretch(t.rectTransform, 10, 10, 2, 2);
+            var c = color ?? Primary;
+            c.a = 1f;
+            float depth = Mathf.Clamp(height * 0.1f, 4f, 8f);
+
+            var root = Image(parent, "Button", Color.white);
+            var b = root.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
+            b.targetGraphic = root;
+            var fx = root.gameObject.AddComponent<ChunkyButton>();
+            fx.Button = b;
+            fx.Base = root;
+            fx.Depth = depth;
+            fx.FaceColor = c;
+
+            var body = Rect(root.transform, "Body");
+            Stretch(body, 0, 0, depth, 0);
+            fx.Body = body;
+
+            fx.Glow = Image(body, "Glow", new Color(1, 1, 1, 0));
+            Stretch(fx.Glow.rectTransform, -6, -6, -6, -6);
+            fx.Glow.raycastTarget = false;
+            fx.Frame = Image(body, "Frame", Frame);
+            Stretch(fx.Frame.rectTransform);
+            fx.Frame.raycastTarget = false;
+            float side = height >= 52 ? 10 : 6;
+            fx.Face = Image(body, "Face", c);
+            fx.Face.sprite = ChamferFace;
+            Stretch(fx.Face.rectTransform, side, side, 4, 4);
+            fx.Face.raycastTarget = false;
+            var shine = Image(fx.Face.transform, "Shine", new Color(1, 1, 1, 0.13f));
+            shine.rectTransform.anchorMin = new Vector2(0, 0.55f);
+            shine.rectTransform.anchorMax = Vector2.one;
+            shine.rectTransform.offsetMin = new Vector2(3, 0);
+            shine.rectTransform.offsetMax = new Vector2(-3, -3);
+            shine.raycastTarget = false;
+
+            float labelLeft = 10;
+            if (!string.IsNullOrEmpty(icon) && IconFont != null)
+            {
+                float plate = height - depth - 8 - 6;
+                fx.IconPlate = Image(fx.Face.transform, "IconPlate", c * 0.7f);
+                Place(fx.IconPlate.rectTransform, new Vector2(0, 0.5f), new Vector2(3, 0), new Vector2(plate + 10, plate), new Vector2(0, 0.5f));
+                fx.IconPlate.raycastTarget = false;
+                fx.Icon = IconText(fx.IconPlate.transform, icon, plate * 0.72f);
+                Stretch(fx.Icon.rectTransform);
+                labelLeft = plate + 26;
+            }
+
+            var t = Text(fx.Face.transform, label, fontSize, string.IsNullOrEmpty(icon) ? TextAlignmentOptions.Center : TextAlignmentOptions.Left, TextColor, FontStyles.Bold | FontStyles.UpperCase);
+            Stretch(t.rectTransform, labelLeft, 10, 0, 2);
             t.textWrappingMode = TextWrappingModes.NoWrap;
             t.overflowMode = TextOverflowModes.Truncate;
+            t.characterSpacing = 3;
+            t.fontSharedMaterial = ShadowMaterial;
+            fx.Label = t;
+
             if (onClick != null) b.onClick.AddListener(() => { Core.Sfx.PlayUI("ui_click"); onClick(); });
-            LayoutElement(img.gameObject, -1, height);
+            LayoutElement(root.gameObject, -1, height);
             return b;
         }
 
         public static void SetLabel(Button b, string label)
         {
-            var t = b.GetComponentInChildren<TextMeshProUGUI>();
+            var fx = b.GetComponent<ChunkyButton>();
+            var t = fx != null ? fx.Label : b.GetComponentInChildren<TextMeshProUGUI>();
             if (t != null) t.text = label;
+        }
+
+        public static void SetButtonColor(Button b, Color c)
+        {
+            var fx = b.GetComponent<ChunkyButton>();
+            if (fx != null) fx.SetColor(c);
         }
 
         public static LayoutElement LayoutElement(GameObject go, float width = -1, float height = -1, float flexW = -1, float flexH = -1)
@@ -345,5 +532,30 @@ namespace Voidward.UI
         }
 
         public static string Hex(Color c) => "#" + ColorUtility.ToHtmlStringRGB(c);
+    }
+
+    /// <summary>Material Icons code points; ContentBuilder bakes <see cref="All"/> into Resources/UI/VW_Icons.</summary>
+    public static class Icons
+    {
+        public const string Rocket = "\ueb9b";
+        public const string Join = "\uea77";
+        public const string Hangar = "\uebb8";
+        public const string Settings = "\ue8b8";
+        public const string Quit = "\ue9ba";
+        public const string Group = "\uf233";
+        public const string Invite = "\ue7fe";
+        public const string Back = "\ue5c4";
+        public const string Play = "\ue037";
+        public const string Refresh = "\ue5d5";
+        public const string Swap = "\ue8d4";
+        public const string Close = "\ue5c9";
+        public const string Pause = "\ue034";
+        public const string Replay = "\ue042";
+        public const string Flight = "\ue539";
+        public const string Star = "\ue838";
+        public const string Lan = "\ueb2f";
+        public const string Person = "\ue7fd";
+
+        public const string All = Rocket + Join + Hangar + Settings + Quit + Group + Invite + Back + Play + Refresh + Swap + Close + Pause + Replay + Flight + Star + Lan + Person;
     }
 }

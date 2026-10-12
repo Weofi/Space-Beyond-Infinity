@@ -6,7 +6,7 @@ namespace Voidward.Core
     /// Audio backend contract. Implemented by the AudioManager (registered in G).
     /// All clips are procedurally synthesized; ids are stable strings (see README/audio dev).
     /// Known ids: "laser","laser_ship","missile","flak","explosion","explosion_big","hit",
-    /// "shield_hit","pickup","mine","craft","trade","ui_click","ui_back","alarm","low_oxygen",
+    /// "shield_hit","pickup","mine","craft","trade","ui_click","ui_back","ui_hover","alarm","low_oxygen",
     /// "heal","jump_gate","jump_charge","landing","thud","ping","spawn","boss_roar","stardust".
     /// </summary>
     public interface IAudioService
