@@ -4,24 +4,22 @@ on:
   push:
     branches:
       - main
-  # Optional: Erlaube auch das manuelle Starten über den GitHub-Tab "Actions"
   workflow_dispatch:
 
 jobs:
-  build:
+  # --- 1. WINDOWS BUILD ---
+  build-windows:
     name: Build for Windows 🪟
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
     steps:
-      # 1. Repository auschecken
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          lfs: true # Falls du Git LFS für große Dateien nutzt
+          lfs: true
 
-      # 2. Cache nutzen, damit zukünftige Builds schneller gehen
-      - name: Load Library cache
+      - name: Load Library cache (Windows)
         uses: actions/cache@v4
         with:
             path: Library
@@ -29,24 +27,66 @@ jobs:
             restore-keys: |
               library-build-windows-
 
-      # 3. Das eigentliche Kompilieren mit GameCI
-      - name: Build project
+      - name: Build project (Windows)
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
           targetPlatform: StandaloneWindows64
 
-      # 4. Die gebauten Dateien als Artefakt hochladen
-      - name: Upload build result
+      - name: Upload build result (Windows)
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
           path: build/StandaloneWindows64
 
-      # 5. Automatisch als GitHub Release veröffentlichen (wenn ein Tag gepusht wird)
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v') # Reagiert auf Tags wie v1.0.0
+  # --- 2. MACOS BUILD ---
+  build-mac:
+    name: Build for macOS 🍏
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          files: build/StandaloneWindows64/*
+          lfs: true
+
+      - name: Load Library cache (Mac)
+        uses: actions/cache@v4
+        with:
+            path: Library
+            key: library-build-mac-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+            restore-keys: |
+              library-build-mac-
+
+      - name: Build project (macOS)
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          targetPlatform: StandaloneOSX
+
+      - name: Upload build result (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: build/StandaloneOSX
+
+  # --- 3. RELEASE ERSTELLEN (Wartet, bis Windows und Mac fertig sind) ---
+  release:
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            all-artifacts/windows-build/*
+            all-artifacts/macos-build/*
