@@ -63,6 +63,8 @@ namespace Voidward.Inventory
                 Vector3 down = (src.Center - pos).normalized;
                 if (Physics.Raycast(pos - down * 3f, down, out var hit, 30f, ~0, QueryTriggerInteraction.Ignore))
                     pos = hit.point - down * 0.5f;
+                else if (src.SurfaceDistance(pos) < 30f)
+                    pos = src.GroundPoint(pos) - down * 0.5f;
                 rot = Quaternion.FromToRotation(Vector3.up, -down);
             }
             pos += Random.insideUnitSphere * 0.6f;

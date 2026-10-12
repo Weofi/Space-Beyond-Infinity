@@ -13,14 +13,15 @@ MonoBehaviour:
   m_Name: Planet_Desert
   m_EditorClassIdentifier: Voidward.Data::Voidward.Data.PlanetShapeDef
   DisplayName: Desert Planet
-  Resolution: 96
-  FarResolution: 48
+  ChunkResolution: 40
+  LeafSpacing: 1.6
+  LodQuality: 1.6
   HeightMultiplier: 1
-  Warp: 0.1
+  Warp: 0.12
   Layers:
   - Enabled: 1
     Kind: 0
-    Strength: 0.04
+    Strength: 0.035
     Frequency: 1
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 4
@@ -33,34 +34,47 @@ MonoBehaviour:
     Terraces: 0
   - Enabled: 1
     Kind: 1
-    Strength: 0.014
-    Frequency: 5
-    Stretch: {x: 1, y: 4.5, z: 1}
+    Strength: 0.004
+    Frequency: 9
+    Stretch: {x: 1, y: 4, z: 1}
     Octaves: 2
     Persistence: 0.35
     Lacunarity: 2
     MinValue: 0
     RidgeWeight: 0.6
-    MaskByFirstLayer: 0
-    MaskRange: {x: 0, y: 0.25}
+    MaskByFirstLayer: 1
+    MaskRange: {x: 0.62, y: 0.38}
     Terraces: 0
   - Enabled: 1
     Kind: 0
-    Strength: 0.07
+    Strength: 0.03
     Frequency: 2.2
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 4
     Persistence: 0.5
     Lacunarity: 2
-    MinValue: 0.5
+    MinValue: 0.52
     RidgeWeight: 1.5
     MaskByFirstLayer: 0
     MaskRange: {x: 0, y: 0.25}
-    Terraces: 3
+    Terraces: 4
+  - Enabled: 1
+    Kind: 1
+    Strength: 0.008
+    Frequency: 11
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 3
+    Persistence: 0.45
+    Lacunarity: 2
+    MinValue: 0.2
+    RidgeWeight: 1.2
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
   - Enabled: 1
     Kind: 0
-    Strength: 0.002
-    Frequency: 22
+    Strength: 0.0012
+    Frequency: 30
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 2
     Persistence: 0.5
@@ -70,8 +84,47 @@ MonoBehaviour:
     MaskByFirstLayer: 0
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
-  CraterCount: 6
-  CraterSize: {x: 0.03, y: 0.09}
+  Variation: 0.2
+  Features:
+  - Enabled: 1
+    Kind: 1
+    Count: {x: 6, y: 10}
+    Size: {x: 0.05, y: 0.12}
+    Height: {x: 0.4, y: 0.7}
+    Sharpness: 0.9
+    Terraces: 3
+    Roughness: 0.5
+    Caldera: 0.2
+  - Enabled: 1
+    Kind: 2
+    Count: {x: 8, y: 14}
+    Size: {x: 0.01, y: 0.02}
+    Height: {x: 1.5, y: 2.6}
+    Sharpness: 0.75
+    Terraces: 0
+    Roughness: 0.4
+    Caldera: 0.2
+  - Enabled: 1
+    Kind: 3
+    Count: {x: 1, y: 3}
+    Size: {x: 0.12, y: 0.2}
+    Height: {x: 0.08, y: 0.12}
+    Sharpness: 0.5
+    Terraces: 0
+    Roughness: 0.3
+    Caldera: 0.2
+  Canyons: 1
+  CanyonFrequency: 1.6
+  CanyonWidth: 0.085
+  CanyonDepth: 0.07
+  CanyonFloor: 0.45
+  CanyonSteepness: 3
+  CanyonTerraces: 4
+  CanyonCoverage: 0.65
+  CanyonWarp: 0.45
+  CanyonRivers: 0
+  CraterCount: 4
+  CraterSize: {x: 0.02, y: 0.06}
   CraterSizeBias: 3
   CraterDepth: 0.15
   CraterRim: 0.06
@@ -91,8 +144,8 @@ MonoBehaviour:
   WaveStrength: 0.5
   Underwater:
     serializedVersion: 2
-    key0: {r: 0.7058824, g: 0.4, b: 0.24705882, a: 1}
-    key1: {r: 0.7058824, g: 0.4, b: 0.24705882, a: 1}
+    key0: {r: 0.65882355, g: 0.3529412, b: 0.21176471, a: 1}
+    key1: {r: 0.65882355, g: 0.3529412, b: 0.21176471, a: 1}
     key2: {r: 0, g: 0, b: 0, a: 0}
     key3: {r: 0, g: 0, b: 0, a: 0}
     key4: {r: 0, g: 0, b: 0, a: 0}
@@ -121,17 +174,17 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   Land:
     serializedVersion: 2
-    key0: {r: 0.7058824, g: 0.4, b: 0.24705882, a: 1}
-    key1: {r: 0.83137256, g: 0.5568628, b: 0.34509805, a: 1}
-    key2: {r: 0.9137255, g: 0.7137255, b: 0.4627451, a: 0}
-    key3: {r: 0.9490196, g: 0.827451, b: 0.6156863, a: 0}
-    key4: {r: 0.972549, g: 0.9019608, b: 0.7607843, a: 0}
+    key0: {r: 0.65882355, g: 0.3529412, b: 0.21176471, a: 1}
+    key1: {r: 0.76862746, g: 0.47843137, b: 0.28235295, a: 1}
+    key2: {r: 0.8509804, g: 0.6039216, b: 0.36862746, a: 0}
+    key3: {r: 0.8862745, g: 0.6901961, b: 0.47843137, a: 0}
+    key4: {r: 0.9254902, g: 0.77254903, b: 0.59607846, a: 0}
     key5: {r: 0, g: 0, b: 0, a: 0}
     key6: {r: 0, g: 0, b: 0, a: 0}
     key7: {r: 0, g: 0, b: 0, a: 0}
     ctime0: 0
-    ctime1: 13107
-    ctime2: 32768
+    ctime1: 16384
+    ctime2: 36044
     ctime3: 52428
     ctime4: 65535
     ctime5: 0
@@ -151,16 +204,48 @@ MonoBehaviour:
     m_NumAlphaKeys: 2
   Cliff:
     serializedVersion: 2
-    key0: {r: 0.5411765, g: 0.2627451, b: 0.16862746, a: 1}
-    key1: {r: 0.6627451, g: 0.34509805, b: 0.22745098, a: 1}
-    key2: {r: 0.7882353, g: 0.49803922, b: 0.32156864, a: 0}
+    key0: {r: 0.47843137, g: 0.22745098, b: 0.14901961, a: 1}
+    key1: {r: 0.6039216, g: 0.3019608, b: 0.2, a: 1}
+    key2: {r: 0.6901961, g: 0.3764706, b: 0.23921569, a: 0}
+    key3: {r: 0.7882353, g: 0.52156866, b: 0.34509805, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 22937
+    ctime2: 39321
+    ctime3: 65535
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 4
+    m_NumAlphaKeys: 2
+  CliffSlope: {x: 0.08, y: 0.18}
+  HueJitter: 0.025
+  Region:
+    serializedVersion: 2
+    key0: {r: 0.72156864, g: 0.47058824, b: 0.29803923, a: 1}
+    key1: {r: 0.8392157, g: 0.65882355, b: 0.47058824, a: 1}
+    key2: {r: 0.89411765, g: 0.76862746, b: 0.6117647, a: 0}
     key3: {r: 0, g: 0, b: 0, a: 0}
     key4: {r: 0, g: 0, b: 0, a: 0}
     key5: {r: 0, g: 0, b: 0, a: 0}
     key6: {r: 0, g: 0, b: 0, a: 0}
     key7: {r: 0, g: 0, b: 0, a: 0}
     ctime0: 0
-    ctime1: 32768
+    ctime1: 26214
     ctime2: 65535
     ctime3: 0
     ctime4: 0
@@ -179,8 +264,35 @@ MonoBehaviour:
     m_ColorSpace: -1
     m_NumColorKeys: 3
     m_NumAlphaKeys: 2
-  CliffSlope: {x: 0.08, y: 0.18}
-  HueJitter: 0.02
+  RegionFrequency: 1.4
+  RegionStrength: 0.4
+  SiteCount: {x: 6, y: 8}
+  SiteRadius: 34
+  HasAtmosphere: 1
+  AtmosphereColor: {r: 1, g: 0.69803923, b: 0.47843137, a: 1}
+  SunsetColor: {r: 1, g: 0.41568628, b: 0.2901961, a: 1}
+  AtmosphereHeight: 0.2
+  AtmosphereDensity: 1.4
+  AtmosphereFalloff: 4
+  CloudCoverage: 0.12
+  CloudColor: {r: 1, g: 0.9490196, b: 0.87058824, a: 1}
+  CloudShadeColor: {r: 0.8509804, g: 0.6901961, b: 0.56078434, a: 1}
+  CloudAltitude: 0.7
+  CloudScale: 2.4
+  CloudStretch: 2.2
+  Decor: 2
+  DecorDensity: 1
+  DecorColors:
+  - {r: 0.65882355, g: 0.34117648, b: 0.22745098, a: 1}
+  - {r: 0.43529412, g: 0.61960787, b: 0.5019608, a: 1}
+  - {r: 0.8784314, g: 0.6666667, b: 0.4392157, a: 1}
+  - {r: 1, g: 0.827451, b: 0.41960785, a: 1}
+  Particles: 1
+  ParticleColor: {r: 1, g: 0.85, b: 0.6, a: 0.35}
+  Weather: 1
+  HazeColor: {r: 0.8784314, g: 0.65882355, b: 0.47058824, a: 1}
+  SurfaceAmbient: {r: 0.43137255, g: 0.32941177, b: 0.26666668, a: 1}
+  WindPitch: 0.9
   DetailScale: 4
   DetailStrength: 0.25
   DetailNormalStrength: 0.45

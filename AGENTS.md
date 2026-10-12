@@ -12,7 +12,7 @@ User speaks German – answer in German.
 ## Layout (`Assets/_Project`)
 - `Scripts/<Module>` with one asmdef each. Dependency order: Core ← Data ← Combat/Inventory/Planet ← Ship ← Player ← AI/World ← Progression/UI; Networking separate.
 - `Editor/ContentBuilder.cs` (materials, all ScriptableObject data, balance values), `PrefabBuilder.cs` (all procedural meshes + prefabs + network prefab list), `SceneBuilder.cs` (scene `Scenes/Voidward.unity`, lighting, volume, project settings), `PlanetBuilder.cs` (planet presets `Data/Planets`, planet/ocean materials, detail textures, scene `Scenes/PlanetPreview.unity`), `BuildMenu.cs`.
-- `Shaders/`: VW_ToonFlat (main lit), VW_Planet (triplanar terrain, elevation/slope ramp), VW_Ocean (depth/opaque-texture water), VW_NebulaSkybox, VW_Atmosphere, VW_Collapse, VW_Unlit, VW_AdditiveParticle, VW_Glass.
+- `Shaders/`: VW_ToonFlat (main lit), VW_Planet (triplanar terrain, elevation/slope/region ramp, planet-centered via `_PlanetCenter`), VW_Ocean (depth/opaque-texture water), VW_NebulaSkybox, VW_Atmosphere (depth-based ray-marched scattering shell, Cull Front + ZTest Always), VW_Clouds (procedural cloud shell), VW_Collapse, VW_Unlit, VW_AdditiveParticle, VW_Glass.
 - **All content is generated.** Change the builder code, then run menu `Voidward/Build All Content`. Manual edits to generated prefabs/scene/data are overwritten.
 
 ## Architecture
@@ -21,7 +21,7 @@ User speaks German – answer in German.
 - `RunManager` (big file): lobby/run/end phases, sector generation, player setup, respawns, Collapse, gate/jump, boss, events, enemy spawning, cheats (`ExecuteCheat(int)`).
 - `GameState` (Core/Contracts.cs): static shared client state (UIOpen, Phase, SectorIndex, Objective…).
 - Authority: pawns + ships use owner-authoritative NetworkTransform; pilot seat transfers ship ownership. Projectiles are server-simulated in `CombatNet` with cosmetic client copies. Planets/asteroids are seed-synced, not replicated.
-- Planets (#17): `BiomeDef.Shape` -> `PlanetShapeDef` (noise layers, craters, ocean coverage, gradients). `PlanetTerrain` = deterministic height field (single source of truth for mesh, collider, decor, `PlanetBody.TerrainRadiusAt/IsUnderwater`). `PlanetMesh` = welded spherified cube; `PlanetVisuals` = near/far LOD + ocean + collider (near mesh). Dev preview: menu `Voidward/Open Planet Preview`, then Play.
+- Planets (#17, #21): radius 1.0-1.9 km (`SectorLayout.Min/MaxPlanetRadius`, 2-3 per sector on alternating corridor sides). `BiomeDef.Shape` -> `PlanetShapeDef` (noise layers, landforms = volcano/mesa/spire/basin/dome, canyon network incl. river/lava channels, craters, ocean, region colors, sites, atmosphere, clouds, decor style, particles, weather). `PlanetTerrain` = deterministic, thread-safe height field (single source of truth for chunks, colliders, decor, sites, `PlanetBody` queries, `Raycast`). `PlanetVisuals` = 6 quadtrees of chunks (`PlanetMesh.BuildChunk` on worker threads, tangent-adjusted cube mapping, skirts, horizon culling), collider tiles streamed around `TerrainAnchor`s (pawn + ship prefabs), per-chunk props (`PlanetDecor`), set pieces (`PlanetLandmarks`), ocean/atmosphere/cloud shells. `PlanetAmbience` (client) = particles, weather, haze/ambient override, wind audio. `PlanetBody.SiteKinds` (deterministic) drive POI clusters in `RunManager.PopulatePlanet` and HUD site markers. `GravitySource.GroundRadiusAt` makes altitude checks terrain-aware. Far terrain has no colliders: use `PlanetBody.Raycast/SurfaceWorldPoint` or `GravitySource.GroundPoint`, not Physics, for spawn/placement. Dev preview: menu `Voidward/Open Planet Preview`, then Play.
 - Seats don't reparent: the pawn follows `ShipSeat.SeatOf` in LateUpdate; seated capsules are disabled on all peers.
 - Floating origin: each sector is generated around the origin; on jump, ships and pawns are rebased via `NetTeleport` (sent to the transform owner).
 - UI is fully code-built (`UIKit`, `UIRoot`, `MenuScreens`, `HudView`, `InventoryView`, `TradeView`). Namespace `Voidward.UI` has enum `Screen` → write `UnityEngine.Screen` explicitly.
@@ -62,7 +62,7 @@ One issue = one branch = one PR. Don't mix issues.
 ## Status (2026-10-11)
 Full loop playable and tested: lobby → 3 sectors → boss (3 phases) → results/Stardust → restart; 2-player MP (Editor ↔ dev build) tested. Steam is untested with 2 real accounts. Release + dev macOS builds exist in `Builds/` (git-ignored).
 
-Known limitations: placeholder procedural art/audio, planet LOD only 2 levels (whole planet, no chunking), no terrain deformation, no swimming (pawns walk on the seabed), owner authority without prediction, Ark can only be claimed (not built).
+Known limitations: placeholder procedural art/audio, no terrain deformation, LOD without geomorphing, no swimming (pawns walk on the seabed), owner authority without prediction, Ark can only be claimed (not built).
 
 ## Next priorities (user, 2026-10-11)
 User feedback: **menu, graphics and gameplay need major improvement.** Clarify concrete goals/references with the user before large changes.

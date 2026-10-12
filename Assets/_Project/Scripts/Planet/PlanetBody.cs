@@ -6,9 +6,12 @@ using Voidward.Data;
 
 namespace Voidward.Planet
 {
+    /// <summary>What players find at a planet site.</summary>
+    public enum SiteKind { Ruins, CrashSite, Hive, CrystalGrove, OreVein, FuelVent, Salvage, Cache }
+
     /// <summary>
     /// Networked spherical planet. Only Seed, Radius and BiomeIndex are synced; every client
-    /// generates identical terrain geometry locally from the seed (zero terrain bandwidth).
+    /// generates identical terrain, sites and landmarks locally from the seed (zero terrain bandwidth).
     /// </summary>
     public class PlanetBody : NetworkBehaviour
     {
@@ -20,7 +23,7 @@ namespace Voidward.Planet
 
         /// <summary>Base planet radius in meters (before terrain displacement).</summary>
         public NetworkVariable<float> Radius = new NetworkVariable<float>(
-            200f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+            1500f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         /// <summary>Index into ContentCatalog.Instance.Biomes for this planet's biome.</summary>
         public NetworkVariable<int> BiomeIndex = new NetworkVariable<int>(
@@ -42,10 +45,14 @@ namespace Voidward.Planet
 
         /// <summary>Deterministic height field of this planet (null until built).</summary>
         public PlanetTerrain Terrain => _visuals != null ? _visuals.Terrain : null;
+        public PlanetVisuals Visuals => _visuals;
 
-        Mesh _atmosphereMesh;
+        /// <summary>Kind of each terrain site (same order as Terrain.Sites), identical on every peer.</summary>
+        public SiteKind[] SiteKinds { get; private set; } = new SiteKind[0];
+
+        public float AtmosphereRadius => Terrain != null ? Terrain.AtmosphereRadius : Radius.Value * 1.25f;
+
         PlanetVisuals _visuals;
-        bool _decorShown = true;
         GravitySource _gravity;
 
         // ---- Spawn helper ----
@@ -58,7 +65,7 @@ namespace Voidward.Planet
             var catalog = ContentCatalog.Instance;
             if (catalog == null || catalog.PlanetPrefab == null)
             {
-                Debug.LogError("[PlanetBody] ContentCatalog or PlanetPrefab missing — cannot spawn planet.");
+                Debug.LogError("[PlanetBody] ContentCatalog or PlanetPrefab missing - cannot spawn planet.");
                 return null;
             }
 
@@ -117,19 +124,16 @@ namespace Voidward.Planet
         {
             base.OnNetworkDespawn();
             All.Remove(this);
-
             if (_visuals != null) _visuals.Clear();
-            foreach (var m in _decorMeshes) if (m != null) Destroy(m);
-            _decorMeshes.Clear();
-            if (_atmosphereMesh != null) { Destroy(_atmosphereMesh); _atmosphereMesh = null; }
+            if (_gravity != null) _gravity.GroundRadiusAt = null;
         }
 
         // ---- Public queries ----
 
-        /// <summary>True when a world position is inside the atmosphere shell (within Radius*1.6 of center and biome has atmosphere).</summary>
+        /// <summary>True when a world position is inside the atmosphere shell.</summary>
         public bool IsInsideAtmosphere(Vector3 pos)
         {
-            return HasAtmosphere && Vector3.Distance(pos, transform.position) < Radius.Value * 1.6f;
+            return HasAtmosphere && Vector3.Distance(pos, transform.position) < AtmosphereRadius;
         }
 
         /// <summary>World-space surface position at a direction from the planet center.</summary>
@@ -145,12 +149,51 @@ namespace Voidward.Planet
             return t != null ? t.SurfaceRadius(unitDir) : Radius.Value;
         }
 
+        /// <summary>World-space terrain normal at a direction from the planet center.</summary>
+        public Vector3 SurfaceNormal(Vector3 unitDir, float step = 2f)
+        {
+            var t = Terrain;
+            return t != null ? transform.TransformDirection(t.NormalAt(transform.InverseTransformDirection(unitDir), step)) : unitDir;
+        }
+
         /// <summary>True when the terrain at this world position lies below the ocean surface.</summary>
         public bool IsUnderwater(Vector3 worldPos)
         {
             var t = Terrain;
-            return t != null && t.IsUnderwater((worldPos - transform.position).normalized);
+            return t != null && t.IsUnderwater(transform.InverseTransformDirection((worldPos - transform.position).normalized));
         }
+
+        /// <summary>Ray vs. terrain/sea using the height field (no colliders needed, any distance).</summary>
+        public bool Raycast(Ray ray, float maxDistance, out Vector3 point)
+        {
+            point = default;
+            var t = Terrain;
+            if (t == null) return false;
+            Vector3 o = transform.InverseTransformPoint(ray.origin);
+            Vector3 d = transform.InverseTransformDirection(ray.direction).normalized;
+            if (!t.Raycast(o, d, maxDistance, out float dist)) return false;
+            point = ray.origin + ray.direction.normalized * dist;
+            return true;
+        }
+
+        /// <summary>World position of site i (center of its clearing).</summary>
+        public Vector3 SiteWorldPoint(int i)
+        {
+            var s = Terrain.Sites[i];
+            return transform.TransformPoint(s.Dir * Terrain.Radius * (1f + s.Elevation));
+        }
+
+        public static string SiteLabel(SiteKind k) => k switch
+        {
+            SiteKind.Ruins => "RUINS",
+            SiteKind.CrashSite => "CRASH SITE",
+            SiteKind.Hive => "HIVE",
+            SiteKind.CrystalGrove => "CRYSTAL GROVE",
+            SiteKind.OreVein => "ORE VEIN",
+            SiteKind.FuelVent => "FUEL VENT",
+            SiteKind.Salvage => "SALVAGE",
+            _ => "SUPPLY CACHE",
+        };
 
         /// <summary>Nearest planet body to a world position, or null if none exist.</summary>
         public static PlanetBody Nearest(Vector3 pos)
@@ -165,6 +208,21 @@ namespace Voidward.Planet
             return best;
         }
 
+        /// <summary>Ray vs. every planet; nearest hit.</summary>
+        public static bool RaycastAll(Ray ray, float maxDistance, out Vector3 point, out PlanetBody planet)
+        {
+            point = default;
+            planet = null;
+            float best = float.MaxValue;
+            foreach (var p in All)
+            {
+                if (p == null || !p.Raycast(ray, maxDistance, out var hit)) continue;
+                float d = (hit - ray.origin).sqrMagnitude;
+                if (d < best) { best = d; point = hit; planet = p; }
+            }
+            return planet != null;
+        }
+
         // ---- Build ----
 
         void BuildPlanet()
@@ -173,193 +231,72 @@ namespace Voidward.Planet
             float radius = Radius.Value;
             var biome = Biome;
 
-            // The collider shares the near-LOD mesh so feet never float or sink.
             _visuals = gameObject.GetComponent<PlanetVisuals>();
             if (_visuals == null) _visuals = gameObject.AddComponent<PlanetVisuals>();
             _visuals.Build(biome.Shape, seed, radius, true);
+            var terrain = _visuals.Terrain;
 
-            var catalog = ContentCatalog.Instance;
-            Material toonMat = catalog == null ? null : catalog.TerrainMaterial != null ? catalog.TerrainMaterial : catalog.ToonMaterial;
-
-            // Gravity source.
             _gravity = gameObject.GetComponent<GravitySource>();
             if (_gravity == null) _gravity = gameObject.AddComponent<GravitySource>();
-            _gravity.SurfaceRadius = radius;
-            _gravity.SurfaceGravity = 9.81f * Mathf.Clamp(radius / 200f, 0.7f, 1.4f);
-            _gravity.InfluenceRadius = radius * 2.2f;
+            _gravity.SurfaceRadius = terrain.MaxRadius;
+            _gravity.SurfaceGravity = 9.81f;
+            _gravity.InfluenceRadius = terrain.AtmosphereRadius + radius * 0.35f;
+            _gravity.GroundRadiusAt = dir => terrain.GroundRadius(transform.InverseTransformDirection(dir));
 
-            // Atmosphere shell.
-            if (biome.HasAtmosphere)
-                BuildAtmosphere(radius, catalog);
+            SiteKinds = AssignSiteKinds(terrain, biome, seed);
 
-            BuildDecor(seed, radius, biome, toonMat);
+            if (biome.HasAtmosphere) BuildAtmosphereTrigger(terrain.AtmosphereRadius);
         }
 
         /// <summary>
-        /// Client-local, seed-deterministic surface dressing (rocks, shards, trees, crystals, vents),
-        /// batched into a few meshes. Large pieces get sphere colliders so you can't walk through them.
+        /// Deterministic site roles: the biome's set pieces (ruins, crash sites, hives) first, then resource fields
+        /// matching the biome's scatter table.
         /// </summary>
-        void BuildDecor(int seed, float radius, BiomeDef biome, Material mat)
+        static SiteKind[] AssignSiteKinds(PlanetTerrain terrain, BiomeDef biome, int seed)
         {
-            var rng = new System.Random(seed ^ 0x2b7e1516);
-            var terrain = Terrain;
-            int count = Mathf.RoundToInt(radius * 3f);
-            const int perChunk = 70;
-            MeshBuilder mb = null;
-            GameObject chunk = null;
-            int n = 0;
-            Color rockCol = Color.Lerp(biome.LowColor, new Color(0.45f, 0.42f, 0.5f), 0.55f);
-            for (int i = 0; i < count; i++)
+            int n = terrain.Sites.Count;
+            var kinds = new List<SiteKind>();
+            var fields = new List<SiteKind>();
+            foreach (var e in biome.Scatter)
             {
-                Vector3 dir = MathUtils.OnSphere(rng);
-                Vector3 local = dir * (terrain.SurfaceRadius(dir) - 0.4f);
-                Quaternion rot = Quaternion.FromToRotation(Vector3.up, dir) * Quaternion.Euler(0f, MathUtils.Range(rng, 0f, 360f), 0f);
-                float r = MathUtils.Range(rng, 0f, 1f);
-                if (terrain.IsUnderwater(dir)) { if (i == count - 1) FlushDecor(ref mb, chunk, mat); continue; }
-                if (mb == null)
+                switch (e.Kind)
                 {
-                    mb = new MeshBuilder { Gloss = 0.08f };
-                    chunk = new GameObject("Decor");
-                    chunk.transform.SetParent(transform, false);
-                    n = 0;
+                    case ScatterKind.Ruin: for (int i = 0; i < e.Count; i++) kinds.Add(SiteKind.Ruins); break;
+                    case ScatterKind.CrashedShip: for (int i = 0; i < e.Count; i++) kinds.Add(SiteKind.CrashSite); break;
+                    case ScatterKind.Nest: for (int i = 0; i < Mathf.Min(2, e.Count); i++) kinds.Add(SiteKind.Hive); break;
+                    case ScatterKind.OreNode: fields.Add(SiteKind.OreVein); break;
+                    case ScatterKind.CrystalNode: fields.Add(SiteKind.CrystalGrove); break;
+                    case ScatterKind.FuelNode: fields.Add(SiteKind.FuelVent); break;
+                    case ScatterKind.ScrapNode: fields.Add(SiteKind.Salvage); break;
                 }
-                float size = Mathf.Lerp(0.6f, 3.2f, r * r);
-                switch (biome.Biome)
-                {
-                    case Voidward.Core.Biome.Ice:
-                        if (r < 0.5f) mb.AddPrism(Matrix4x4.TRS(local + dir * size, rot * Quaternion.Euler(MathUtils.Range(rng, -15f, 15f), 0, MathUtils.Range(rng, -15f, 15f)), Vector3.one), size * 0.45f, 0.05f, size * 2.6f, 5, Color.Lerp(biome.LowColor, Color.white, 0.4f));
-                        else mb.AddRock(Matrix4x4.TRS(local, rot, new Vector3(1f, 0.7f, 1f)), size, rng.Next(), rockCol);
-                        break;
-                    case Voidward.Core.Biome.Desert:
-                        if (r > 0.92f) mb.AddBox(Matrix4x4.TRS(local + dir * size * 1.5f, rot, Vector3.one), new Vector3(size * 2f, size * 3f, size * 1.6f), biome.HighColor);
-                        else mb.AddRock(Matrix4x4.TRS(local, rot, new Vector3(1.2f, 0.6f, 1f)), size, rng.Next(), Color.Lerp(biome.HighColor, rockCol, 0.4f));
-                        break;
-                    case Voidward.Core.Biome.ToxicJungle:
-                        if (r < 0.55f)
-                        {
-                            float th = size * 2.5f + 2f;
-                            mb.AddPrism(Matrix4x4.TRS(local + dir * th * 0.5f, rot, Vector3.one), 0.25f + size * 0.08f, 0.15f, th, 5, new Color(0.45f, 0.32f, 0.4f));
-                            mb.AddRock(Matrix4x4.TRS(local + dir * th, rot, new Vector3(1.3f, 0.8f, 1.3f)), size * 0.9f + 0.8f, rng.Next(), r < 0.3f ? biome.HighColor : new Color(0.95f, 0.55f, 0.75f));
-                        }
-                        else mb.AddRock(Matrix4x4.TRS(local, rot, new Vector3(1f, 0.6f, 1f)), size * 0.7f, rng.Next(), biome.MidColor * 0.8f);
-                        break;
-                    case Voidward.Core.Biome.Crystal:
-                        for (int k = 0; k < 3; k++)
-                            mb.AddPrism(Matrix4x4.TRS(local + dir * size, rot * Quaternion.Euler(MathUtils.Range(rng, -25f, 25f), k * 120f, MathUtils.Range(rng, -25f, 25f)), Vector3.one),
-                                size * 0.35f, 0.04f, size * (2f + k * 0.6f), 5, k == 0 ? biome.HighColor : new Color(0.6f, 0.9f, 1f));
-                        break;
-                    default: // Volcanic
-                        if (r > 0.85f) mb.AddPrism(Matrix4x4.TRS(local + dir * size, rot, Vector3.one), size * 1.2f, size * 0.4f, size * 2f, 7, new Color(1f, 0.5f, 0.3f));
-                        else mb.AddRock(Matrix4x4.TRS(local, rot, new Vector3(1f, 0.8f, 1f)), size, rng.Next(), rockCol * 0.8f);
-                        break;
-                }
-                if (size > 1.6f)
-                {
-                    var sc = chunk.AddComponent<SphereCollider>();
-                    sc.center = local + dir * size * 0.5f;
-                    sc.radius = size * 0.8f;
-                }
-                if (++n >= perChunk || i == count - 1) FlushDecor(ref mb, chunk, mat);
             }
+            kinds.Add(SiteKind.Cache);
+            // Keep at least a third of the sites (min. 2) as resource fields.
+            int maxSet = Mathf.Max(0, n - Mathf.Max(2, n / 3));
+            var rng = new System.Random(seed ^ 0x3c6ef372);
+            while (kinds.Count > maxSet) kinds.RemoveAt(rng.Next(kinds.Count));
+            if (fields.Count == 0) fields.Add(SiteKind.OreVein);
+            for (int i = 0; kinds.Count < n; i++) kinds.Add(fields[(i + rng.Next(0, fields.Count)) % fields.Count]);
+            // Shuffle so set pieces are spread over the planet.
+            for (int i = kinds.Count - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                (kinds[i], kinds[j]) = (kinds[j], kinds[i]);
+            }
+            var result = new SiteKind[n];
+            for (int i = 0; i < n; i++) result[i] = kinds[i];
+            return result;
         }
 
-        void FlushDecor(ref MeshBuilder mb, GameObject chunk, Material mat)
+        void BuildAtmosphereTrigger(float atmoRadius)
         {
-            if (mb == null) return;
-            var mesh = mb.Build("PlanetDecor");
-            _decorMeshes.Add(mesh);
-            chunk.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var mr = chunk.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = mat;
-            _decor.Add(chunk);
-            mb = null;
-        }
-
-        readonly List<Mesh> _decorMeshes = new List<Mesh>();
-        readonly List<GameObject> _decor = new List<GameObject>();
-
-        void BuildAtmosphere(float radius, ContentCatalog catalog)
-        {
-            // Atmosphere visual: icosphere subdiv 2, radius*1.08, additive fresnel material.
-            var atmoGo = new GameObject("Atmosphere");
-            atmoGo.transform.SetParent(transform, false);
-            var mf = atmoGo.AddComponent<MeshFilter>();
-            var mr = atmoGo.AddComponent<MeshRenderer>();
-            _atmosphereMesh = IcoSphere.Create(radius * 1.08f, 2, "Atmosphere");
-            mf.sharedMesh = _atmosphereMesh;
-            mr.sharedMaterial = catalog != null ? catalog.AtmosphereMaterial : null;
-            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            var mpb = new MaterialPropertyBlock();
-            mpb.SetColor("_Color", Biome.AtmosphereColor);
-            mr.SetPropertyBlock(mpb);
-
-            // Atmosphere trigger: sphere collider (Radius*1.6) with AtmosphereTrigger.
             var triggerGo = new GameObject("AtmosphereTrigger");
             triggerGo.transform.SetParent(transform, false);
             var sc = triggerGo.AddComponent<SphereCollider>();
             sc.isTrigger = true;
-            sc.radius = radius * 1.6f;
+            sc.radius = atmoRadius;
             var trigger = triggerGo.AddComponent<AtmosphereTrigger>();
             trigger.Planet = this;
-        }
-
-        // ---- Decor follows the terrain LOD ----
-
-        void Update()
-        {
-            if (_visuals == null) return;
-            bool show = _visuals.NearLodActive;
-            if (show == _decorShown) return;
-            _decorShown = show;
-            foreach (var d in _decor) if (d != null) d.SetActive(show);
-        }
-    }
-
-    /// <summary>
-    /// Trigger volume that fires atmosphere-entry VFX/SFX when the local player pawn or ship enters.
-    /// 3-second re-entry cooldown prevents repeated triggers.
-    /// </summary>
-    public class AtmosphereTrigger : MonoBehaviour
-    {
-        /// <summary>The planet this atmosphere belongs to.</summary>
-        public PlanetBody Planet;
-
-        float _lastEntryTime = -10f;
-
-        void OnTriggerEnter(Collider other)
-        {
-            if (Planet == null || !Planet.HasAtmosphere) return;
-
-            // Skip objects that are part of this planet (scatter, atmosphere visuals).
-            if (other.transform.IsChildOf(transform.root)) return;
-
-            // Check for the local player pawn or its ship: any NetworkBehaviour in the
-            // parent chain with IsOwner.
-            if (!IsLocalOwned(other.transform)) return;
-
-            // 3-second re-entry cooldown.
-            if (Time.time - _lastEntryTime < 3f) return;
-            _lastEntryTime = Time.time;
-
-            Vfx.AtmosphereEntry();
-            Sfx.Play("atmo_entry", other.transform.position);
-            Vfx.Shake(0.4f);
-        }
-
-        static bool IsLocalOwned(Transform t)
-        {
-            Transform current = t;
-            while (current != null)
-            {
-                var behaviours = current.GetComponents<NetworkBehaviour>();
-                for (int i = 0; i < behaviours.Length; i++)
-                {
-                    if (behaviours[i].IsOwner)
-                        return true;
-                }
-                current = current.parent;
-            }
-            return false;
         }
     }
 }

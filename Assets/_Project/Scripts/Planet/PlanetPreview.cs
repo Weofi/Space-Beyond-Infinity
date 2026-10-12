@@ -15,9 +15,7 @@ namespace Voidward.Planet
         public PlanetShapeDef[] Presets;
         public int PresetIndex;
         public int Seed = 1234;
-        public float Radius = 200f;
-        [Tooltip("0 = use the preset's resolution.")]
-        [Range(0, 160)] public int ResolutionOverride;
+        public float Radius = 1500f;
         public bool AutoRotate = true;
         public float RotateSpeed = 3f;
         public Camera Cam;
@@ -78,7 +76,8 @@ namespace Voidward.Planet
             dirty = false;
             builtHash = JsonUtility.ToJson(Current).GetHashCode();
             ClearProbes();
-            visuals.Build(Current, Seed, Radius, true, ResolutionOverride);
+            visuals.Build(Current, Seed, Radius, true);
+            if (Cam != null) visuals.ExtraAnchors.Add(Cam.transform);
         }
 
         void HandleInput()
@@ -141,6 +140,7 @@ namespace Voidward.Planet
                 var rb = ball.AddComponent<Rigidbody>();
                 rb.useGravity = false;
                 probes.Add(rb);
+                visuals.ExtraAnchors.Add(ball.transform);
             }
         }
 
@@ -156,6 +156,7 @@ namespace Voidward.Planet
         {
             foreach (var rb in probes) if (rb != null) Destroy(rb.gameObject);
             probes.Clear();
+            if (visuals != null) visuals.ExtraAnchors.Clear();
         }
 
         void OnGUI()
@@ -165,8 +166,8 @@ namespace Voidward.Planet
             if (t == null || s == null) return;
             string text =
                 $"<b>{s.DisplayName}</b>  ({PresetIndex + 1}/{Presets.Length})   seed {Seed}   radius {Radius:0} m\n" +
-                $"verts {visuals.NearVertexCount:N0}   build {visuals.BuildMilliseconds:0} ms   LOD {(visuals.NearLodActive ? "near" : "far")}\n" +
-                $"relief {t.MinRadius - Radius:0.0} .. {t.MaxRadius - Radius:0.0} m" +
+                $"chunks {visuals.VisibleChunks} (LOD {visuals.DeepestVisible}/{visuals.MaxLevel})   colliders {visuals.ColliderTiles}   jobs {visuals.PendingJobs}   build {visuals.BuildMilliseconds:0} ms\n" +
+                $"relief {t.MinRadius - Radius:0.0} .. {t.MaxRadius - Radius:0.0} m   sites {t.Sites.Count}   landforms {t.Landforms.Count}" +
                 (t.HasOcean ? $"   sea level {t.SeaRadius - Radius:+0.0;-0.0} m ({(t.SeaRadius / Radius - 1f) * 100f:0.0}% of radius), coverage {t.OceanCoverage * 100f:0}%" : "   no ocean") +
                 $"\naltitude {altitude:0.0} m\n\n" +
                 "Drag: orbit   Wheel: zoom   Tab/1-9: preset   R: random seed   Left/Right: seed -/+\n" +

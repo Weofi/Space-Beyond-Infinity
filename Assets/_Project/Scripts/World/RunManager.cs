@@ -297,60 +297,104 @@ namespace Voidward.World
 
         static float CollapseSpeedFor(SectorDef def) => def != null ? def.CollapseSpeed : 6f;
 
+        /// <summary>
+        /// Points of interest cluster at the planet's sites (flattened clearings next to landforms), so each landing
+        /// zone holds a worthwhile activity: ruins, crash sites, hives, resource fields or supply caches.
+        /// </summary>
         void PopulatePlanet(PlanetBody planet, BiomeDef biome, int seed, int sector)
         {
-            Physics.SyncTransforms();
+            var terrain = planet.Terrain;
+            if (terrain == null) return;
             var rng = new System.Random(seed);
-            Vector3 center = planet.transform.position;
-            foreach (var entry in biome.Scatter)
+            var cat = ContentCatalog.Instance;
+            int loot = Mathf.Clamp(sector, 1, 3);
+            int Amount() => rng.Next(6, 12) + sector * 2;
+            int sites = terrain.Sites.Count;
+            int hives = 0;
+            for (int i = 0; i < sites; i++)
             {
-                for (int i = 0; i < entry.Count; i++)
+                Vector3 c = planet.SiteWorldPoint(i);
+                Vector3 up = (c - planet.transform.position).normalized;
+                Vector3 fwd = Vector3.ProjectOnPlane(MathUtils.OnSphere(rng), up).normalized;
+                Quaternion rot = Quaternion.LookRotation(fwd, up);
+                switch (planet.SiteKinds[i])
                 {
-                    Vector3 dir = MathUtils.OnSphere(rng);
-                    if (!SurfacePoint(planet, dir, out var pos, out var up)) continue;
-                    Quaternion rot = Quaternion.LookRotation(Vector3.ProjectOnPlane(Random.onUnitSphere, up).normalized + up * 0.001f, up);
-                    switch (entry.Kind)
-                    {
-                        case ScatterKind.OreNode:
-                        case ScatterKind.CrystalNode:
-                        case ScatterKind.ScrapNode:
-                        case ScatterKind.FuelNode:
-                            Track(ResourceNode.SpawnServer(entry.Kind, pos, rot, rng.Next(6, 12) + sector * 2)?.NetworkObject);
-                            break;
-                        case ScatterKind.LootCrate:
-                            Track(LootCrate.SpawnServer(pos, rot, Mathf.Clamp(sector, 1, 3))?.NetworkObject);
-                            break;
-                        case ScatterKind.Nest:
-                            var nest = SpawnPrefab(ContentCatalog.Instance.NestPrefab, pos, rot);
-                            if (nest != null) nest.GetComponent<AlienNest>()?.Configure(TierFor(sector));
-                            break;
-                        case ScatterKind.Ruin:
-                            SpawnPrefab(ContentCatalog.Instance.RuinPrefab, pos, rot);
-                            Track(LootCrate.SpawnServer(pos + up * 0.5f + rot * Vector3.forward * 2f, rot, Mathf.Clamp(sector + 1, 1, 3))?.NetworkObject);
-                            break;
-                        case ScatterKind.CrashedShip:
-                            SpawnPrefab(ContentCatalog.Instance.CrashedShipPrefab, pos, rot);
-                            Track(LootCrate.SpawnServer(pos + up * 0.5f + rot * Vector3.right * 6f, rot, Mathf.Clamp(sector, 1, 3))?.NetworkObject);
-                            Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, pos + rot * Vector3.left * 7f, rot, 10)?.NetworkObject);
-                            break;
-                    }
+                    case SiteKind.Ruins:
+                        SpawnPrefab(cat.RuinPrefab, c, rot);
+                        Track(LootCrate.SpawnServer(c + up * 0.5f + rot * Vector3.forward * 2f, rot, Mathf.Clamp(sector + 1, 1, 3))?.NetworkObject);
+                        Ring(planet, c, 12f, 24f, 2, rng, (p, r) => Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, p, r, Amount())?.NetworkObject));
+                        break;
+                    case SiteKind.CrashSite:
+                        SpawnPrefab(cat.CrashedShipPrefab, c, rot);
+                        Track(LootCrate.SpawnServer(c + up * 0.5f + rot * Vector3.right * 6f, rot, loot)?.NetworkObject);
+                        Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, c + rot * Vector3.left * 7f, rot, 10)?.NetworkObject);
+                        Ring(planet, c, 14f, 26f, 1, rng, (p, r) => Track(ResourceNode.SpawnServer(ScatterKind.FuelNode, p, r, Amount())?.NetworkObject));
+                        break;
+                    case SiteKind.Hive:
+                        hives++;
+                        var nest = SpawnPrefab(cat.NestPrefab, c, rot);
+                        if (nest != null) nest.GetComponent<AlienNest>()?.Configure(TierFor(sector));
+                        Ring(planet, c, 10f, 22f, 2, rng, (p, r) => Track(LootCrate.SpawnServer(p + r * Vector3.up * 0.5f, r, Mathf.Clamp(sector + 1, 1, 3))?.NetworkObject));
+                        Ring(planet, c, 12f, 26f, 2, rng, (p, r) => Track(ResourceNode.SpawnServer(ScatterKind.CrystalNode, p, r, Amount())?.NetworkObject));
+                        break;
+                    case SiteKind.Cache:
+                        Ring(planet, c, 2f, 10f, 3, rng, (p, r) => Track(LootCrate.SpawnServer(p + r * Vector3.up * 0.5f, r, Mathf.Clamp(sector + 1, 1, 3))?.NetworkObject));
+                        break;
+                    default:
+                        var kind = planet.SiteKinds[i] switch
+                        {
+                            SiteKind.CrystalGrove => ScatterKind.CrystalNode,
+                            SiteKind.FuelVent => ScatterKind.FuelNode,
+                            SiteKind.Salvage => ScatterKind.ScrapNode,
+                            _ => ScatterKind.OreNode,
+                        };
+                        Ring(planet, c, 4f, 26f, rng.Next(4, 7), rng, (p, r) => Track(ResourceNode.SpawnServer(kind, p, r, Amount())?.NetworkObject));
+                        Track(LootCrate.SpawnServer(c + up * 0.5f, rot, loot)?.NetworkObject);
+                        break;
+                }
+            }
+
+            // Extra nests from the biome table guard the approaches between sites.
+            int nests = 0;
+            foreach (var e in biome.Scatter) if (e.Kind == ScatterKind.Nest) nests += e.Count;
+            for (int k = hives; k < nests && sites > 0; k++)
+            {
+                Vector3 c = planet.SiteWorldPoint(rng.Next(sites));
+                Ring(planet, c, 70f, 140f, 1, rng, (p, r) =>
+                {
+                    var nest = SpawnPrefab(cat.NestPrefab, p, r);
+                    if (nest != null) nest.GetComponent<AlienNest>()?.Configure(TierFor(sector));
+                });
+            }
+        }
+
+        /// <summary>Spawns `count` things on dry, gentle ground at minDist..maxDist around a surface point.</summary>
+        static void Ring(PlanetBody planet, Vector3 center, float minDist, float maxDist, int count, System.Random rng, System.Action<Vector3, Quaternion> spawn)
+        {
+            Vector3 c = planet.transform.position;
+            Vector3 up = (center - c).normalized;
+            for (int i = 0; i < count; i++)
+            {
+                for (int tries = 0; tries < 8; tries++)
+                {
+                    Vector3 t = Vector3.ProjectOnPlane(MathUtils.OnSphere(rng), up).normalized;
+                    float d = MathUtils.Range(rng, minDist, maxDist);
+                    Vector3 dir = (center + t * d - c).normalized;
+                    if (!SurfacePoint(planet, dir, out var pos, out var n)) continue;
+                    spawn(pos, Quaternion.LookRotation(Vector3.ProjectOnPlane(t, n).normalized, n));
+                    break;
                 }
             }
         }
 
         static bool SurfacePoint(PlanetBody planet, Vector3 dir, out Vector3 pos, out Vector3 up)
         {
-            Vector3 c = planet.transform.position;
-            up = dir;
-            float r = planet.Radius.Value;
-            if (Physics.Raycast(c + dir * r * 1.6f, -dir, out var hit, r * 1.6f, ~0, QueryTriggerInteraction.Ignore))
-            {
-                pos = hit.point;
-                if (planet.IsUnderwater(pos)) return false;
-                return Vector3.Dot(hit.normal, dir) > 0.75f; // skip steep slopes
-            }
             pos = planet.SurfaceWorldPoint(dir);
-            return !planet.IsUnderwater(pos);
+            up = planet.SurfaceNormal(dir, 1.5f);
+            if (planet.IsUnderwater(pos)) return false;
+            if (Vector3.Dot(up, dir) < 0.8f) return false; // skip steep slopes
+            up = Vector3.Slerp(dir, up, 0.5f).normalized;
+            return true;
         }
 
         void SpawnWreckSite(Vector3 pos, System.Random rng, int sector)
@@ -526,7 +570,7 @@ namespace Voidward.World
                         shipRespawnTimers.Remove(c);
                         Vector3 p = (pawn.IsDown.Value ? TeamCenter() : pawn.transform.position) + Random.onUnitSphere * 25f;
                         var src = GravitySource.Dominant(p);
-                        if (src != null) p = src.Center + src.UpAt(p) * (src.SurfaceRadius * 1.25f + 40f);
+                        if (src != null) p = src.Center + src.UpAt(p) * (src.GroundRadius(p) + 70f);
                         SpawnShip(ShipClass.Dart, c, p, Quaternion.LookRotation(Vector3.right));
                         AnnounceClientRpc(NameOf(c) + " received a replacement Dart", "spawn");
                     }
@@ -758,8 +802,7 @@ namespace Voidward.World
                     Vector3 up = src.UpAt(p.transform.position);
                     Vector3 tangent = Vector3.ProjectOnPlane(Random.onUnitSphere, up).normalized;
                     Vector3 dir = (p.transform.position + tangent * Random.Range(60f, 90f) - src.Center).normalized;
-                    Vector3 pos = src.Center + dir * (src.SurfaceRadius * 1.3f);
-                    if (Physics.Raycast(pos, -dir, out var hit, src.SurfaceRadius, ~0, QueryTriggerInteraction.Ignore)) pos = hit.point + dir;
+                    Vector3 pos = src.Center + dir * (src.GroundRadius(src.Center + dir) + 1f);
                     EnemyFactory.Spawn(kind, pos, Quaternion.LookRotation(tangent, dir), tier);
                 }
                 else

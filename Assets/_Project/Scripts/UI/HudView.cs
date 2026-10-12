@@ -5,6 +5,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using Voidward.AI;
 using Voidward.Core;
+using Voidward.Data;
+using Voidward.Planet;
 using Voidward.Player;
 using Voidward.Ship;
 using Voidward.World;
@@ -28,10 +30,12 @@ namespace Voidward.UI
         readonly List<Ping> pings = new List<Ping>();
         readonly Dictionary<string, TextMeshProUGUI> compassMarks = new Dictionary<string, TextMeshProUGUI>();
         readonly List<TextMeshProUGUI> pingLabels = new List<TextMeshProUGUI>();
+        readonly List<TextMeshProUGUI> siteLabels = new List<TextMeshProUGUI>();
         TextMeshProUGUI gateMarker, stationMarker, arkMarker;
         float vignetteAlpha;
         float lowO2Beep;
         bool lowO2;
+        bool stormWarned;
         HealthComponentHook hook;
 
         struct Ping { public Vector3 Pos; public PingKind Kind; public string Label; public float Until; }
@@ -208,6 +212,19 @@ namespace Voidward.UI
             }
             if (!root.gameObject.activeInHierarchy) return;
 
+            // Weather warning when a storm builds up around the player.
+            bool storm = PlanetAmbience.Storm > 0.35f;
+            if (storm && !stormWarned && PlanetAmbience.Weather != PlanetWeather.None && PlanetAmbience.Weather != PlanetWeather.Shimmer)
+                OnNotification(PlanetAmbience.Weather switch
+                {
+                    PlanetWeather.Sandstorm => "Sandstorm rolling in - visibility dropping",
+                    PlanetWeather.Blizzard => "Blizzard incoming - stay close to your crew",
+                    PlanetWeather.AshFall => "Ash fall - the sky is going dark",
+                    _ => "Spore bloom - the air is thick",
+                });
+            if (storm) stormWarned = true;
+            else if (PlanetAmbience.Storm < 0.1f) stormWarned = false;
+
             var pawn = PlayerPawn.Local;
             var cam = Camera.main;
             hook.Track(pawn);
@@ -338,6 +355,7 @@ namespace Voidward.UI
                 pingLabels[i].color = c;
                 Place(pingLabels[i], cam, p.Pos, "v " + p.Label);
             }
+            UpdateSiteMarkers(cam);
 
             // Bearing compass
             var marks = new List<(string id, string label, Vector3 pos, Color c)>();
@@ -363,6 +381,60 @@ namespace Voidward.UI
                 t.alpha = Mathf.Abs(ang) > 100f ? 0.35f : 1f;
             }
             foreach (var kv in compassMarks) kv.Value.gameObject.SetActive(used.Contains(kv.Key));
+        }
+
+        /// <summary>Planet points of interest (from approach/orbit) and nearby landmark names.</summary>
+        void UpdateSiteMarkers(Camera cam)
+        {
+            const int MaxSites = 8, MaxLandmarks = 3;
+            int used = 0;
+            Vector3 camPos = cam.transform.position;
+            var planet = PlanetBody.Nearest(camPos);
+            if (planet != null && planet.Terrain != null && Vector3.Distance(camPos, planet.transform.position) < planet.AtmosphereRadius + 3000f)
+            {
+                var t = planet.Terrain;
+                Vector3 center = planet.transform.position;
+                for (int i = 0; i < t.Sites.Count && used < MaxSites; i++)
+                {
+                    Vector3 p = planet.SiteWorldPoint(i);
+                    if (!AboveHorizon(center, p, camPos, 45f, 5000f)) continue;
+                    var kind = planet.SiteKinds[i];
+                    var label = SiteLabel(used++);
+                    label.color = kind == SiteKind.Hive ? UIKit.Bad : kind == SiteKind.CrashSite ? UIKit.Accent2 : kind == SiteKind.Ruins || kind == SiteKind.Cache ? UIKit.Warn : UIKit.Good;
+                    Place(label, cam, p + (p - center).normalized * 8f, "[ " + PlanetBody.SiteLabel(kind) + " ]");
+                }
+                var visuals = planet.Visuals;
+                if (visuals != null && visuals.Landmarks != null)
+                {
+                    int shown = 0;
+                    foreach (var lm in visuals.Landmarks.Landmarks)
+                    {
+                        if (shown >= MaxLandmarks) break;
+                        if (lm.AtSite) continue;
+                        Vector3 p = planet.transform.TransformPoint(lm.LocalPos);
+                        if (!AboveHorizon(center, p, camPos, 60f, 1100f)) continue;
+                        var label = SiteLabel(used++);
+                        label.color = UIKit.TextDim;
+                        Place(label, cam, p, "<size=80%>" + lm.Name + "</size>");
+                        shown++;
+                    }
+                }
+            }
+            for (int i = used; i < siteLabels.Count; i++) siteLabels[i].gameObject.SetActive(false);
+        }
+
+        TextMeshProUGUI SiteLabel(int i)
+        {
+            while (siteLabels.Count <= i) siteLabels.Add(Marker("", Color.white));
+            return siteLabels[i];
+        }
+
+        static bool AboveHorizon(Vector3 center, Vector3 p, Vector3 camPos, float minDist, float maxDist)
+        {
+            Vector3 to = camPos - p;
+            float d = to.magnitude;
+            if (d < minDist || d > maxDist) return false;
+            return Vector3.Dot((p - center).normalized, to / d) > -0.05f;
         }
 
         static void Place(TextMeshProUGUI marker, Camera cam, Vector3? world, string label)

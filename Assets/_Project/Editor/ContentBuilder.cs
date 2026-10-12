@@ -146,8 +146,9 @@ namespace Voidward.EditorTools
             MatSkybox.SetFloat("_SunDiscStrength", 1f);
             MatCollapse = Mat("VW_Collapse", "VOIDWARD/Collapse");
             MatAtmosphere = Mat("VW_Atmosphere", "VOIDWARD/Atmosphere");
-            MatAtmosphere.SetFloat("_Power", 3.5f);
-            MatAtmosphere.SetFloat("_Strength", 0.9f);
+            MatAtmosphere.SetFloat("_Strength", 1f);
+            MatAtmosphere.SetFloat("_SkyOpacity", 1.8f);
+            MatAtmosphere.SetFloat("_HazeScale", 0.05f);
             MatUnlit = Mat("VW_Unlit", "VOIDWARD/Unlit");
             MatUnlit.SetColor("_BaseColor", new Color(1f, 1f, 1f));
             MatGlow = Mat("VW_Glow", "VOIDWARD/Unlit");
@@ -193,6 +194,7 @@ namespace Voidward.EditorTools
             catalog.SkyboxMaterial = MatSkybox;
             catalog.CollapseMaterial = MatCollapse;
             catalog.AtmosphereMaterial = MatAtmosphere;
+            catalog.CloudMaterial = MatClouds;
             catalog.UnlitMaterial = MatUnlit;
             catalog.ParticleMaterial = MatParticle;
             catalog.GlassMaterial = MatGlass;
@@ -401,13 +403,13 @@ namespace Voidward.EditorTools
             }
             return new[]
             {
-                S(1, "Pastel Drift", "Calm before the storm. Gather Energy Cells - and find the derelict Ark.", 4500, 3, 4, 3, 2,
+                S(1, "Pastel Drift", "Calm before the storm. Gather Energy Cells - and find the derelict Ark.", 4500, 2, 3, 3, 2,
                     new[] { biomes["Ice"], biomes["Desert"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.DroneSwarm }, 3,
                     new[] { EnemyKind.Crawler, EnemyKind.Spitter }, 1f, 6f, 1200, 2, 2, false),
-                S(2, "Verdigris Expanse", "Pirate gunships patrol these lanes. The Collapse is hungrier.", 5000, 3, 5, 4, 3,
+                S(2, "Verdigris Expanse", "Pirate gunships patrol these lanes. The Collapse is hungrier.", 5000, 2, 3, 4, 3,
                     new[] { biomes["ToxicJungle"], biomes["Desert"], biomes["Ice"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.DroneSwarm, EnemyKind.PirateGunship }, 4,
                     new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter }, 1.5f, 7.5f, 1000, 3, 3, false),
-                S(3, "Ember Maw", "The Warden guards the last way out. Prepare, then face it.", 5000, 3, 4, 3, 2,
+                S(3, "Ember Maw", "The Warden guards the last way out. Prepare, then face it.", 5000, 2, 3, 3, 2,
                     new[] { biomes["Volcanic"], biomes["ToxicJungle"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.PirateGunship, EnemyKind.DroneSwarm }, 5,
                     new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter }, 2f, 8.5f, 900, 3, 0, true),
             };
