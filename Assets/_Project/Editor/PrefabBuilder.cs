@@ -2165,6 +2165,7 @@ namespace Voidward.EditorTools
             rb.isKinematic = true; rb.useGravity = false;
             var hc = go.AddComponent<HealthComponent>();
             hc.MaxHealth = 3000f;
+            hc.ImmuneHint = "The Warden's hull is shielded - destroy the 3 glowing core pods first!";
             var so = new SerializedObject(hc);
             so.FindProperty("team").enumValueIndex = (int)Team.Pirates;
             so.ApplyModifiedPropertiesWithoutUndo();
@@ -2176,7 +2177,7 @@ namespace Voidward.EditorTools
             Box(go, new Vector3(0, 10f, -5f), new Vector3(8f, 6f, 50f));
 
             var podMesh = new MeshBuilder();
-            podMesh.AddRock(Matrix4x4.identity, 3.2f, 33, Color.white);
+            podMesh.AddRock(Matrix4x4.identity, 4.4f, 33, Color.white); // big enough to read (and hit) from the stand-off range
             var podM = SaveMesh(podMesh, "Boss_Pod");
             var podMat = Mat("VW_BossPod", "VOIDWARD/Unlit");
             podMat.SetColor("_BaseColor", new Color(2.6f, 2.2f, 3.8f)); // violet-white weak points (DESIGN.md)
@@ -2186,7 +2187,7 @@ namespace Voidward.EditorTools
             {
                 var p = Child(go.transform, "CorePod" + i, podPos[i]);
                 Visual(p.transform, "Glow", podM, podMat);
-                p.AddComponent<SphereCollider>().radius = 3.6f;
+                p.AddComponent<SphereCollider>().radius = 5.2f;
                 var ph = p.AddComponent<HealthComponent>();
                 ph.MaxHealth = 380f; ph.IsWeakPointPart = true; ph.WeakPointMultiplier = 1.5f;
                 var pso = new SerializedObject(ph);

@@ -1,6 +1,7 @@
 using Unity.Netcode;
 using Unity.Netcode.Components;
 using UnityEngine;
+using Voidward.Combat;
 using Voidward.Core;
 
 namespace Voidward.Ship
@@ -16,6 +17,10 @@ namespace Voidward.Ship
         public float Mass = 2000f;
         [Tooltip("Altitude under which landing assist levels the ship to the surface.")]
         public float LandingAssistAltitude = 45f;
+        [Tooltip("Impacts below this relative speed (m/s) are harmless (landing, scraping).")]
+        public float ImpactSafeSpeed = 22f;
+        [Tooltip("Hull damage per m/s of impact speed above the safe speed.")]
+        public float ImpactDamagePerMs = 1.1f;
 
         Rigidbody rb;
         ShipCore core;
@@ -25,6 +30,7 @@ namespace Voidward.Ship
         Vector3 angularIn;   // pitch, yaw, roll  (-1..1, mouse may exceed)
         bool boost, brake;
         float inputAge = 99f;
+        float nextImpact;
 
         public float Speed => rb != null ? rb.linearVelocity.magnitude : 0f;
         public Vector3 Velocity => rb != null ? rb.linearVelocity : Vector3.zero;
@@ -118,6 +124,27 @@ namespace Voidward.Ship
                 else if (src != null && Altitude < LandingAssistAltitude)
                     LevelTo(src.UpAt(rb.position), 1.5f, dt);
             }
+        }
+
+        /// <summary>Authority only (the dynamic body): crashes hurt the hull and whatever was rammed.</summary>
+        void OnCollisionEnter(Collision c)
+        {
+            if (!IsSpawned || rb.isKinematic || Time.time < nextImpact) return;
+            var other = c.collider.GetComponentInParent<IDamageable>();
+            if (other != null && other.Team == Team.Players) return; // crew, other ships: no friendly ramming
+            float v = c.relativeVelocity.magnitude;
+            if (v < ImpactSafeSpeed) return;
+            nextImpact = Time.time + 0.5f;
+            float dmg = (v - ImpactSafeSpeed) * ImpactDamagePerMs;
+            Vector3 point = c.contactCount > 0 ? c.GetContact(0).point : transform.position;
+            Vector3 dir = -c.relativeVelocity.normalized;
+            if (core != null && core.Hull != null && core.Hull.IsSpawned)
+                core.Hull.TakeDamageServerRpc(new DamageInfo { Amount = dmg, Type = DamageType.Kinetic, Point = point, Direction = dir });
+            if (other != null && other.IsAlive)
+                HealthComponent.DamageHit(c.collider, point, dmg * 2f, DamageType.Kinetic, dir, NetworkManager.LocalClientId, true);
+            Vfx.Explosion(point, Mathf.Clamp(dmg * 0.08f, 1.5f, 6f), new Color(1f, 0.7f, 0.4f));
+            Sfx.Play(dmg > 30f ? "explosion_big" : "explosion", point, 1f, Random.Range(0.85f, 1.05f));
+            if (inputAge < 0.25f) Vfx.Shake(Mathf.Clamp(dmg / 50f, 0.25f, 1f)); // only the pilot feels it here
         }
 
         void LevelTo(Vector3 up, float strength, float dt)

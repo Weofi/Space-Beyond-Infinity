@@ -35,6 +35,8 @@ namespace Voidward.World
         public NetworkVariable<int> RespawnsLeft = new NetworkVariable<int>(StartingRespawns);
         public NetworkVariable<float> JumpCountdown = new NetworkVariable<float>(-1f);
         public NetworkVariable<bool> BossActive = new NetworkVariable<bool>(false);
+        /// <summary>Asteroid ids (SectorVisuals.RockId) destroyed in the current sector.</summary>
+        public NetworkList<int> DestroyedAsteroids;
 
         // ---- server state ----
         readonly Dictionary<ulong, RunLoadout> loadouts = new Dictionary<ulong, RunLoadout>();
@@ -56,6 +58,7 @@ namespace Voidward.World
         float autoStartTimer = 3f;
         int bossSpawned;
         ShipCore ark;
+        readonly Dictionary<int, float> asteroidDamage = new Dictionary<int, float>();
 
         // ---- client state ----
         SectorVisuals visuals;
@@ -72,9 +75,12 @@ namespace Voidward.World
 
         // ================================================================ lifecycle
 
+        void Awake() => DestroyedAsteroids = new NetworkList<int>();
+
         public override void OnNetworkSpawn()
         {
             Instance = this;
+            DestroyedAsteroids.OnListChanged += OnAsteroidsChanged;
             Phase.OnValueChanged += OnPhaseChanged;
             SectorSeed.OnValueChanged += (a, b) => RebuildVisuals();
             SectorIndex.OnValueChanged += (a, b) => { GameState.SectorIndex = b; RebuildVisuals(); EventBus.RaiseSectorStarted(b); Debug.Log($"[Run] Entered sector {b}"); };
@@ -100,6 +106,7 @@ namespace Voidward.World
         {
             if (Instance == this) Instance = null;
             Phase.OnValueChanged -= OnPhaseChanged;
+            DestroyedAsteroids.OnListChanged -= OnAsteroidsChanged;
             Meta.Changed -= OnMetaChanged;
             if (IsServer)
             {
@@ -132,7 +139,56 @@ namespace Voidward.World
             if (visuals == null) return;
             if (Phase.Value == GamePhase.Lobby || SectorSeed.Value == 0) { visuals.Clear(); Sfx.Music(0); return; }
             visuals.Build(SectorSeed.Value, SectorIndex.Value);
+            foreach (int id in DestroyedAsteroids) visuals.DestroyRock(id, false);
         }
+
+        // ================================================================ asteroids
+
+        void OnAsteroidsChanged(NetworkListEvent<int> e)
+        {
+            if (e.Type == NetworkListEvent<int>.EventType.Add && visuals != null) visuals.DestroyRock(e.Value, true);
+        }
+
+        /// <summary>Client hit on an asteroid (hitscan tools); projectiles hit on the server directly.</summary>
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        public void DamageAsteroidServerRpc(int id, float amount, Vector3 point, RpcParams rp = default)
+        {
+            ServerDamageAsteroid(id, new DamageInfo
+            {
+                Amount = Mathf.Clamp(amount, 0f, 200f), Point = point, Type = DamageType.Kinetic,
+                SourceClientId = rp.Receive.SenderClientId, ByPlayer = true
+            });
+        }
+
+        /// <summary>Server: damage an asteroid; destroyed rocks are replicated and pay out ore to the shooter.</summary>
+        public void ServerDamageAsteroid(int id, DamageInfo info)
+        {
+            if (!IsServer || visuals == null || Phase.Value != GamePhase.Playing || DestroyedAsteroids.Contains(id)) return;
+            float radius = visuals.RockRadius(id);
+            if (radius <= 0f || info.Amount <= 0f) return;
+            float maxHp = 25f + radius * 10f;
+            float amount = info.Type == DamageType.Mining ? info.Amount * 2f : info.Amount;
+            asteroidDamage.TryGetValue(id, out float dealt);
+            dealt += amount;
+            asteroidDamage[id] = dealt;
+            if (dealt < maxHp) return;
+
+            asteroidDamage.Remove(id);
+            DestroyedAsteroids.Add(id);
+            if (!info.ByPlayer) return;
+            var inv = NetInventory.ForClient(info.SourceClientId);
+            if (inv == null) return;
+            int ore = 1 + Mathf.RoundToInt(radius / 5f);
+            int got = ore - inv.Add("ore", ore);
+            if (got > 0)
+            {
+                LootStats.Collected?.Invoke(info.SourceClientId, got);
+                ToastRpc($"Asteroid destroyed  +{got} Ore", RpcTarget.Single(info.SourceClientId, RpcTargetUse.Temp));
+            }
+        }
+
+        [Rpc(SendTo.SpecifiedInParams)]
+        void ToastRpc(string msg, RpcParams rp = default) => EventBus.RaiseNotification(msg);
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         void SubmitLoadoutServerRpc(RunLoadout l, RpcParams rp = default) => loadouts[rp.Receive.SenderClientId] = l;
@@ -424,6 +480,8 @@ namespace Voidward.World
 
         void ClearSector()
         {
+            DestroyedAsteroids.Clear();
+            asteroidDamage.Clear();
             foreach (var no in sectorObjects) if (no != null && no.IsSpawned) no.Despawn(true);
             sectorObjects.Clear();
             foreach (var e in EnemyFactory.Alive.ToArray()) if (e != null && e.IsSpawned) e.NetworkObject.Despawn(true);

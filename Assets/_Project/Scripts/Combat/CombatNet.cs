@@ -244,7 +244,7 @@ namespace Voidward.Combat
             for (int i = 0; i < n; i++)
             {
                 var d = overlapBuf[i].GetComponentInParent<IDamageable>();
-                if (d != null && d.Team != team && d.Team != Team.Neutral && d.IsAlive) return true;
+                if (d != null && d.Team != team && d.Team != Team.Neutral && d.IsAlive && !(d is HealthComponent hc && hc.Invulnerable)) return true;
             }
             return false;
         }
