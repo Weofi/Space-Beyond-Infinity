@@ -95,9 +95,9 @@ namespace Voidward.EditorTools
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.color = new Color(1f, 0.96f, 0.9f);
-            sun.intensity = 1.05f;
+            sun.intensity = 1.6f;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.6f;
+            sun.shadowStrength = 1f;
             sunGo.transform.rotation = Quaternion.Euler(35f, -40f, 0f);
             RenderSettings.sun = sun;
 
@@ -140,14 +140,7 @@ namespace Voidward.EditorTools
             MatSkybox.SetColor("_NebulaColorA", pal.NebulaA);
             MatSkybox.SetColor("_NebulaColorB", pal.NebulaB);
             RenderSettings.skybox = MatSkybox;
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = pal.AmbientColor * 1.2f;
-            RenderSettings.ambientEquatorColor = Color.Lerp(pal.AmbientColor, pal.NebulaA, 0.3f);
-            RenderSettings.ambientGroundColor = pal.AmbientColor * 0.6f;
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = pal.FogColor;
-            RenderSettings.fogDensity = pal.FogDensity;
+            pal.ApplyEnvironment();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
@@ -279,26 +272,26 @@ namespace Voidward.EditorTools
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
             AssetDatabase.CreateAsset(profile, path);
             var bloom = profile.Add<Bloom>(true);
-            bloom.intensity.Override(0.75f);
-            bloom.threshold.Override(0.95f);
-            bloom.scatter.Override(0.65f);
+            bloom.intensity.Override(0.9f);
+            bloom.threshold.Override(1f);
+            bloom.scatter.Override(0.7f);
             bloom.tint.Override(new Color(0.85f, 0.93f, 1f));
             var tone = profile.Add<Tonemapping>(true);
             tone.mode.Override(TonemappingMode.Neutral);
             var ca = profile.Add<ColorAdjustments>(true);
-            ca.saturation.Override(12f);
-            ca.postExposure.Override(-0.1f);
-            ca.contrast.Override(6f);
+            ca.saturation.Override(10f);
+            ca.postExposure.Override(0.1f);
+            ca.contrast.Override(18f);
             var wb = profile.Add<WhiteBalance>(true);
-            wb.temperature.Override(-6f);
-            // Soft, slightly blue shadows and warm highlights for the toy-like look.
+            wb.temperature.Override(-4f);
+            // Crushed, slightly cool shadows; highlights stay warm (sunlight).
             var smh = profile.Add<ShadowsMidtonesHighlights>(true);
-            smh.shadows.Override(new Vector4(0.92f, 0.97f, 1.1f, 0f));
+            smh.shadows.Override(new Vector4(0.95f, 0.98f, 1.06f, -0.04f));
             smh.highlights.Override(new Vector4(1.04f, 1.02f, 0.97f, 0f));
             var vig = profile.Add<Vignette>(true);
-            vig.intensity.Override(0.2f);
-            vig.smoothness.Override(0.5f);
-            vig.color.Override(new Color(0.02f, 0.04f, 0.12f));
+            vig.intensity.Override(0.28f);
+            vig.smoothness.Override(0.45f);
+            vig.color.Override(Color.black);
             foreach (var c in profile.components) AssetDatabase.AddObjectToAsset(c, profile);
             EditorUtility.SetDirty(profile);
             return profile;

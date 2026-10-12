@@ -47,7 +47,7 @@ Shader "VOIDWARD/Atmosphere"
                 float3 v = normalize(GetWorldSpaceViewDir(IN.posWS));
                 float f = pow(1.0 - saturate(dot(n, v)), _Power);
                 Light l = GetMainLight();
-                float lit = saturate(dot(n, l.direction) * 0.6 + 0.5);
+                float lit = saturate(dot(n, l.direction) * 0.8 + 0.3);
                 return half4(_Color.rgb * _Strength * lit, saturate(f * _Color.a * _Strength));
             }
             ENDHLSL

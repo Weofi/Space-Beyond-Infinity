@@ -62,7 +62,7 @@ namespace Voidward.World
             var root = new GameObject("AsteroidField");
             root.transform.position = f.Center;
             spawned.Add(root);
-            Color baseCol = def != null && def.Palette != null ? Color.Lerp(def.Palette.AmbientColor, new Color(0.55f, 0.58f, 0.66f), 0.65f) : new Color(0.55f, 0.58f, 0.66f);
+            Color baseCol = new Color(0.6f, 0.62f, 0.68f);
 
             // Batch rocks into chunks of ~20 for few draw calls; each rock gets its own sphere collider.
             const int perChunk = 20;
@@ -125,17 +125,9 @@ namespace Voidward.World
                 skyInstance.SetColor("_NebulaColorB", pal.NebulaB);
                 skyInstance.SetColor("_StarColor", pal.StarColor);
                 skyInstance.SetFloat("_Seed", (seed % 1000) * 0.37f);
-                skyInstance.SetFloat("_NebulaStrength", 0.55f);
                 RenderSettings.skybox = skyInstance;
             }
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = pal.FogColor;
-            RenderSettings.fogDensity = pal.FogDensity;
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = pal.AmbientColor * 1.2f;
-            RenderSettings.ambientEquatorColor = Color.Lerp(pal.AmbientColor, pal.NebulaA, 0.3f);
-            RenderSettings.ambientGroundColor = pal.AmbientColor * 0.6f;
+            pal.ApplyEnvironment();
             if (sun == null) sun = RenderSettings.sun != null ? RenderSettings.sun : FindSun();
             if (sun != null) sun.color = pal.SunColor;
             DynamicGI.UpdateEnvironment();
