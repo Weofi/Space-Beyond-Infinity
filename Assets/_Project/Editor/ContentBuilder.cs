@@ -17,6 +17,7 @@ namespace Voidward.EditorTools
         public const string Root = "Assets/_Project";
         public const string DataDir = Root + "/Data";
         public const string ArtDir = Root + "/Art";
+        public const string ModelDir = ArtDir + "/Models";
         public const string MeshDir = Root + "/Art/Meshes";
         public const string MatDir = Root + "/Art/Materials";
         public const string PrefabDir = Root + "/Prefabs";

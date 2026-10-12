@@ -141,9 +141,53 @@ namespace Voidward.EditorTools
         static Matrix4x4 T(float x, float y, float z) => Matrix4x4.Translate(new Vector3(x, y, z));
         static Matrix4x4 TR(float x, float y, float z, float rx, float ry, float rz) => Matrix4x4.TRS(new Vector3(x, y, z), Quaternion.Euler(rx, ry, rz), Vector3.one);
 
-        static Mesh SaveMesh(MeshBuilder mb, string name)
+        static Mesh SaveMesh(MeshBuilder mb, string name) => SaveMeshAsset(mb.Build(name), name);
+
+        /// <summary>
+        /// Loads a Blender-exported FBX (Tools/Blender, see AGENTS.md) and converts it to the MeshBuilder vertex layout:
+        /// colour = base colour, UV map "surf" = (gloss, glow), UV map "detail" = (metal, baked AO). Returns null if missing.
+        /// </summary>
+        static Mesh ImportedMesh(string fbxPath, string meshName)
         {
-            var m = mb.Build(name);
+            var imp = AssetImporter.GetAtPath(fbxPath) as ModelImporter;
+            if (imp == null) return null;
+            if (imp.materialImportMode != ModelImporterMaterialImportMode.None || imp.importAnimation || imp.importCameras || imp.importLights)
+            {
+                imp.materialImportMode = ModelImporterMaterialImportMode.None;
+                imp.importAnimation = false; imp.importCameras = false; imp.importLights = false;
+                imp.SaveAndReimport();
+            }
+            Mesh src = null;
+            foreach (var o in AssetDatabase.LoadAllAssetsAtPath(fbxPath))
+                if (o is Mesh m) { src = m; break; }
+            if (src == null) return null;
+            var uv0 = new List<Vector2>(); src.GetUVs(0, uv0);
+            var uv1 = new List<Vector2>(); src.GetUVs(1, uv1);
+            int n = src.vertexCount;
+            var surface = new List<Vector4>(n);
+            var detail = new List<Vector2>(n);
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 a = i < uv0.Count ? uv0[i] : new Vector2(MeshBuilder.DefaultGloss, 0f);
+                Vector2 b = i < uv1.Count ? uv1[i] : new Vector2(0f, 1f);
+                surface.Add(new Vector4(a.x, a.y, b.x, 0f));
+                detail.Add(new Vector2(0f, b.y));
+            }
+            var mesh = new Mesh { name = meshName, indexFormat = src.indexFormat };
+            mesh.SetVertices(src.vertices);
+            mesh.SetNormals(src.normals);
+            mesh.SetColors(src.colors);
+            mesh.SetUVs(0, surface);
+            mesh.SetUVs(1, detail);
+            mesh.SetTriangles(src.triangles, 0);
+            mesh.RecalculateBounds();
+            return SaveMeshAsset(mesh, meshName);
+        }
+
+        static Mesh Prefer(Mesh imported, System.Func<Mesh> fallback) => imported != null ? imported : fallback();
+
+        static Mesh SaveMeshAsset(Mesh m, string name)
+        {
             string path = MeshDir + "/" + name + ".asset";
             var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
             if (existing != null)
@@ -1939,26 +1983,26 @@ namespace Voidward.EditorTools
                     break;
                 case EnemyKind.Crawler:
                     go = EnemyRoot(k, Team.Aliens, 35);
-                    mesh = CrawlerMesh();
+                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Crawler.fbx", "Enemy_Crawler"), CrawlerMesh);
                     Box(go, new Vector3(0, 0.6f, 0), new Vector3(1.4f, 1f, 1.8f));
                     muzzle = new Vector3(0, 0.7f, 0.9f);
                     break;
                 case EnemyKind.Spitter:
                     go = EnemyRoot(k, Team.Aliens, 30);
-                    mesh = SpitterMesh();
+                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Spitter.fbx", "Enemy_Spitter"), SpitterMesh);
                     Box(go, new Vector3(0, 1.1f, 0), new Vector3(1.4f, 2.2f, 1.4f));
                     muzzle = new Vector3(0, 1.6f, 0.9f);
                     break;
                 case EnemyKind.FlyingCritter:
                     go = EnemyRoot(k, Team.Aliens, 22);
-                    mesh = CritterMesh();
+                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_FlyingCritter.fbx", "Enemy_FlyingCritter"), CritterMesh);
                     go.AddComponent<SphereCollider>().radius = 0.9f;
                     go.GetComponent<EnemyBrain>().HoverHeight = 5f;
                     muzzle = new Vector3(0, 0, 0.8f);
                     break;
                 default: // NestGuardian
                     go = EnemyRoot(k, Team.Aliens, 220);
-                    mesh = GuardianMesh();
+                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_NestGuardian.fbx", "Enemy_NestGuardian"), GuardianMesh);
                     Box(go, new Vector3(0, 2f, 0), new Vector3(3.4f, 4f, 2.6f));
                     muzzle = new Vector3(0, 2f, 1.6f);
                     break;
