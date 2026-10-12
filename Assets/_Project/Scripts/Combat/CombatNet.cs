@@ -33,10 +33,10 @@ namespace Voidward.Combat
                 case ProjectileKind.Missile: return new Spec { Speed = 95f, Life = 6f, Radius = 0.8f, Aoe = 9f, Homing = 120f, Length = 1.8f, Width = 0.5f, Color = new Color(3f, 1.6f, 0.4f), Sfx = "missile" };
                 case ProjectileKind.Flak: return new Spec { Speed = 180f, Life = 1.6f, Radius = 0.5f, Aoe = 8f, Length = 1.2f, Width = 0.5f, Color = new Color(3f, 2.6f, 0.8f), Sfx = "flak" };
                 case ProjectileKind.Blaster: return new Spec { Speed = 140f, Life = 1.5f, Radius = 0.15f, Length = 1.4f, Width = 0.12f, Color = new Color(0.6f, 2.5f, 3.2f), Sfx = "laser" };
-                case ProjectileKind.EnemyLaser: return new Spec { Speed = 150f, Life = 2.5f, Radius = 0.5f, Length = 4f, Width = 0.3f, Color = new Color(3.2f, 0.5f, 0.9f), Sfx = "laser_ship" };
+                case ProjectileKind.EnemyLaser: return new Spec { Speed = 150f, Life = 2.5f, Radius = 0.5f, Length = 4f, Width = 0.3f, Color = new Color(3.2f, 0.42f, 0.25f), Sfx = "laser_ship" };
                 case ProjectileKind.Spit: return new Spec { Speed = 32f, Life = 3f, Radius = 0.35f, Aoe = 2.5f, Length = 0.7f, Width = 0.7f, Color = new Color(0.9f, 3f, 0.4f), Sfx = "spit" };
                 case ProjectileKind.Meteor: return new Spec { Speed = 45f, Life = 14f, Radius = 3f, Aoe = 14f, Length = 6f, Width = 6f, Color = new Color(2.5f, 1.1f, 0.4f), Sfx = "" };
-                case ProjectileKind.BossOrb: return new Spec { Speed = 70f, Life = 6f, Radius = 1.6f, Aoe = 7f, Homing = 25f, Length = 3.2f, Width = 3.2f, Color = new Color(3.2f, 0.4f, 2.2f), Sfx = "boss_shot" };
+                case ProjectileKind.BossOrb: return new Spec { Speed = 70f, Life = 6f, Radius = 1.6f, Aoe = 7f, Homing = 25f, Length = 3.2f, Width = 3.2f, Color = new Color(2.4f, 1.7f, 3.6f), Sfx = "boss_shot" };
                 default: return new Spec { Speed = 100f, Life = 2f, Radius = 0.3f, Length = 1f, Width = 0.2f, Color = Color.white };
             }
         }
@@ -369,10 +369,9 @@ namespace Voidward.Combat
             if (pool.Count > 0) go = pool.Dequeue();
             else
             {
-                go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                go.name = "Projectile";
-                Destroy(go.GetComponent<Collider>());
-                var mr = go.GetComponent<MeshRenderer>();
+                go = new GameObject("Projectile");
+                go.AddComponent<MeshFilter>().sharedMesh = BoltMesh();
+                var mr = go.AddComponent<MeshRenderer>();
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 mr.receiveShadows = false;
                 var tr = go.AddComponent<TrailRenderer>();
@@ -400,13 +399,71 @@ namespace Voidward.Combat
         {
             int key = (Mathf.RoundToInt(c.r * 20) << 20) ^ (Mathf.RoundToInt(c.g * 20) << 10) ^ Mathf.RoundToInt(c.b * 20);
             if (matCache.TryGetValue(key, out var m) && m != null) return m;
-            var cat = ContentCatalog.Instance;
-            var src = cat != null ? cat.UnlitMaterial : null;
-            m = src != null ? new Material(src) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            // Energy look: additive fresnel shader (soft sheath, hot core where the inner shell overlaps).
+            var plume = Shader.Find("VOIDWARD/Plume");
+            if (plume != null)
+            {
+                m = new Material(plume);
+                m.SetFloat("_EdgeSoftness", 1.2f);
+                m.SetFloat("_Flicker", 0.1f);
+            }
+            else
+            {
+                var cat = ContentCatalog.Instance;
+                var src = cat != null ? cat.UnlitMaterial : null;
+                m = src != null ? new Material(src) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            }
             m.SetColor("_BaseColor", c);
             m.color = c;
             matCache[key] = m;
             return m;
+        }
+
+        static Mesh boltMesh;
+
+        /// <summary>Unit bolt along Z (scaled by width/length): outer glow sheath + bright inner core, smooth normals for the fresnel.</summary>
+        static Mesh BoltMesh()
+        {
+            if (boltMesh != null) return boltMesh;
+            var verts = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var colors = new List<Color>();
+            var tris = new List<int>();
+            void Capsule(float r, float alpha)
+            {
+                const int rings = 10, sides = 12;
+                int start = verts.Count;
+                for (int j = 0; j <= rings; j++)
+                {
+                    float t = j / (float)rings;                       // 0..1 along the bolt
+                    float a = (t - 0.5f) * Mathf.PI;                  // -90..90 deg: rounded ends
+                    float rr = r * Mathf.Cos(a);
+                    float z = Mathf.Sin(a) * 0.5f;
+                    for (int i = 0; i <= sides; i++)
+                    {
+                        float b = i / (float)sides * Mathf.PI * 2f;
+                        var n = new Vector3(Mathf.Cos(b) * Mathf.Cos(a), Mathf.Sin(b) * Mathf.Cos(a), Mathf.Sin(a) * r * 2f).normalized;
+                        verts.Add(new Vector3(Mathf.Cos(b) * rr, Mathf.Sin(b) * rr, z));
+                        normals.Add(n);
+                        colors.Add(new Color(1f, 1f, 1f, alpha));
+                    }
+                }
+                for (int j = 0; j < rings; j++)
+                    for (int i = 0; i < sides; i++)
+                    {
+                        int a0 = start + j * (sides + 1) + i, b0 = a0 + sides + 1;
+                        tris.AddRange(new[] { a0, b0, a0 + 1, a0 + 1, b0, b0 + 1 });
+                    }
+            }
+            Capsule(0.5f, 0.55f);
+            Capsule(0.22f, 1f);
+            boltMesh = new Mesh { name = "ProjectileBolt" };
+            boltMesh.SetVertices(verts);
+            boltMesh.SetNormals(normals);
+            boltMesh.SetColors(colors);
+            boltMesh.SetTriangles(tris, 0);
+            boltMesh.RecalculateBounds();
+            return boltMesh;
         }
     }
 }

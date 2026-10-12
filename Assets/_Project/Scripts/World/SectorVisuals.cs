@@ -44,7 +44,7 @@ namespace Voidward.World
             var def = ContentCatalog.GetSector(sectorIndex);
             var layout = SectorLayout.Build(seed, def);
             var cat = ContentCatalog.Instance;
-            Material mat = cat != null ? cat.ToonMaterial : null;
+            Material mat = cat == null ? null : (cat.TerrainMaterial != null ? cat.TerrainMaterial : cat.ToonMaterial); // rock detail material
 
             foreach (var f in layout.Fields) BuildField(f, layout, mat, def);
             ApplyPalette(def != null ? def.Palette : null, seed);
@@ -92,7 +92,7 @@ namespace Voidward.World
 
                 if (mb == null)
                 {
-                    mb = new MeshBuilder { Gloss = 0.05f };
+                    mb = new MeshBuilder { Gloss = 0.05f, Panel = 1f };
                     chunk = new GameObject("Rocks");
                     chunk.transform.SetParent(root.transform, false);
                     inChunk = 0;

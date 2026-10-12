@@ -186,7 +186,7 @@ namespace Voidward.EditorTools
 
             const float cell = 2.5f;
             Color low = new Color(0.2f, 0.23f, 0.34f), high = new Color(0.58f, 0.62f, 0.74f);
-            var ground = new MeshBuilder { Gloss = 0.04f };
+            var ground = new MeshBuilder { Gloss = 0.04f, Panel = 1f };
             for (float x = -80f; x < 80f; x += cell)
                 for (float z = -8f; z < 130f; z += cell)
                 {
@@ -212,10 +212,10 @@ namespace Voidward.EditorTools
                         ground.AddTriangle(b, c, d, Shade(b, c, d));
                     }
                 }
-            Visual(root.transform, "Ground", SaveMesh(ground, "MenuGround"));
+            Visual(root.transform, "Ground", SaveMesh(ground, "MenuGround"), MatTerrain);
 
             // Rocks and glowing crystal clusters
-            var props = new MeshBuilder { Bevel = 0.2f };
+            var props = new MeshBuilder { Bevel = 0.2f, Panel = 1f };
             var rng = new System.Random(31);
             for (int i = 0; i < 90; i++)
             {
@@ -236,7 +236,7 @@ namespace Voidward.EditorTools
                         0.22f + k * 0.04f, 0.02f, 1.1f + (k % 3) * 0.5f, 5, k % 2 == 0 ? Cyan : new Color(0.45f, 0.55f, 1f));
             }
             props.Surface();
-            Visual(root.transform, "Props", SaveMesh(props, "MenuProps"));
+            Visual(root.transform, "Props", SaveMesh(props, "MenuProps"), MatTerrain);
 
             // Landed Dart on struts
             var ship = Child(root.transform, "Ship", new Vector3(10f, H(10f, 26f) + 1.65f, 26f), Quaternion.Euler(-2f, -140f, 3f));

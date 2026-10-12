@@ -103,7 +103,7 @@ namespace Voidward.Planet
             float ground = terrain.SurfaceRadius(dir);
             Vector3 basePos = dir * ground;
             Quaternion rot = Quaternion.LookRotation(Vector3.ProjectOnPlane(forward, dir).normalized, dir);
-            var mb = new MeshBuilder { Gloss = 0.08f };
+            var mb = new MeshBuilder { Gloss = 0.08f, Panel = 1f }; // Panel: rock detail of VW_Terrain
             float sink = 1.5f + terrain.SlopeAt(dir, 8f) * 20f * scale;
             Vector3 origin = basePos - dir * sink;
             string label;

@@ -164,6 +164,7 @@ namespace Voidward.EditorTools
             MatGlass = Mat("VW_Glass", "VOIDWARD/Glass");
             BuildPlanetMaterials();
             BuildHullMaterial();
+            BuildRockDetailMaterial();
         }
 
         // ================================================================ data

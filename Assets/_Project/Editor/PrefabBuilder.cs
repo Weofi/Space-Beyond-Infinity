@@ -496,36 +496,96 @@ namespace Voidward.EditorTools
             vcam.Priority = 30;
             vcam.enabled = false;
 
-            // First-person tool viewmodels
+            // First-person tool viewmodels (hero detail: they sit in front of the camera all game)
             var tools = new Transform[4];
-            var drill = MB();
-            drill.AddBox(T(0, 0, 0), new Vector3(0.13f, 0.15f, 0.36f), Gold);
-            drill.AddBox(T(0, 0.02f, 0.02f), new Vector3(0.14f, 0.06f, 0.26f), White);
-            Shiny(drill, Matte, () => drill.AddBox(T(0, -0.12f, -0.08f), new Vector3(0.08f, 0.18f, 0.1f), Dark));
-            Glow(drill, () => drill.AddPrism(TR(0, 0, 0.26f, 90, 0, 0), 0.06f, 0.015f, 0.2f, 6, Cyan), 0.6f);
-            var blaster = MB();
-            blaster.AddBox(T(0, 0, 0), new Vector3(0.11f, 0.13f, 0.3f), Blue);
-            blaster.AddBox(T(0, 0.05f, -0.02f), new Vector3(0.12f, 0.05f, 0.2f), White);
-            Shiny(blaster, Matte, () => blaster.AddBox(T(0, -0.11f, -0.06f), new Vector3(0.07f, 0.16f, 0.09f), Dark));
-            blaster.AddPrism(TR(0, 0.02f, 0.2f, 90, 0, 0), 0.035f, 0.035f, 0.14f, 6, White);
-            Glow(blaster, () => blaster.AddBox(T(0, 0.08f, -0.02f), new Vector3(0.04f, 0.01f, 0.14f), Cyan));
-            var rifle = MB();
-            rifle.AddBox(T(0, 0, 0.05f), new Vector3(0.11f, 0.13f, 0.55f), Navy);
-            rifle.AddBox(T(0, 0.02f, 0.18f), new Vector3(0.12f, 0.1f, 0.22f), White);
-            Shiny(rifle, Matte, () => rifle.AddBox(T(0, -0.11f, -0.1f), new Vector3(0.07f, 0.16f, 0.09f), Dark));
-            rifle.AddBox(T(0, 0.09f, 0.05f), new Vector3(0.05f, 0.05f, 0.2f), Gold);
-            Glow(rifle, () => rifle.AddBox(T(0.057f, 0f, 0.05f), new Vector3(0.01f, 0.03f, 0.3f), Cyan));
-            var medkit = MB();
-            medkit.AddBox(T(0, 0, 0), new Vector3(0.22f, 0.16f, 0.14f), White);
-            medkit.AddBox(T(0, 0, 0.075f), new Vector3(0.12f, 0.035f, 0.01f), Red);
-            medkit.AddBox(T(0, 0, 0.075f), new Vector3(0.035f, 0.12f, 0.01f), Red);
+            // Drill: gold housing, chalk top shell, rubber grip, canister, spinning bit with a glowing emitter ring
+            var drill = Hero(0.2f);
+            int dBody = drill.VertexCount;
+            drill.AddLoft(Matrix4x4.identity, new[]
+            {
+                new MeshBuilder.Section(-0.2f, 0.05f, 0.06f, 3f), new MeshBuilder.Section(-0.15f, 0.068f, 0.078f, 3.5f),
+                new MeshBuilder.Section(0.1f, 0.07f, 0.08f, 3.5f), new MeshBuilder.Section(0.17f, 0.055f, 0.06f, 3f),
+            }, 20, Gold, smoothing: 2);
+            drill.Paint(dBody, p => p.y > 0.035f, Chalk, Paint, 0f);
+            With(drill, 0.15f, 0f, 0f, () => drill.AddBox(TR(0, -0.11f, -0.08f, 12, 0, 0), new Vector3(0.06f, 0.16f, 0.08f), Rubber));
+            With(drill, 0.6f, 1f, 0f, () =>
+            {
+                drill.AddLathe(TR(0.075f, 0.01f, -0.06f, 90, 0, 0), new[] { new Vector2(0f, -0.07f), new Vector2(0.025f, -0.065f), new Vector2(0.028f, 0.06f), new Vector2(0f, 0.065f) }, 12, Gunmetal);
+                drill.AddLathe(TR(0, 0, 0.17f, 90, 0, 0), new[] { new Vector2(0.05f, 0f), new Vector2(0.055f, 0.02f), new Vector2(0.045f, 0.04f) }, 16, Gunmetal);
+                for (int r = 0; r < 4; r++)
+                    drill.AddLathe(TR(0, 0, 0.215f + r * 0.035f, 90, 0, 0), new[] { new Vector2(0.038f - r * 0.008f, 0f), new Vector2(0.042f - r * 0.008f, 0.012f), new Vector2(0.03f - r * 0.008f, 0.03f) }, 10, Slate);
+                drill.AddLathe(TR(0, 0, 0.35f, 90, 0, 0), new[] { new Vector2(0.012f, 0f), new Vector2(0f, 0.04f) }, 8, Slate);
+            });
+            Glow(drill, () => drill.AddLathe(TR(0, 0, 0.205f, 90, 0, 0), new[] { new Vector2(0.048f, 0f), new Vector2(0.052f, 0.006f), new Vector2(0.048f, 0.012f) }, 16, Cyan), 1.4f);
+            Glow(drill, () => drill.AddBox(T(-0.071f, 0.02f, -0.02f), new Vector3(0.005f, 0.02f, 0.12f), Cyan), 1.1f);
+
+            // Blaster: chalk/blue sidearm with a vented barrel shroud and a glowing charge strip
+            var blaster = Hero(0.2f);
+            int bBody = blaster.VertexCount;
+            blaster.AddLoft(Matrix4x4.identity, new[]
+            {
+                new MeshBuilder.Section(-0.16f, 0.045f, 0.06f, 4f), new MeshBuilder.Section(-0.12f, 0.055f, 0.068f, 4f),
+                new MeshBuilder.Section(0.1f, 0.05f, 0.062f, 4f), new MeshBuilder.Section(0.14f, 0.04f, 0.05f, 3.5f, -0.005f),
+            }, 18, Chalk, smoothing: 2);
+            blaster.Paint(bBody, p => p.y < -0.02f, Blue);
+            With(blaster, 0.15f, 0f, 0f, () => blaster.AddBox(TR(0, -0.1f, -0.07f, 14, 0, 0), new Vector3(0.05f, 0.15f, 0.07f), Rubber));
+            With(blaster, 0.55f, 1f, 0f, () =>
+            {
+                blaster.AddTube(new Vector3(0, 0.01f, 0.12f), new Vector3(0, 0.01f, 0.27f), 0.026f, 0.026f, 12, Gunmetal);
+                for (int r = 0; r < 3; r++) blaster.AddLathe(TR(0, 0.01f, 0.16f + r * 0.035f, 90, 0, 0), new[] { new Vector2(0.026f, 0f), new Vector2(0.034f, 0.005f), new Vector2(0.034f, 0.015f), new Vector2(0.026f, 0.02f) }, 12, Slate);
+                blaster.AddBox(T(0, 0.07f, -0.06f), new Vector3(0.02f, 0.02f, 0.03f), Gunmetal);
+            });
+            Glow(blaster, () => blaster.AddLathe(TR(0, 0.01f, 0.272f, 90, 0, 0), new[] { new Vector2(0.026f, 0f), new Vector2(0.018f, 0.004f) }, 12, Cyan), 1.4f);
+            Glow(blaster, () => blaster.AddBox(T(0, 0.064f, 0.02f), new Vector3(0.025f, 0.006f, 0.13f), Cyan), 1.1f);
+
+            // Rifle: navy receiver, chalk handguard, scope, stock, glowing coil strips along the barrel
+            var rifle = Hero(0.2f);
+            int rBody = rifle.VertexCount;
+            rifle.AddLoft(Matrix4x4.identity, new[]
+            {
+                new MeshBuilder.Section(-0.24f, 0.04f, 0.07f, 4f), new MeshBuilder.Section(-0.18f, 0.05f, 0.075f, 4f),
+                new MeshBuilder.Section(0.12f, 0.05f, 0.07f, 4f), new MeshBuilder.Section(0.32f, 0.042f, 0.055f, 4f, 0.005f),
+                new MeshBuilder.Section(0.36f, 0.035f, 0.045f, 3.5f, 0.005f),
+            }, 18, Navy, smoothing: 2);
+            rifle.Paint(rBody, p => p.z > 0.1f && p.y > -0.02f, Chalk, Paint, 0f);
+            With(rifle, 0.15f, 0f, 0f, () =>
+            {
+                rifle.AddBox(TR(0, -0.1f, -0.1f, 14, 0, 0), new Vector3(0.05f, 0.15f, 0.07f), Rubber);
+                rifle.AddBox(TR(0, -0.03f, -0.33f, -6, 0, 0), new Vector3(0.05f, 0.11f, 0.16f), Rubber);
+            });
+            With(rifle, 0.55f, 1f, 0f, () =>
+            {
+                rifle.AddTube(new Vector3(0, 0.0f, 0.35f), new Vector3(0, 0.0f, 0.5f), 0.022f, 0.022f, 12, Gunmetal);
+                rifle.AddLathe(TR(0, 0.0f, 0.48f, 90, 0, 0), new[] { new Vector2(0.022f, 0f), new Vector2(0.032f, 0.005f), new Vector2(0.032f, 0.03f), new Vector2(0.022f, 0.035f) }, 12, Slate);
+                rifle.AddTube(new Vector3(0, 0.1f, -0.06f), new Vector3(0, 0.1f, 0.14f), 0.028f, 0.028f, 12, Gunmetal);
+                rifle.AddBox(T(0, 0.076f, 0.04f), new Vector3(0.02f, 0.03f, 0.1f), Gunmetal);
+            });
+            Glow(rifle, () => rifle.AddLathe(TR(0, 0.1f, 0.142f, 90, 0, 0), new[] { new Vector2(0.024f, 0f), new Vector2(0f, 0.004f) }, 12, Gold), 0.8f);
+            Glow(rifle, () => { rifle.AddBox(T(0.051f, 0f, 0.15f), new Vector3(0.006f, 0.02f, 0.3f), Cyan); rifle.AddBox(T(-0.051f, 0f, 0.15f), new Vector3(0.006f, 0.02f, 0.3f), Cyan); }, 1.1f);
+
+            // Medkit: rounded case with handle, latches and a raised red cross
+            var medkit = Hero(0.25f);
+            medkit.AddBox(T(0, 0, 0), new Vector3(0.22f, 0.16f, 0.14f), Chalk);
+            With(medkit, 0.2f, 0f, 0f, () => medkit.AddBox(T(0, 0, 0), new Vector3(0.226f, 0.03f, 0.146f), Rubber));
+            With(medkit, Paint, 0f, 0f, () =>
+            {
+                medkit.AddBox(T(0, 0.01f, 0.075f), new Vector3(0.11f, 0.034f, 0.012f), Red);
+                medkit.AddBox(T(0, 0.01f, 0.075f), new Vector3(0.034f, 0.11f, 0.012f), Red);
+            });
+            With(medkit, 0.55f, 1f, 0f, () =>
+            {
+                Polyline(medkit, new[] { new Vector3(-0.05f, 0.08f, 0), new Vector3(-0.05f, 0.11f, 0), new Vector3(0.05f, 0.11f, 0), new Vector3(0.05f, 0.08f, 0) }, 0.01f, 6, Gunmetal);
+                medkit.AddBox(T(-0.08f, 0.02f, 0.072f), new Vector3(0.02f, 0.035f, 0.01f), Gunmetal);
+                medkit.AddBox(T(0.08f, 0.02f, 0.072f), new Vector3(0.02f, 0.035f, 0.01f), Gunmetal);
+            });
+            Glow(medkit, () => medkit.AddBox(T(0.085f, -0.055f, 0.072f), new Vector3(0.02f, 0.01f, 0.004f), Green), 1.4f);
             var meshes = new[] { SaveMesh(drill, "Tool_Drill"), SaveMesh(blaster, "Tool_Blaster"), SaveMesh(rifle, "Tool_Rifle"), SaveMesh(medkit, "Tool_Medkit") };
             string[] names = { "Drill", "Blaster", "Rifle", "Medkit" };
             for (int i = 0; i < 4; i++)
             {
                 var t = Child(cam.transform, "Tool_" + names[i], new Vector3(0.26f, -0.27f, 0.62f));
                 t.transform.localScale = Vector3.one * 0.45f;
-                var v = Visual(t.transform, "Mesh", meshes[i]);
+                var v = Visual(t.transform, "Mesh", meshes[i], MatHull);
                 v.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 t.SetActive(false);
                 tools[i] = t.transform;
@@ -589,9 +649,20 @@ namespace Voidward.EditorTools
         {
             var d = Child(parent, "Dashboard", pos, Quaternion.Euler(25f, 0f, 0f));
             var dash = d.AddComponent<ShipDashboard>();
-            var panel = new MeshBuilder();
-            panel.AddBox(T(0, 0, 0.02f), new Vector3(width, 0.36f, 0.04f), Dark);
-            Visual(d.transform, "Panel", SaveMesh(panel, "Dashboard_" + width.ToString("0.0")));
+            // Console: gunmetal bezel around a dark glass screen, a sun hood, and a switch row with indicator LEDs.
+            var panel = Hero(0.2f);
+            With(panel, 0.5f, 0.8f, 0.4f, () => panel.AddBox(T(0, -0.01f, 0.04f), new Vector3(width + 0.1f, 0.44f, 0.06f), Graphite));
+            With(panel, 0.95f, 0.1f, 0f, () => panel.AddBox(T(0, 0.01f, 0.012f), new Vector3(width - 0.02f, 0.34f, 0.01f), new Color(0.03f, 0.05f, 0.08f)));
+            With(panel, Satin, 0.4f, 0.4f, () => panel.AddBox(TR(0, 0.22f, -0.05f, -30, 0, 0), new Vector3(width + 0.08f, 0.03f, 0.16f), Graphite));
+            int keys = Mathf.Max(3, Mathf.RoundToInt(width * 6f));
+            for (int k = 0; k < keys; k++)
+            {
+                float x = -width * 0.42f + k * (width * 0.84f / (keys - 1));
+                With(panel, 0.3f, 1f, 0f, () => panel.AddBox(T(x, -0.2f, 0.0f), new Vector3(0.035f, 0.03f, 0.025f), Slate));
+                Color led = k % 4 == 0 ? Gold : (k % 4 == 1 ? Cyan : (k % 4 == 2 ? Green : Red));
+                Glow(panel, () => panel.AddBox(T(x, -0.175f, 0.0f), new Vector3(0.015f, 0.008f, 0.01f), led), 1.4f);
+            }
+            Visual(d.transform, "Panel", SaveMesh(panel, "Dashboard_" + width.ToString("0.0")), MatHull);
             TextMeshPro Txt(string n, float x, TextAlignmentOptions align, float w)
             {
                 var t = Child(d.transform, n, new Vector3(x, 0f, -0.005f));

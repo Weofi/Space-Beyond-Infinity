@@ -92,9 +92,21 @@ namespace Voidward.EditorTools
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabDir + "/" + prefabName + ".prefab");
             if (prefab == null) { Debug.LogWarning("[Voidward] Preview: prefab not found: " + prefabName); return null; }
             var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            PrefabUtility.UnpackPrefabInstance(go, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
             // Review the hull, not the boss shield bubble.
             var shield = go.transform.Find("Shield");
             if (shield != null) shield.gameObject.SetActive(false);
+            // Show the first-person tools of the pawn side by side in front of it.
+            int tool = 0;
+            foreach (var t in go.GetComponentsInChildren<Transform>(true))
+                if (t.name.StartsWith("Tool_"))
+                {
+                    t.gameObject.SetActive(true);
+                    t.SetParent(go.transform, false);
+                    t.localPosition = new Vector3(-0.45f + tool * 0.3f, 1.2f, 0.9f);
+                    t.localRotation = Quaternion.Euler(0f, -35f, 0f);
+                    tool++;
+                }
             return go;
         }
 

@@ -39,6 +39,40 @@ namespace Voidward.EditorTools
             MatHull.enableInstancing = true;
         }
 
+        /// <summary>
+        /// Planet decor / landmark material: the same shader path with a rock mask (no seams; stone variation, dust and
+        /// micro roughness) and the planet rock normal map, so boulders and set pieces get material definition.
+        /// </summary>
+        static void BuildRockDetailMaterial()
+        {
+            const int size = 512;
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float u = x / (float)size, v = y / (float)size;
+                    float id = TileNoise(u * 6f, v * 6f, 6, 911);
+                    float dust = TileNoise(u * 2f, v * 2f, 2, 912) * 0.65f + TileNoise(u * 8f, v * 8f, 8, 913) * 0.35f;
+                    float micro = TileNoise(u * 40f, v * 40f, 40, 914) * 0.6f + TileNoise(u * 96f, v * 96f, 96, 915) * 0.4f;
+                    px[y * size + x] = new Color(0f, id, dust, micro);
+                }
+            var mask = SaveTexture("RockDetailMask", size, px);
+            var normal = AssetDatabase.LoadAssetAtPath<Texture2D>(TextureDir + "/PlanetDetailNormal.asset");
+            MatTerrain.shaderKeywords = new[] { "_USEVERTEXCOLOR_ON", "_FLATSHADING_ON", "_SURFACEDETAIL_ON" };
+            MatTerrain.SetFloat("_SurfaceDetail", 1f);
+            MatTerrain.SetTexture("_DetailMask", mask);
+            MatTerrain.SetTexture("_DetailNormal", normal);
+            MatTerrain.SetFloat("_PanelScale", 0.35f);
+            MatTerrain.SetFloat("_PanelNormalStrength", 0.9f);
+            MatTerrain.SetFloat("_SeamDarken", 0f);
+            MatTerrain.SetFloat("_PanelTint", 0.12f);
+            MatTerrain.SetFloat("_GrimeStrength", 0.45f);
+            MatTerrain.SetFloat("_EdgeWear", 0f);
+            MatTerrain.SetFloat("_EdgeHighlight", 0.05f);
+            MatTerrain.SetFloat("_SpecStrength", 0.6f);
+            MatTerrain.SetFloat("_ReflStrength", 0.4f);
+        }
+
         static void BuildHullDetailTextures(out Texture2D mask, out Texture2D normal)
         {
             const int size = 1024;

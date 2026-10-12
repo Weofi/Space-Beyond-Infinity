@@ -97,7 +97,7 @@ namespace Voidward.Planet
             float hectares = size * size / 10000f;
             int seed = terrain.Seed ^ (data.Face * 73856093) ^ (data.Level * 19349663) ^ (data.X * 83492791) ^ (data.Y * 4256249);
             var rng = new System.Random(seed);
-            var mb = new MeshBuilder { Gloss = 0.06f };
+            var mb = new MeshBuilder { Gloss = 0.06f, Panel = 1f }; // Panel: rock detail of VW_Terrain
             List<Vector4> colliders = null;
             var cols = shape.DecorColors;
             Color C(int i) => cols != null && cols.Length > i ? terrain.Shift(cols[i]) : Color.gray;
