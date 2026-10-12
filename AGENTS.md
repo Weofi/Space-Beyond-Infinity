@@ -7,7 +7,7 @@ User speaks German – answer in German.
 - Unity 6000.6.5f1, URP (`Assets/SourceFiles/Settings/PC_RPAsset`, Forward+), Input System only, TMP (ugui 2.x)
 - Netcode for GameObjects 2.13.3 + Unity Transport; Facepunch.Steamworks (`Assets/Plugins/Steamworks`, define `VOIDWARD_STEAM`, AppID 480)
 - Cinemachine 3 (`Unity.Cinemachine`), Multiplayer Play Mode 3.0
-- Only macOS + WebGL build modules installed (no Windows build on this machine)
+- Developed on two machines: Mac (macOS + WebGL build modules) and Windows PC (Windows build module). See "Cross-platform (Mac + Windows)".
 
 ## Layout (`Assets/_Project`)
 - `Scripts/<Module>` with one asmdef each. Dependency order: Core ← Data ← Combat/Inventory/Planet ← Ship ← Player ← AI/World ← Progression/UI; Networking separate.
@@ -36,7 +36,7 @@ User speaks German – answer in German.
 - PrefabBuilder deletes prefabs before re-saving them (keeps `GlobalObjectIdHash` valid). Network prefab list is rebuilt from scratch.
 - Skybox shader must handle reversed-Z (otherwise it draws over everything).
 - Art style (#3): stylized low-poly, white/blue hard surfaces, navy, gold accents, cyan glow. `MeshBuilder.Bevel` chamfers boxes; `Surface(gloss, glow)` writes UV0 (gloss = specular, glow = emission) read by VW_ToonFlat. Vertex colors are authored in sRGB (shader converts to linear). Palette constants live at the top of `PrefabBuilder`.
-- Editor ↔ release build = "NetworkConfig mismatch". Use a Development build (`Voidward/Build/macOS (Development)`) or MPPM.
+- Editor ↔ release build = "NetworkConfig mismatch". Use a Development build (`Voidward/Build/macOS (Development)` or `Windows (x64, Development)`) or MPPM.
 - Owning a ship in its spawn frame breaks positioning for remote clients → `RunManager.SeatLater` delays it by 0.6 s.
 
 ## Issue workflow (mandatory)
@@ -54,8 +54,15 @@ One issue = one branch = one PR. Don't mix issues.
 - Compile check: read `Logs/Editor.log` after the last "Requested script compilation" and grep `): error CS`.
 - `Unity_RunCommand` returns "Unity not detected" while compiling/reloading → just retry. System.Reflection is not allowed there.
 - Run menu items (`Voidward/Build All Content`, `Voidward/Build/...`) via ManageMenuItem, not RunCommand.
-- Quick play test via RunCommand: `SessionManager.Instance.HostGame()`, then `SessionManager.Instance.StartRun()`. Screenshot: `ScreenCapture.CaptureScreenshot("/tmp/x.png")`.
-- MP test: Editor host + `Builds/macOS-Dev/Voidward.app/Contents/MacOS/Voidward -transport=utp -autojoin=127.0.0.1`; afterwards `pkill -f Voidward.app`.
+- Quick play test via RunCommand: `SessionManager.Instance.HostGame()`, then `SessionManager.Instance.StartRun()`. Screenshot: `ScreenCapture.CaptureScreenshot("/tmp/x.png")` (Windows: a path in the scratchpad/temp dir).
+- MP test (Mac): Editor host + `Builds/macOS-Dev/Voidward.app/Contents/MacOS/Voidward -transport=utp -autojoin=127.0.0.1`; afterwards `pkill -f Voidward.app`.
+- MP test (Windows): Editor host + `Builds/Windows-Dev/Voidward.exe -transport=utp -autojoin=127.0.0.1`; afterwards `Stop-Process -Name Voidward`.
+
+## Cross-platform (Mac + Windows)
+- Same Unity version on both machines (`ProjectSettings/ProjectVersion.txt`). Line endings are pinned to LF via `.gitattributes`.
+- Before switching machines: commit + push. On the other machine: `git pull` first, then open Unity.
+- `.mcp.json` is git-ignored (machine-specific Unity relay path); each machine keeps its own. GitHub MCP reads the token from env var `GITHUB_PAT`.
+- After a first open/reimport on a machine, check `git status` before committing: reimport noise (package `.meta` files, emptied `m_List` in `UniversalRenderPipelineGlobalSettings.asset`) must not be committed.
 - Target: zero console errors/warnings from Voidward code. Known foreign noise: AI Inference tensor warnings, PreviewRenderUtility leak.
 - Unity skills (`.agents/skills`, from `Unity-Technologies/skills`, lock: `skills-lock.json`): use them as domain knowledge only. Implement their recommendations in the builder code (`ContentBuilder`/`PrefabBuilder`/`SceneBuilder`) or in runtime code, never as direct edits to generated scenes/prefabs/assets. Update: `npx skills update -p`.
 
