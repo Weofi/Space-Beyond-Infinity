@@ -20,6 +20,17 @@ namespace Voidward.Networking
         /// <summary>Port for UTP connections (default 7777).</summary>
         public static int Port { get; private set; }
 
+        /// <summary>-autohost: host immediately on launch (UTP or Steam per transport).</summary>
+        public static bool AutoHost { get; private set; }
+        /// <summary>-autojoin=IP: join a UTP host immediately on launch.</summary>
+        public static string AutoJoinIp { get; private set; }
+        /// <summary>-autostart: host starts the run automatically once N players (-players=N) are connected.</summary>
+        public static bool AutoStart { get; private set; }
+        public static int AutoStartPlayers { get; private set; } = 1;
+
+        /// <summary>Main-menu override of the requested transport.</summary>
+        public static void SetRequested(TransportKind kind) => RequestedTransport = kind;
+
         static TransportConfig()
         {
             // Platform default: Steam in standalone builds, UTP in editor.
@@ -55,6 +66,17 @@ namespace Voidward.Networking
                     {
                         if (int.TryParse(arg.Substring("-port=".Length), out int port))
                             Port = port;
+                    }
+                    else if (arg.Equals("-autohost", StringComparison.OrdinalIgnoreCase)) AutoHost = true;
+                    else if (arg.StartsWith("-autojoin=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        AutoJoinIp = arg.Substring("-autojoin=".Length);
+                        RequestedTransport = TransportKind.UTP;
+                    }
+                    else if (arg.Equals("-autostart", StringComparison.OrdinalIgnoreCase)) AutoStart = true;
+                    else if (arg.StartsWith("-players=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (int.TryParse(arg.Substring("-players=".Length), out int n)) AutoStartPlayers = Mathf.Clamp(n, 1, 4);
                     }
                 }
             }

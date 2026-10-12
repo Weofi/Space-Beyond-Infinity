@@ -20,5 +20,12 @@ namespace Voidward.Data
         public Color Tint = Color.white;
         [Tooltip("Set when Kind=Module: which module this item installs.")]
         public ModuleDef Module;
+        [Tooltip("Set when Kind=Gear.")]
+        public GearKind Gear;
+        [Range(1, 3)] public int GearTier = 1;
+        [Tooltip("Kind=Consumable: HP restored.")]
+        public float HealAmount;
+        [Tooltip("Can be bought at trader stations.")]
+        public bool SoldAtTrader = true;
     }
 }

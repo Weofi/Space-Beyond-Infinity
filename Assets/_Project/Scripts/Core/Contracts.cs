@@ -12,6 +12,7 @@ namespace Voidward.Core
         public Vector3 Direction;
         public ulong SourceClientId;   // 0 = world/AI
         public bool IsWeakPoint;       // damage multipliers may apply
+        public bool ByPlayer;          // SourceClientId is only meaningful when true
 
         public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
         {
@@ -21,6 +22,7 @@ namespace Voidward.Core
             s.SerializeValue(ref Direction);
             s.SerializeValue(ref SourceClientId);
             s.SerializeValue(ref IsWeakPoint);
+            s.SerializeValue(ref ByPlayer);
         }
     }
 
@@ -56,20 +58,41 @@ namespace Voidward.Core
         void Interact(IInteractAgent agent);
     }
 
-    /// <summary>A ship weapon mount that can be told to fire (implemented in Combat).</summary>
-    public interface IShipWeapon
-    {
-        string DisplayName { get; }
-        float CooldownRemaining { get; }
-        /// <summary>Called on the owning client; implementation relays to server.</summary>
-        void TryFire(Vector3 direction);
-    }
-
     /// <summary>Implemented by things that can seat a player (ship stations).</summary>
     public interface ISeat
     {
         StationRole Role { get; }
         bool IsOccupied { get; }
         GameObject GameObject { get; }
+        /// <summary>Where the seated body sits.</summary>
+        Transform SeatAnchor { get; }
+        /// <summary>Camera pose while seated (turrets rotate this).</summary>
+        Transform ViewPoint { get; }
+        /// <summary>Called every frame on the occupant's client while seated (flight/turret input).</summary>
+        void TickOccupant(float dt);
+        /// <summary>Local occupant asks to leave.</summary>
+        void RequestLeave();
+    }
+
+    /// <summary>Local-client UI/game state flags shared across assemblies.</summary>
+    public static class GameState
+    {
+        /// <summary>A modal UI panel is open — gameplay input (look/fire/interact) is suppressed.</summary>
+        public static bool UIOpen;
+        public static GamePhase Phase = GamePhase.MainMenu;
+        public static int SectorIndex = 1;
+        /// <summary>Camera shake offset applied by the VFX service to the local view.</summary>
+        public static float ShakeIntensity;
+        /// <summary>World X of the Collapse front (everything with x below is consumed).</summary>
+        public static float CollapseX = -99999f;
+        public static Vector3 GatePosition;
+        public static bool HasGate;
+        public static string Objective = "";
+        public static float FieldOfView = 75f;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; SectorIndex = 1; ShakeIntensity = 0f; CollapseX = -99999f; HasGate = false; Objective = ""; }
+
+        public static bool GameplayInputAllowed => !UIOpen && Phase == GamePhase.Playing;
     }
 }

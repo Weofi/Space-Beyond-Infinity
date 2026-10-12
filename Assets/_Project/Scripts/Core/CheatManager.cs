@@ -53,10 +53,12 @@ namespace Voidward.Core
             if (VwInput.Pressed(VwInput.Cheat))
             {
                 visible = !visible;
-                if (visible) VwInput.SetCursor(true);
-                else if (G.Get<UIGate>() == null || !G.Get<UIGate>().AnyModalOpen) VwInput.SetCursor(false);
+                if (G.Get<UIGate>() == null) VwInput.SetCursor(visible);
             }
         }
+
+        /// <summary>The overlay is open (UI keeps the cursor free).</summary>
+        public bool Visible => visible;
 
         void OnGUI()
         {

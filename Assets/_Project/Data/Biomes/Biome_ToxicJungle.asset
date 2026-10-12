@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2f00fec7cd5d497eb84b09397226677, type: 3}
+  m_Name: Biome_ToxicJungle
+  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.BiomeDef
+  Biome: 2
+  DisplayName: Toxic Jungle
+  Frequency: 3.2
+  Amplitude: 0.07
+  Octaves: 5
+  SeaLevel: -0.05
+  LowColor: {r: 0.3, g: 0.7, b: 0.45, a: 1}
+  MidColor: {r: 0.5, g: 0.88, b: 0.5, a: 1}
+  HighColor: {r: 0.8, g: 0.98, b: 0.55, a: 1}
+  ScatterTint: {r: 0.5, g: 0.88, b: 0.5, a: 1}
+  HasAtmosphere: 1
+  AtmosphereColor: {r: 0.6, g: 1, b: 0.4, a: 0.6}
+  Breathable: 0
+  Scatter:
+  - Kind: 1
+    Count: 6
+  - Kind: 0
+    Count: 5
+  - Kind: 3
+    Count: 3
+  - Kind: 4
+    Count: 6
+  - Kind: 5
+    Count: 3
+  - Kind: 6
+    Count: 1

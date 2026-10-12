@@ -9,7 +9,10 @@ namespace Voidward.Core
     /// <summary>Mineable / lootable resource types. Credits are tracked separately as currency.</summary>
     public enum ResourceType { Ore, Crystal, Scrap, Fuel, EnergyCell }
 
-    public enum ItemKind { Resource, Module, Consumable }
+    public enum ItemKind { Resource, Module, Consumable, Gear }
+
+    /// <summary>Player gear upgrade categories (Kind=Gear items).</summary>
+    public enum GearKind { None, Suit, Oxygen, Jetpack, MiningTool, Rifle }
 
     /// <summary>Ship module socket types. A ship has one socket per slot (WeaponA/B are two weapon sockets).</summary>
     public enum ModuleSlot { Engine, WeaponA, WeaponB, Shield, Hull, Cargo, Scanner, FuelTank }

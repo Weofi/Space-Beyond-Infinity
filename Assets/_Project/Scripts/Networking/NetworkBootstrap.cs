@@ -25,7 +25,7 @@ namespace Voidward.Networking
 #endif
             }
 
-            if (Object.FindFirstObjectByType<CheatManager>() == null)
+            if (Object.FindAnyObjectByType<CheatManager>() == null)
             {
                 var cheats = new GameObject("_Cheats");
                 cheats.AddComponent<CheatManager>();

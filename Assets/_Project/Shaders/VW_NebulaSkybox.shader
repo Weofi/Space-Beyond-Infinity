@@ -48,7 +48,11 @@ Shader "VOIDWARD/NebulaSkybox"
             {
                 Varyings OUT;
                 OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
-                OUT.positionCS.z = OUT.positionCS.w; // pin to far plane
+            #if UNITY_REVERSED_Z
+                OUT.positionCS.z = OUT.positionCS.w * 0.000001; // far plane is 0 with reversed Z
+            #else
+                OUT.positionCS.z = OUT.positionCS.w * 0.999999;
+            #endif
                 OUT.dir = IN.positionOS.xyz;
                 return OUT;
             }
@@ -106,8 +110,8 @@ Shader "VOIDWARD/NebulaSkybox"
                 float n2 = fbm(dir * (_NebulaScale * 1.7) - _Seed * 0.7 + 31.7);
                 float neb = smoothstep(0.42, 0.85, n1) * _NebulaStrength;
                 float neb2 = smoothstep(0.5, 0.9, n2) * _NebulaStrength * 0.7;
-                col += _NebulaColorA.rgb * neb * 1.6;
-                col += _NebulaColorB.rgb * neb2 * 1.4;
+                col += _NebulaColorA.rgb * neb * 0.9;
+                col += _NebulaColorB.rgb * neb2 * 0.8;
 
                 // stars: cell-hashed points with soft falloff
                 float3 cellPos = dir * _StarDensity;

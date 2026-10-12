@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using Voidward.Core;
@@ -7,9 +8,8 @@ namespace Voidward.Combat
 {
     /// <summary>
     /// Server-authoritative health for everything damageable: players, ships, enemies, boss parts,
-    /// resource nodes. Clients see HP via NetworkVariable; damage only applies on the server
-    /// (clients call TakeDamageServerRpc).
-    /// Death behaviour is owned by subscribers of Died (despawn, wreck swap, respawn, loot...).
+    /// nests. Clients see HP via NetworkVariable; damage only applies on the server
+    /// (clients call TakeDamageServerRpc). Death behaviour is owned by subscribers of Died.
     /// </summary>
     public class HealthComponent : NetworkBehaviour, IDamageable
     {
@@ -17,13 +17,22 @@ namespace Voidward.Combat
         public float MaxHealth = 100f;
         [Tooltip("Damage multiplier when DamageInfo.IsWeakPoint is set (boss cores etc.).")]
         public float WeakPointMultiplier = 2f;
-        [Tooltip("If true and CheatManager.GodMode is on, damage is ignored (player pawns).")]
+        [Tooltip("If true and CheatManager.GodMode is on, damage is ignored (player pawns, player ships).")]
         public bool GodModeEligible;
         [Tooltip("Invulnerable until this is false (e.g. boss hull until weak points destroyed).")]
         public bool Invulnerable;
+        [Tooltip("Incoming damage multiplier (armor). 1 = no reduction.")]
+        public float DamageTakenMult = 1f;
+        [Tooltip("Mark this part as a weak point (always counts as IsWeakPoint).")]
+        public bool IsWeakPointPart;
 
         public NetworkVariable<float> Hp = new NetworkVariable<float>(
             100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        public NetworkVariable<float> MaxHp = new NetworkVariable<float>(
+            100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        /// <summary>Server-side hook (shields): returns the damage amount that reaches the hull.</summary>
+        public Func<DamageInfo, float> DamageFilter;
 
         /// <summary>Raised on every client when HP changes (newHp, maxHp).</summary>
         public event Action<float, float> HealthChanged;
@@ -34,39 +43,77 @@ namespace Voidward.Combat
 
         public Team Team => team;
         public bool IsAlive => Hp.Value > 0f;
+        public float Fraction => MaxHp.Value > 0f ? Hp.Value / MaxHp.Value : 0f;
         GameObject IDamageable.gameObject => gameObject;
+
+        /// <summary>All spawned health components (every client) — used for targeting.</summary>
+        public static readonly List<HealthComponent> All = new List<HealthComponent>();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => All.Clear();
 
         public override void OnNetworkSpawn()
         {
-            if (IsServer) Hp.Value = MaxHealth;
-            Hp.OnValueChanged += (oldV, newV) => HealthChanged?.Invoke(newV, MaxHealth);
-            HealthChanged?.Invoke(Hp.Value, MaxHealth);
+            if (IsServer)
+            {
+                MaxHp.Value = MaxHealth;
+                Hp.Value = MaxHealth;
+            }
+            Hp.OnValueChanged += OnHpChanged;
+            HealthChanged?.Invoke(Hp.Value, MaxHp.Value);
+            All.Add(this);
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            Hp.OnValueChanged -= OnHpChanged;
+            All.Remove(this);
+        }
+
+        void OnHpChanged(float oldV, float newV) => HealthChanged?.Invoke(newV, MaxHp.Value);
+
+        /// <summary>Server: change max HP (modules, suit upgrades). Keeps the current fraction when raising.</summary>
+        public void SetMaxHealthServer(float max, bool fill)
+        {
+            if (!IsServer) return;
+            float frac = Fraction;
+            MaxHealth = max;
+            MaxHp.Value = max;
+            Hp.Value = fill ? max : Mathf.Clamp(max * frac, 1f, max);
         }
 
         /// <summary>Server-side damage entry (IDamageable). No-op on clients.</summary>
         public void ApplyDamage(DamageInfo info)
         {
-            if (!IsServer || !IsAlive || Invulnerable) return;
+            if (!IsServer || !IsSpawned || !IsAlive || Invulnerable) return;
             if (GodModeEligible && CheatManager.GodMode) return;
 
-            float amount = info.Amount;
-            if (info.IsWeakPoint) amount *= WeakPointMultiplier;
-
-            Hp.Value = Mathf.Max(0f, Hp.Value - amount);
+            float amount = info.Amount * DamageTakenMult;
+            if (info.IsWeakPoint || IsWeakPointPart) { amount *= WeakPointMultiplier; info.IsWeakPoint = true; }
+            if (DamageFilter != null) amount = DamageFilter(new DamageInfo
+            {
+                Amount = amount, Type = info.Type, Point = info.Point, Direction = info.Direction,
+                SourceClientId = info.SourceClientId, IsWeakPoint = info.IsWeakPoint, ByPlayer = info.ByPlayer
+            });
             info.Amount = amount;
+            if (amount > 0f)
+                Hp.Value = Mathf.Max(0f, Hp.Value - amount);
             DamagedClientRpc(info);
 
             if (Hp.Value <= 0f)
             {
                 Died?.Invoke(info);
-                DiedClientRpc();
+                CombatEvents.RaiseDied(this, info);
             }
         }
 
         /// <summary>Client-side damage request (hitscan weapons, melee). Server validates & applies.</summary>
-        [ServerRpc(RequireOwnership = false)]
-        public void TakeDamageServerRpc(DamageInfo info)
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        public void TakeDamageServerRpc(DamageInfo info, RpcParams p = default)
         {
+            info.SourceClientId = p.Receive.SenderClientId;
+            info.ByPlayer = true;
+            info.Amount = Mathf.Clamp(info.Amount, 0f, 200f);
             ApplyDamage(info);
         }
 
@@ -74,7 +121,14 @@ namespace Voidward.Combat
         public void Heal(float amount)
         {
             if (!IsServer || !IsAlive) return;
-            Hp.Value = Mathf.Min(MaxHealth, Hp.Value + amount);
+            Hp.Value = Mathf.Min(MaxHp.Value, Hp.Value + amount);
+        }
+
+        /// <summary>Server: bring back to full health (respawn).</summary>
+        public void ReviveServer()
+        {
+            if (!IsServer) return;
+            Hp.Value = MaxHp.Value;
         }
 
         [ClientRpc]
@@ -83,30 +137,47 @@ namespace Voidward.Combat
             DamagedClient?.Invoke(info);
         }
 
-        [ClientRpc]
-        void DiedClientRpc()
+        /// <summary>Damage whatever IDamageable owns the hit collider, from any peer.</summary>
+        public static void DamageHit(Collider col, Vector3 point, float amount, DamageType type, Vector3 direction, ulong sourceClientId, bool byPlayer)
         {
-            // clients get a chance for local feedback (the authoritative logic already ran on server)
-        }
-
-        /// <summary>Convenience: damage the IDamageable hit by a raycast hit, from a client.</summary>
-        public static void DamageHit(RaycastHit hit, float amount, DamageType type, Vector3 direction, ulong sourceClientId, bool isWeakPoint = false)
-        {
-            var dmg = hit.collider.GetComponentInParent<IDamageable>();
+            var dmg = col.GetComponentInParent<IDamageable>();
             if (dmg == null || !dmg.IsAlive) return;
             var info = new DamageInfo
             {
-                Amount = amount,
-                Type = type,
-                Point = hit.point,
-                Direction = direction,
-                SourceClientId = sourceClientId,
-                IsWeakPoint = isWeakPoint
+                Amount = amount, Type = type, Point = point, Direction = direction,
+                SourceClientId = sourceClientId, ByPlayer = byPlayer
             };
             if (dmg is HealthComponent hc && NetworkManager.Singleton != null && !NetworkManager.Singleton.IsServer)
                 hc.TakeDamageServerRpc(info);
             else
                 dmg.ApplyDamage(info);
         }
+
+        /// <summary>Nearest living component of a team within range (server or client).</summary>
+        public static HealthComponent NearestOfTeam(Team t, Vector3 pos, float range, Func<HealthComponent, bool> filter = null)
+        {
+            HealthComponent best = null;
+            float bestSqr = range * range;
+            for (int i = 0; i < All.Count; i++)
+            {
+                var h = All[i];
+                if (h == null || h.team != t || !h.IsAlive) continue;
+                if (filter != null && !filter(h)) continue;
+                float d = (h.transform.position - pos).sqrMagnitude;
+                if (d < bestSqr) { bestSqr = d; best = h; }
+            }
+            return best;
+        }
+    }
+
+    /// <summary>Server-side combat events (stats, loot, run bookkeeping).</summary>
+    public static class CombatEvents
+    {
+        public static event Action<HealthComponent, DamageInfo> Died;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => Died = null;
+
+        public static void RaiseDied(HealthComponent h, DamageInfo info) => Died?.Invoke(h, info);
     }
 }

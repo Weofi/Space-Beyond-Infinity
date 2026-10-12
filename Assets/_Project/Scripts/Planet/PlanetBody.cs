@@ -73,18 +73,28 @@ namespace Voidward.Planet
 
             var go = Instantiate(catalog.PlanetPrefab, position, Quaternion.identity);
             var body = go.GetComponent<PlanetBody>();
-            body.Seed.Value = seed;
-            body.Radius.Value = radius;
-            body.BiomeIndex.Value = idx;
+            body.pendingSeed = seed;
+            body.pendingRadius = radius;
+            body.pendingBiome = idx;
             body.NetworkObject.Spawn();
             return body;
         }
+
+        int pendingSeed;
+        float pendingRadius;
+        int pendingBiome = -1;
 
         // ---- Network lifecycle ----
 
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+            if (IsServer && pendingBiome >= 0)
+            {
+                Seed.Value = pendingSeed;
+                Radius.Value = pendingRadius;
+                BiomeIndex.Value = pendingBiome;
+            }
 
             var catalog = ContentCatalog.Instance;
             if (catalog != null && catalog.Biomes != null &&
@@ -110,7 +120,9 @@ namespace Voidward.Planet
 
             if (_lod0Mesh != null) { Destroy(_lod0Mesh); _lod0Mesh = null; }
             if (_lod1Mesh != null) { Destroy(_lod1Mesh); _lod1Mesh = null; }
-            if (_colliderMesh != null) { Destroy(_colliderMesh); _colliderMesh = null; }
+            _colliderMesh = null;
+            foreach (var m in _decorMeshes) if (m != null) Destroy(m);
+            _decorMeshes.Clear();
             if (_atmosphereMesh != null) { Destroy(_atmosphereMesh); _atmosphereMesh = null; }
         }
 
@@ -158,10 +170,10 @@ namespace Voidward.Planet
             float radius = Radius.Value;
             var biome = Biome;
 
-            // Generate meshes.
-            _lod0Mesh = PlanetMeshGenerator.GenerateVisual(seed, radius, biome);
-            _lod1Mesh = PlanetMeshGenerator.GenerateVisualAt(seed, radius, biome, 2);
-            _colliderMesh = PlanetMeshGenerator.GenerateCollider(seed, radius, biome);
+            // Generate meshes. The collider reuses the LOD0 mesh so feet never float or sink.
+            _lod0Mesh = PlanetMeshGenerator.GenerateVisualAt(seed, radius, biome, 5);
+            _lod1Mesh = PlanetMeshGenerator.GenerateVisualAt(seed, radius, biome, 3);
+            _colliderMesh = _lod0Mesh;
 
             var catalog = ContentCatalog.Instance;
             Material toonMat = catalog != null ? catalog.ToonMaterial : null;
@@ -185,12 +197,93 @@ namespace Voidward.Planet
             if (_gravity == null) _gravity = gameObject.AddComponent<GravitySource>();
             _gravity.SurfaceRadius = radius;
             _gravity.SurfaceGravity = 9.81f * Mathf.Clamp(radius / 200f, 0.7f, 1.4f);
-            _gravity.InfluenceRadius = radius * 2.5f;
+            _gravity.InfluenceRadius = radius * 2.2f;
 
             // Atmosphere shell.
             if (biome.HasAtmosphere)
                 BuildAtmosphere(radius, catalog);
+
+            BuildDecor(seed, radius, biome, toonMat);
         }
+
+        /// <summary>
+        /// Client-local, seed-deterministic surface dressing (rocks, shards, trees, crystals, vents),
+        /// batched into a few meshes. Large pieces get sphere colliders so you can't walk through them.
+        /// </summary>
+        void BuildDecor(int seed, float radius, BiomeDef biome, Material mat)
+        {
+            var rng = new System.Random(seed ^ 0x2b7e1516);
+            int count = Mathf.RoundToInt(radius * 1.3f);
+            const int perChunk = 70;
+            MeshBuilder mb = null;
+            GameObject chunk = null;
+            int n = 0;
+            Color rockCol = Color.Lerp(biome.LowColor, new Color(0.45f, 0.42f, 0.5f), 0.55f);
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 dir = MathUtils.OnSphere(rng);
+                float h01 = PlanetMeshGenerator.SampleHeight01(seed, biome, dir);
+                Vector3 local = dir * (radius * (1f + biome.Amplitude * h01) - 0.4f);
+                Quaternion rot = Quaternion.FromToRotation(Vector3.up, dir) * Quaternion.Euler(0f, MathUtils.Range(rng, 0f, 360f), 0f);
+                if (mb == null)
+                {
+                    mb = new MeshBuilder();
+                    chunk = new GameObject("Decor");
+                    chunk.transform.SetParent(transform, false);
+                    n = 0;
+                }
+                float r = MathUtils.Range(rng, 0f, 1f);
+                float size = Mathf.Lerp(0.6f, 3.2f, r * r);
+                switch (biome.Biome)
+                {
+                    case Voidward.Core.Biome.Ice:
+                        if (r < 0.5f) mb.AddPrism(Matrix4x4.TRS(local + dir * size, rot * Quaternion.Euler(MathUtils.Range(rng, -15f, 15f), 0, MathUtils.Range(rng, -15f, 15f)), Vector3.one), size * 0.45f, 0.05f, size * 2.6f, 5, Color.Lerp(biome.LowColor, Color.white, 0.4f));
+                        else mb.AddRock(Matrix4x4.TRS(local, rot, new Vector3(1f, 0.7f, 1f)), size, rng.Next(), rockCol);
+                        break;
+                    case Voidward.Core.Biome.Desert:
+                        if (r > 0.92f) mb.AddBox(Matrix4x4.TRS(local + dir * size * 1.5f, rot, Vector3.one), new Vector3(size * 2f, size * 3f, size * 1.6f), biome.HighColor);
+                        else mb.AddRock(Matrix4x4.TRS(local, rot, new Vector3(1.2f, 0.6f, 1f)), size, rng.Next(), Color.Lerp(biome.HighColor, rockCol, 0.4f));
+                        break;
+                    case Voidward.Core.Biome.ToxicJungle:
+                        if (r < 0.55f)
+                        {
+                            float th = size * 2.5f + 2f;
+                            mb.AddPrism(Matrix4x4.TRS(local + dir * th * 0.5f, rot, Vector3.one), 0.25f + size * 0.08f, 0.15f, th, 5, new Color(0.45f, 0.32f, 0.4f));
+                            mb.AddRock(Matrix4x4.TRS(local + dir * th, rot, new Vector3(1.3f, 0.8f, 1.3f)), size * 0.9f + 0.8f, rng.Next(), r < 0.3f ? biome.HighColor : new Color(0.95f, 0.55f, 0.75f));
+                        }
+                        else mb.AddRock(Matrix4x4.TRS(local, rot, new Vector3(1f, 0.6f, 1f)), size * 0.7f, rng.Next(), biome.MidColor * 0.8f);
+                        break;
+                    case Voidward.Core.Biome.Crystal:
+                        for (int k = 0; k < 3; k++)
+                            mb.AddPrism(Matrix4x4.TRS(local + dir * size, rot * Quaternion.Euler(MathUtils.Range(rng, -25f, 25f), k * 120f, MathUtils.Range(rng, -25f, 25f)), Vector3.one),
+                                size * 0.35f, 0.04f, size * (2f + k * 0.6f), 5, k == 0 ? biome.HighColor : new Color(0.6f, 0.9f, 1f));
+                        break;
+                    default: // Volcanic
+                        if (r > 0.85f) mb.AddPrism(Matrix4x4.TRS(local + dir * size, rot, Vector3.one), size * 1.2f, size * 0.4f, size * 2f, 7, new Color(1f, 0.5f, 0.3f));
+                        else mb.AddRock(Matrix4x4.TRS(local, rot, new Vector3(1f, 0.8f, 1f)), size, rng.Next(), rockCol * 0.8f);
+                        break;
+                }
+                if (size > 1.6f)
+                {
+                    var sc = chunk.AddComponent<SphereCollider>();
+                    sc.center = local + dir * size * 0.5f;
+                    sc.radius = size * 0.8f;
+                }
+                if (++n >= perChunk || i == count - 1)
+                {
+                    var mesh = mb.Build("PlanetDecor");
+                    _decorMeshes.Add(mesh);
+                    chunk.AddComponent<MeshFilter>().sharedMesh = mesh;
+                    var mr = chunk.AddComponent<MeshRenderer>();
+                    mr.sharedMaterial = mat;
+                    _decor.Add(chunk);
+                    mb = null;
+                }
+            }
+        }
+
+        readonly List<Mesh> _decorMeshes = new List<Mesh>();
+        readonly List<GameObject> _decor = new List<GameObject>();
 
         GameObject CreateVisualChild(string name, Mesh mesh, Material material)
         {
@@ -200,6 +293,8 @@ namespace Voidward.Planet
             mf.sharedMesh = mesh;
             var mr = child.AddComponent<MeshRenderer>();
             mr.sharedMaterial = material;
+            // Toon lighting provides the day/night terminator; self-shadowing a 300 m sphere only causes acne.
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return child;
         }
 
@@ -213,6 +308,10 @@ namespace Voidward.Planet
             _atmosphereMesh = IcoSphere.Create(radius * 1.08f, 2, "Atmosphere");
             mf.sharedMesh = _atmosphereMesh;
             mr.sharedMaterial = catalog != null ? catalog.AtmosphereMaterial : null;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var mpb = new MaterialPropertyBlock();
+            mpb.SetColor("_Color", Biome.AtmosphereColor);
+            mr.SetPropertyBlock(mpb);
 
             // Atmosphere trigger: sphere collider (Radius*1.6) with AtmosphereTrigger.
             var triggerGo = new GameObject("AtmosphereTrigger");
@@ -239,6 +338,7 @@ namespace Voidward.Planet
             {
                 _visual0.SetActive(useLOD0);
                 _visual1.SetActive(!useLOD0);
+                foreach (var d in _decor) if (d != null) d.SetActive(useLOD0);
             }
         }
     }

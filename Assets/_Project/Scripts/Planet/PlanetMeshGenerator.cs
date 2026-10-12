@@ -22,7 +22,9 @@ namespace Voidward.Planet
         {
             // Base fractal noise (~[-1,1]). Frequency 2 matches the intended default
             // (contract gap: MathUtils.Fbm3D requires a frequency arg with no default).
-            float n = MathUtils.Fbm3D(seed, unitDir * biome.Frequency, biome.Octaves, 2f);
+            float n = Mathf.Clamp(MathUtils.Fbm3D(seed, unitDir * biome.Frequency, biome.Octaves, 2f) * 1.9f, -1f, 1f);
+            // Crunchy small-scale detail so the low-poly facets read on foot.
+            n += MathUtils.Fbm3D(seed + 977, unitDir * biome.Frequency, 2, 14f) * 0.22f;
 
             // Ridged component: 1-|n| creates sharp mountain ridges where noise crosses zero.
             float ridge = 1f - Mathf.Abs(n);
@@ -83,7 +85,7 @@ namespace Voidward.Planet
         /// <summary>
         /// Visual mesh at a given subdivision level. subdiv 4 = LOD0 (2562 verts), subdiv 2 = LOD1 (162 verts).
         /// </summary>
-        internal static Mesh GenerateVisualAt(int seed, float radius, BiomeDef biome, int subdivisions)
+        public static Mesh GenerateVisualAt(int seed, float radius, BiomeDef biome, int subdivisions)
         {
             Mesh mesh = IcoSphere.Create(radius, subdivisions, "PlanetVisual_LOD" + subdivisions);
 
@@ -130,9 +132,10 @@ namespace Voidward.Planet
                 if (slopeDot < 0.75f)
                     col *= 0.85f;
 
-                // Subtle per-vertex hash variation ±5%.
+                // Per-vertex hash variation ±10% for a hand-painted, faceted look.
                 float hash = MathUtils.Hash3(seed, i, 0, 0);
-                col *= 1f + (hash * 2f - 1f) * 0.05f;
+                col *= 1f + (hash * 2f - 1f) * 0.1f;
+                col.a = 1f;
 
                 colors[i] = col;
             }

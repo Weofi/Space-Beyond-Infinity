@@ -51,12 +51,17 @@ namespace Voidward.Data
         public GameObject SpitProjectile;
         public GameObject Meteor;
         public GameObject DerelictArk;
+        public GameObject GameDirector;
+        public GameObject Wreck;
 
         [Header("Shared rendering")]
         public Material ToonMaterial;
         public Material SkyboxMaterial;
         public Material CollapseMaterial;
         public Material AtmosphereMaterial;
+        public Material UnlitMaterial;
+        public Material ParticleMaterial;
+        public Material GlassMaterial;
 
         static ContentCatalog instance;
         public static ContentCatalog Instance

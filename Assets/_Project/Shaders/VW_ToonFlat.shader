@@ -77,7 +77,8 @@ Shader "VOIDWARD/ToonFlat"
             half4 frag(Varyings IN) : SV_Target
             {
             #ifdef _FLATSHADING_ON
-                float3 n = normalize(cross(ddx(IN.positionWS), ddy(IN.positionWS)));
+                float3 n = normalize(cross(ddy(IN.positionWS), ddx(IN.positionWS)));
+                n *= sign(dot(n, IN.normalWS) + 1e-5);
             #else
                 float3 n = normalize(IN.normalWS);
             #endif
@@ -88,10 +89,10 @@ Shader "VOIDWARD/ToonFlat"
             #endif
 
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
-                float ndl = dot(n, mainLight.direction) * 0.5 + 0.5;
-                ndl *= mainLight.shadowAttenuation;
-                float stepped = floor(saturate(ndl) * _Steps) / max(_Steps, 1.0);
-                stepped = max(stepped, 0.18);
+                float atten = lerp(1.0, mainLight.shadowAttenuation, 0.7);
+                float lit = smoothstep(-0.15, 0.45, dot(n, mainLight.direction)) * atten;
+                float stepped = floor(saturate(lit) * _Steps + 0.5) / max(_Steps, 1.0);
+                stepped = lerp(0.22, 1.0, stepped);
 
                 float3 col = baseCol.rgb * mainLight.color * stepped;
                 col += baseCol.rgb * SampleSH(n) * _AmbientBoost;
@@ -176,7 +177,7 @@ Shader "VOIDWARD/ToonFlat"
             Varyings DepthVert(Attributes IN)
             {
                 Varyings OUT;
-                OUT.positionCS = TransformObjectToHClip(TransformObjectToWorld(IN.positionOS.xyz));
+                OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
                 return OUT;
             }
             half4 DepthFrag(Varyings IN) : SV_TARGET { return 0; }

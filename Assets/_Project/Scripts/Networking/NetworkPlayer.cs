@@ -72,13 +72,13 @@ namespace Voidward.Networking
             return null;
         }
 
-        [ServerRpc(RequireOwnership = false)]
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void SetNameServerRpc(string playerName) => PlayerName.Value = playerName;
 
-        [ServerRpc(RequireOwnership = false)]
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void AddKillServerRpc() => Kills.Value++;
 
-        [ServerRpc(RequireOwnership = false)]
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void AddStardustServerRpc(int amount) => Stardust.Value += amount;
 
         /// <summary>Server-side helper: assign the ship this player owns.</summary>
@@ -87,7 +87,7 @@ namespace Voidward.Networking
             if (IsServer) CurrentShipNetId.Value = shipNetId;
         }
 
-        [ServerRpc(RequireOwnership = false)]
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void PingServerRpc(Vector3 pos, PingKind kind, FixedString64Bytes label) => PingClientRpc(pos, kind, label);
 
         [ClientRpc]

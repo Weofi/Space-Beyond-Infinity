@@ -139,11 +139,13 @@ namespace Voidward.Core
         {
             Init();
             if (action == null) { onDone?.Invoke(true); return; }
+            IsRebinding = true;
             gameplay.Disable();
             action.Disable();
             var op = action.PerformInteractiveRebinding(0)
                 .WithControlsExcluding("<Mouse>/position")
                 .WithControlsExcluding("<Mouse>/delta")
+                .WithCancelingThrough("<Keyboard>/escape")
                 .OnMatchWaitForAnother(0.1f)
                 .OnComplete(o =>
                 {
@@ -151,6 +153,7 @@ namespace Voidward.Core
                     action.Enable();
                     gameplay.Enable();
                     SaveOverrides();
+                    IsRebinding = false;
                     onDone?.Invoke(false);
                 })
                 .OnCancel(o =>
@@ -158,10 +161,27 @@ namespace Voidward.Core
                     o.Dispose();
                     action.Enable();
                     gameplay.Enable();
+                    IsRebinding = false;
                     onDone?.Invoke(true);
                 });
             op.Start();
         }
+
+        public static bool IsRebinding { get; private set; }
+
+        public static void ResetBindings()
+        {
+            Init();
+            gameplay.RemoveAllBindingOverrides();
+            SaveOverrides();
+        }
+
+        /// <summary>Actions shown in the rebinding list.</summary>
+        public static (string label, InputAction action)[] Rebindable => new[]
+        {
+            ("Interact", Interact), ("Jump / Jetpack", Jump), ("Sprint / Boost", Sprint), ("Inventory", Inventory),
+            ("Ping", Ping), ("Brake", Brake), ("Fire", Fire), ("Alt Fire", AltFire)
+        };
 
         public static void SaveOverrides()
         {

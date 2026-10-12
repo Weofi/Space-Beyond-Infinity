@@ -32,6 +32,8 @@ namespace Voidward.Networking
         public event Action<ulong> ClientDisconnected;
         /// <summary>Host pressed Start in the lobby — the world run should begin (RunManager listens).</summary>
         public event Action RunStartRequested;
+        /// <summary>Host: the server side is up (spawn the game director here).</summary>
+        public event Action ServerStarted;
 
         UnityTransport utp;
         SteamTransport steamTransport;
@@ -77,6 +79,12 @@ namespace Voidward.Networking
 
         void OnPingRequested(Vector3 pos, PingKind kind, string label) => NetworkPlayer.SendPing(pos, kind, label);
 
+        /// <summary>Override the display name (main menu callsign). Steam persona name wins when Steam is active.</summary>
+        public void SetLocalName(string n)
+        {
+            if (!string.IsNullOrWhiteSpace(n)) LocalPlayerName = n.Trim().Length > 24 ? n.Trim().Substring(0, 24) : n.Trim();
+        }
+
         /// <summary>Finds or creates the NetworkManager with both transports attached.</summary>
         public NetworkManager EnsureNetworkManager()
         {
@@ -87,8 +95,11 @@ namespace Voidward.Networking
                 nm = go.AddComponent<NetworkManager>();
                 DontDestroyOnLoad(go);
             }
-            if (utp == null) utp = nm.GetComponent<UnityTransport>() ?? nm.gameObject.AddComponent<UnityTransport>();
-            if (steamTransport == null) steamTransport = nm.GetComponent<SteamTransport>() ?? nm.gameObject.AddComponent<SteamTransport>();
+            if (nm.NetworkConfig == null) nm.NetworkConfig = new NetworkConfig();
+            if (utp == null) utp = nm.GetComponent<UnityTransport>();
+            if (utp == null) utp = nm.gameObject.AddComponent<UnityTransport>();
+            if (steamTransport == null) steamTransport = nm.GetComponent<SteamTransport>();
+            if (steamTransport == null) steamTransport = nm.gameObject.AddComponent<SteamTransport>();
             if (nm.NetworkConfig.NetworkTransport == null)
                 nm.NetworkConfig.NetworkTransport = utp;
             return nm;
@@ -168,6 +179,7 @@ namespace Voidward.Networking
                 HookCallbacks(nm);
                 if (nm.StartHost())
                 {
+                    ServerStarted?.Invoke();
                     Steam.CreateLobby(4, ok =>
                     {
                         if (ok) EventBus.RaiseNotification("Steam lobby created - friends can join!");
@@ -191,8 +203,18 @@ namespace Voidward.Networking
                 EventBus.RaiseNotification("Failed to start host");
                 return;
             }
+            ServerStarted?.Invoke();
             EventBus.RaiseNotification("Hosting on port " + TransportConfig.Port);
         }
+
+        void Start()
+        {
+            // Automation for local multiplayer tests: -autohost / -autojoin=127.0.0.1
+            if (TransportConfig.AutoHost) Invoke(nameof(HostGame), 1f);
+            else if (!string.IsNullOrEmpty(TransportConfig.AutoJoinIp)) Invoke(nameof(AutoJoin), 1.5f);
+        }
+
+        void AutoJoin() => JoinGame(TransportConfig.AutoJoinIp);
 
         /// <summary>Join a host directly by IP over UTP.</summary>
         public void JoinGame(string ip)

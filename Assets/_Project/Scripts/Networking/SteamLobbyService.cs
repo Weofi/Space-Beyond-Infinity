@@ -62,7 +62,7 @@ namespace Voidward.Networking
         /// <summary>Creates or finds an existing pump on a hidden DontDestroyOnLoad GameObject.</summary>
         public static SteamCallbackPump EnsureExists()
         {
-            var existing = FindObjectOfType<SteamCallbackPump>();
+            var existing = FindAnyObjectByType<SteamCallbackPump>();
             if (existing != null) return existing;
 
             var go = new GameObject("_SteamCallbackPump");
