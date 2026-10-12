@@ -21,12 +21,12 @@ namespace Voidward.UI
 
         // main / join
         TextMeshProUGUI transportLabel;
-        TMP_InputField nameField, ipField;
+        TMP_InputField nameField, ipField, lobbyIdField;
         RectTransform lobbyList;
         TextMeshProUGUI joinStatus;
         // lobby
         TextMeshProUGUI lobbyPlayers, lobbyInfo;
-        Button startButton, inviteButton;
+        Button startButton, inviteButton, copyIdButton;
         // hangar
         TextMeshProUGUI stardustLabel;
         RectTransform perkList;
@@ -235,12 +235,15 @@ namespace Voidward.UI
                 ui.Show(Screen.Connecting);
             }, 56, UIKit.Primary, 24, Icons.Join).gameObject, 200, 56);
 
-            UIKit.Text(w, "Steam lobbies (AppID 480)", 24, TextAlignmentOptions.Left, UIKit.TextDim);
+            UIKit.Text(w, "Steam lobbies (worldwide)", 24, TextAlignmentOptions.Left, UIKit.TextDim);
             var r2 = UIKit.Row(w, 50);
             UIKit.LayoutElement(UIKit.Button(r2, "Refresh", RefreshLobbies, 50, UIKit.Secondary, 22, Icons.Refresh).gameObject, 200, 50);
             joinStatus = UIKit.Text(r2, "", 22, TextAlignmentOptions.Left, UIKit.TextDim);
             UIKit.LayoutElement(joinStatus.gameObject, -1, 50, 1);
-            lobbyList = UIKit.Scroll(w, 330);
+            lobbyList = UIKit.Scroll(w, 250);
+            var r3 = UIKit.Row(w, 52);
+            lobbyIdField = UIKit.Input(r3, "Steam lobby ID (from the host's lobby screen)", "");
+            UIKit.LayoutElement(UIKit.Button(r3, "Join ID", JoinLobbyId, 52, UIKit.Primary, 22, Icons.Join).gameObject, 200, 52);
             UIKit.Button(w, "Back", ui.Back, 56, UIKit.Secondary, 26, Icons.Back);
         }
 
@@ -261,13 +264,38 @@ namespace Voidward.UI
                     {
                         var entry = l;
                         var row = UIKit.Row(lobbyList, 50);
-                        var t = UIKit.Text(row, $"{entry.Name}  <color=#a0a0c0>({entry.Members}/{entry.MaxMembers})</color>", 22);
+                        string phase = entry.Phase == "Playing" ? "<color=#ffd080>in run</color>" : "lobby";
+                        string ver = entry.VersionMatches ? "" : $"  <color=#ff8080>v{Ascii(entry.Version)}</color>";
+                        var t = UIKit.Text(row, $"{Ascii(entry.Name)}  <color=#a0a0c0>({entry.Members}/{entry.MaxMembers}, {phase})</color>{ver}", 22);
                         UIKit.LayoutElement(t.gameObject, -1, 50, 1);
-                        UIKit.LayoutElement(UIKit.Button(row, "Join", () => { sm.JoinSteamLobby(entry.Id); ui.Show(Screen.Connecting); }, 46, UIKit.Primary, 22, Icons.Join).gameObject, 140, 46);
+                        var join = UIKit.Button(row, "Join", () => { ApplyName(); sm.JoinSteamLobby(entry.Id); ui.Show(Screen.Connecting); }, 46, UIKit.Primary, 22, Icons.Join);
+                        join.interactable = entry.VersionMatches && entry.Members < entry.MaxMembers;
+                        UIKit.LayoutElement(join.gameObject, 140, 46);
                         n++;
                     }
-                joinStatus.text = n == 0 ? "No lobbies found (friends can also invite you via the Steam overlay)." : n + " lobbies";
+                joinStatus.text = n == 0 ? "No Voidward lobbies found (or join via Steam invite / lobby ID)." : n + (n == 1 ? " lobby" : " lobbies");
             });
+        }
+
+        void JoinLobbyId()
+        {
+            var sm = SessionManager.Instance;
+            if (sm == null || lobbyIdField == null) return;
+            if (!ulong.TryParse(lobbyIdField.text.Trim(), out ulong id) || id == 0) { joinStatus.text = "Invalid lobby ID."; return; }
+            sm.Steam.TryInit();
+            if (!sm.Steam.SteamAvailable) { joinStatus.text = "Steam is not running - use Direct IP."; return; }
+            ApplyName();
+            sm.JoinSteamLobby(id);
+            ui.Show(Screen.Connecting);
+        }
+
+        /// <summary>Steam names can contain any Unicode; TMP only has ASCII glyphs.</summary>
+        static string Ascii(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "?";
+            var sb = new System.Text.StringBuilder(s.Length);
+            foreach (char c in s) sb.Append(c >= 32 && c < 127 && c != '<' && c != '>' ? c : '?');
+            return sb.ToString();
         }
 
         // ================================================================ connecting
@@ -286,9 +314,9 @@ namespace Voidward.UI
         {
             var w = Window(root, Screen.Lobby, new Vector2(900, 750), "LOBBY");
             lobbyInfo = UIKit.Text(w, "", 22, TextAlignmentOptions.Center, UIKit.TextDim);
-            UIKit.LayoutElement(lobbyInfo.gameObject, -1, 70);
+            UIKit.LayoutElement(lobbyInfo.gameObject, -1, 96);
             var listBg = UIKit.Panel(w, "Players", new Color(0, 0, 0, 0.2f));
-            UIKit.LayoutElement(listBg.gameObject, -1, 300);
+            UIKit.LayoutElement(listBg.gameObject, -1, 274);
             lobbyPlayers = UIKit.Text(listBg, "", 30);
             UIKit.Stretch(lobbyPlayers.rectTransform, 24, 24, 16, 16);
 
@@ -299,6 +327,7 @@ namespace Voidward.UI
             row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
             startButton = UIKit.Button(row, "Start Run", () => SessionManager.Instance?.StartRun(), 64, UIKit.Good, 28, Icons.Play);
             inviteButton = UIKit.Button(row, "Invite Friends", () => SessionManager.Instance?.Steam.InviteFriends(), 64, UIKit.Primary, 28, Icons.Invite);
+            copyIdButton = UIKit.Button(row, "Copy Lobby ID", CopyLobbyId, 64, UIKit.Secondary, 24);
             var row2 = UIKit.Row(w, 60);
             row2.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
             UIKit.Button(row2, "Hangar", () => ui.Push(Screen.Hangar), 60, UIKit.Primary, 24, Icons.Hangar);
@@ -315,13 +344,25 @@ namespace Voidward.UI
             foreach (var p in NetworkPlayer.All)
                 sb.AppendLine($"<color={UIKit.Hex(UIKit.Accent)}>></color>  {p.PlayerName.Value}{(p.OwnerClientId == NetworkManager.ServerClientId ? "  <size=70%><color=#ffd080>HOST</color></size>" : "")}{(p.IsOwner ? "  <size=70%>(you)</size>" : "")}");
             lobbyPlayers.text = sb.Length > 0 ? sb.ToString() : "Waiting for players...";
-            string info = sm.ActiveTransport == TransportKind.Steam
-                ? "Steam lobby - invite friends via the button or the Steam overlay (Shift+Tab)."
+            bool steam = sm.ActiveTransport == TransportKind.Steam;
+            ulong lobbyId = sm.Steam.CurrentLobbyId;
+            string info = steam
+                ? "Steam lobby - invite friends via the button or the Steam overlay (Shift+Tab)." + (lobbyId != 0 ? $"
+Lobby ID: <b>{lobbyId}</b>" : "")
                 : $"Direct IP - others join with <b>{LocalIp()}</b> : {TransportConfig.Port}";
             lobbyInfo.text = info + $"\nShip: <b>{Meta.SelectedShip}</b>   Stardust: <b>{Meta.Data.Stardust}</b>";
             startButton.interactable = nm.IsHost;
             UIKit.SetLabel(startButton, nm.IsHost ? "Start Run" : "Waiting for host...");
-            inviteButton.gameObject.SetActive(sm.ActiveTransport == TransportKind.Steam);
+            inviteButton.gameObject.SetActive(steam);
+            copyIdButton.gameObject.SetActive(steam && lobbyId != 0);
+        }
+
+        void CopyLobbyId()
+        {
+            var sm = SessionManager.Instance;
+            if (sm == null || sm.Steam.CurrentLobbyId == 0) return;
+            GUIUtility.systemCopyBuffer = sm.Steam.CurrentLobbyId.ToString();
+            EventBus.RaiseNotification("Lobby ID copied");
         }
 
         static string cachedIp;
