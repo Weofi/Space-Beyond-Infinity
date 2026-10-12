@@ -20,15 +20,9 @@ namespace Voidward.Data
         public string DisplayName = "Ice";
 
         [Header("Terrain")]
-        [Tooltip("Base terrain frequency (higher = more hills).")]
-        public float Frequency = 3f;
-        [Tooltip("Height variation as a fraction of planet radius (0.02-0.08 typical).")]
-        public float Amplitude = 0.05f;
-        [Range(2, 6)] public int Octaves = 4;
-        [Tooltip("Noise below this becomes lowlands/flats.")]
-        public float SeaLevel = -0.15f;
+        public PlanetShapeDef Shape;
 
-        [Header("Colors (vertex colors by elevation)")]
+        [Header("Decor colors")]
         public Color LowColor = new Color(0.75f, 0.85f, 0.95f);
         public Color MidColor = new Color(0.9f, 0.93f, 0.97f);
         public Color HighColor = new Color(1f, 1f, 1f);

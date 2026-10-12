@@ -40,12 +40,12 @@ namespace Voidward.Planet
         /// <summary>All active planet bodies in the scene.</summary>
         public static readonly List<PlanetBody> All = new List<PlanetBody>();
 
-        Mesh _lod0Mesh;
-        Mesh _lod1Mesh;
-        Mesh _colliderMesh;
+        /// <summary>Deterministic height field of this planet (null until built).</summary>
+        public PlanetTerrain Terrain => _visuals != null ? _visuals.Terrain : null;
+
         Mesh _atmosphereMesh;
-        GameObject _visual0;
-        GameObject _visual1;
+        PlanetVisuals _visuals;
+        bool _decorShown = true;
         GravitySource _gravity;
 
         // ---- Spawn helper ----
@@ -103,9 +103,9 @@ namespace Voidward.Planet
                 Biome = catalog.Biomes[BiomeIndex.Value];
             }
 
-            if (Biome == null)
+            if (Biome == null || Biome.Shape == null)
             {
-                Debug.LogWarning($"[PlanetBody] Biome not resolved (index {BiomeIndex.Value}) on {name}.");
+                Debug.LogWarning($"[PlanetBody] Biome or planet shape not resolved (index {BiomeIndex.Value}) on {name}.");
                 return;
             }
 
@@ -118,9 +118,7 @@ namespace Voidward.Planet
             base.OnNetworkDespawn();
             All.Remove(this);
 
-            if (_lod0Mesh != null) { Destroy(_lod0Mesh); _lod0Mesh = null; }
-            if (_lod1Mesh != null) { Destroy(_lod1Mesh); _lod1Mesh = null; }
-            if (_colliderMesh != null) { Destroy(_colliderMesh); _colliderMesh = null; }
+            if (_visuals != null) _visuals.Clear();
             foreach (var m in _decorMeshes) if (m != null) Destroy(m);
             _decorMeshes.Clear();
             if (_atmosphereMesh != null) { Destroy(_atmosphereMesh); _atmosphereMesh = null; }
@@ -137,16 +135,21 @@ namespace Voidward.Planet
         /// <summary>World-space surface position at a direction from the planet center.</summary>
         public Vector3 SurfaceWorldPoint(Vector3 unitDirFromCenter)
         {
-            Vector3 local = PlanetMeshGenerator.SurfacePoint(Seed.Value, Radius.Value, Biome, unitDirFromCenter);
-            return transform.TransformPoint(local);
+            return transform.TransformPoint(unitDirFromCenter * TerrainRadiusAt(unitDirFromCenter));
         }
 
         /// <summary>Displaced terrain radius at a direction (distance from center to surface).</summary>
         public float TerrainRadiusAt(Vector3 unitDir)
         {
-            if (Biome == null) return Radius.Value;
-            float h = PlanetMeshGenerator.SampleHeight01(Seed.Value, Biome, unitDir);
-            return Radius.Value * (1f + Biome.Amplitude * h);
+            var t = Terrain;
+            return t != null ? t.SurfaceRadius(unitDir) : Radius.Value;
+        }
+
+        /// <summary>True when the terrain at this world position lies below the ocean surface.</summary>
+        public bool IsUnderwater(Vector3 worldPos)
+        {
+            var t = Terrain;
+            return t != null && t.IsUnderwater((worldPos - transform.position).normalized);
         }
 
         /// <summary>Nearest planet body to a world position, or null if none exist.</summary>
@@ -170,27 +173,13 @@ namespace Voidward.Planet
             float radius = Radius.Value;
             var biome = Biome;
 
-            // Generate meshes. The welded collider matches LOD0's geometry exactly so feet never float or sink.
-            _lod0Mesh = PlanetMeshGenerator.GenerateVisualAt(seed, radius, biome, 5);
-            _lod1Mesh = PlanetMeshGenerator.GenerateVisualAt(seed, radius, biome, 3);
-            _colliderMesh = PlanetMeshGenerator.GenerateCollider(seed, radius, biome, 5);
+            // The collider shares the near-LOD mesh so feet never float or sink.
+            _visuals = gameObject.GetComponent<PlanetVisuals>();
+            if (_visuals == null) _visuals = gameObject.AddComponent<PlanetVisuals>();
+            _visuals.Build(biome.Shape, seed, radius, true);
 
             var catalog = ContentCatalog.Instance;
             Material toonMat = catalog == null ? null : catalog.TerrainMaterial != null ? catalog.TerrainMaterial : catalog.ToonMaterial;
-
-            // Visual0 (LOD0 — subdiv 4).
-            _visual0 = CreateVisualChild("Visual0", _lod0Mesh, toonMat);
-            // Visual1 (LOD1 — subdiv 2).
-            _visual1 = CreateVisualChild("Visual1", _lod1Mesh, toonMat);
-
-            // Start with LOD0 active; Update will swap by camera distance.
-            _visual0.SetActive(true);
-            _visual1.SetActive(false);
-
-            // MeshCollider on the root.
-            var mc = gameObject.GetComponent<MeshCollider>();
-            if (mc == null) mc = gameObject.AddComponent<MeshCollider>();
-            mc.sharedMesh = _colliderMesh;
 
             // Gravity source.
             _gravity = gameObject.GetComponent<GravitySource>();
@@ -213,6 +202,7 @@ namespace Voidward.Planet
         void BuildDecor(int seed, float radius, BiomeDef biome, Material mat)
         {
             var rng = new System.Random(seed ^ 0x2b7e1516);
+            var terrain = Terrain;
             int count = Mathf.RoundToInt(radius * 3f);
             const int perChunk = 70;
             MeshBuilder mb = null;
@@ -222,9 +212,10 @@ namespace Voidward.Planet
             for (int i = 0; i < count; i++)
             {
                 Vector3 dir = MathUtils.OnSphere(rng);
-                float h01 = PlanetMeshGenerator.SampleHeight01(seed, biome, dir);
-                Vector3 local = dir * (radius * (1f + biome.Amplitude * h01) - 0.4f);
+                Vector3 local = dir * (terrain.SurfaceRadius(dir) - 0.4f);
                 Quaternion rot = Quaternion.FromToRotation(Vector3.up, dir) * Quaternion.Euler(0f, MathUtils.Range(rng, 0f, 360f), 0f);
+                float r = MathUtils.Range(rng, 0f, 1f);
+                if (terrain.IsUnderwater(dir)) { if (i == count - 1) FlushDecor(ref mb, chunk, mat); continue; }
                 if (mb == null)
                 {
                     mb = new MeshBuilder { Gloss = 0.08f };
@@ -232,7 +223,6 @@ namespace Voidward.Planet
                     chunk.transform.SetParent(transform, false);
                     n = 0;
                 }
-                float r = MathUtils.Range(rng, 0f, 1f);
                 float size = Mathf.Lerp(0.6f, 3.2f, r * r);
                 switch (biome.Biome)
                 {
@@ -269,34 +259,24 @@ namespace Voidward.Planet
                     sc.center = local + dir * size * 0.5f;
                     sc.radius = size * 0.8f;
                 }
-                if (++n >= perChunk || i == count - 1)
-                {
-                    var mesh = mb.Build("PlanetDecor");
-                    _decorMeshes.Add(mesh);
-                    chunk.AddComponent<MeshFilter>().sharedMesh = mesh;
-                    var mr = chunk.AddComponent<MeshRenderer>();
-                    mr.sharedMaterial = mat;
-                    _decor.Add(chunk);
-                    mb = null;
-                }
+                if (++n >= perChunk || i == count - 1) FlushDecor(ref mb, chunk, mat);
             }
+        }
+
+        void FlushDecor(ref MeshBuilder mb, GameObject chunk, Material mat)
+        {
+            if (mb == null) return;
+            var mesh = mb.Build("PlanetDecor");
+            _decorMeshes.Add(mesh);
+            chunk.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = chunk.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = mat;
+            _decor.Add(chunk);
+            mb = null;
         }
 
         readonly List<Mesh> _decorMeshes = new List<Mesh>();
         readonly List<GameObject> _decor = new List<GameObject>();
-
-        GameObject CreateVisualChild(string name, Mesh mesh, Material material)
-        {
-            var child = new GameObject(name);
-            child.transform.SetParent(transform, false);
-            var mf = child.AddComponent<MeshFilter>();
-            mf.sharedMesh = mesh;
-            var mr = child.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = material;
-            // Toon lighting provides the day/night terminator; self-shadowing a 300 m sphere only causes acne.
-            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            return child;
-        }
 
         void BuildAtmosphere(float radius, ContentCatalog catalog)
         {
@@ -323,23 +303,15 @@ namespace Voidward.Planet
             trigger.Planet = this;
         }
 
-        // ---- LOD swap ----
+        // ---- Decor follows the terrain LOD ----
 
         void Update()
         {
-            if (_visual0 == null || _visual1 == null) return;
-            Camera cam = Camera.main;
-            if (cam == null) return;
-
-            float dist = Vector3.Distance(cam.transform.position, transform.position);
-            bool useLOD0 = dist < Radius.Value * 2.5f;
-
-            if (_visual0.activeSelf != useLOD0)
-            {
-                _visual0.SetActive(useLOD0);
-                _visual1.SetActive(!useLOD0);
-                foreach (var d in _decor) if (d != null) d.SetActive(useLOD0);
-            }
+            if (_visuals == null) return;
+            bool show = _visuals.NearLodActive;
+            if (show == _decorShown) return;
+            _decorShown = show;
+            foreach (var d in _decor) if (d != null) d.SetActive(show);
         }
     }
 
