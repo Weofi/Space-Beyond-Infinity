@@ -26,6 +26,15 @@ namespace Voidward.Networking
 
         /// <summary>Maximum allowed members.</summary>
         public int MaxMembers;
+
+        /// <summary>Game version of the host (lobby metadata "version").</summary>
+        public string Version;
+
+        /// <summary>Host session phase (lobby metadata "phase", e.g. "Lobby" / "Playing").</summary>
+        public string Phase;
+
+        /// <summary>True when the host runs the same game version as this client.</summary>
+        public bool VersionMatches => Version == Application.version;
     }
 
     /// <summary>
@@ -79,6 +88,9 @@ namespace Voidward.Networking
     /// </summary>
     public class SteamLobbyService
     {
+        /// <summary>Lobby metadata key/value that marks Voidward lobbies (AppID 480 is shared with many other games).</summary>
+        public const string GameKey = "game", GameValue = "voidward";
+
         /// <summary>True when SteamClient has been initialised and is valid.</summary>
         public bool SteamAvailable { get; private set; }
 
@@ -93,6 +105,9 @@ namespace Voidward.Networking
 
         /// <summary>After joining a lobby, the host's Steam ID read from lobby metadata.</summary>
         public ulong HostSteamIdOfJoinedLobby { get; private set; }
+
+        /// <summary>Lobby ID from a Steam invite that launched the game (+connect_lobby), 0 otherwise.</summary>
+        public ulong LaunchLobbyId { get; private set; }
 
         /// <summary>The local user's Steam ID (0 if Steam unavailable).</summary>
         public ulong LocalSteamId
@@ -140,6 +155,7 @@ namespace Voidward.Networking
                 {
                     Debug.Log("[SteamLobbyService] Steam initialised. SteamId=" + SteamClient.SteamId.Value + " Name=" + SteamClient.Name);
                     InstallHooks();
+                    ReadLaunchLobby();
                     SteamCallbackPump.EnsureExists();
                     SteamInitialized?.Invoke();
                 }
@@ -165,6 +181,18 @@ namespace Voidward.Networking
             if (_hooksInstalled) return;
             _hooksInstalled = true;
             SteamFriends.OnGameLobbyJoinRequested += OnGameLobbyJoinRequested;
+        }
+
+        /// <summary>Steam starts the game with "+connect_lobby &lt;id&gt;" when an invite is accepted while it isn't running.</summary>
+        void ReadLaunchLobby()
+        {
+            var args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+                if (args[i] == "+connect_lobby" && ulong.TryParse(args[i + 1], out ulong id) && id != 0)
+                {
+                    LaunchLobbyId = id;
+                    Debug.Log("[SteamLobbyService] Launched via invite for lobby " + id);
+                }
         }
 
         void OnGameLobbyJoinRequested(Lobby lobby, SteamId friend)
@@ -212,8 +240,11 @@ namespace Voidward.Networking
                 var lobby = result.Value;
                 lobby.SetPublic();
                 lobby.SetJoinable(true);
-                lobby.SetData("name", "VOIDWARD Lobby");
+                lobby.SetData(GameKey, GameValue);
+                lobby.SetData("version", Application.version);
+                lobby.SetData("name", SteamClient.Name + "'s Voidward");
                 lobby.SetData("host", SteamClient.SteamId.Value.ToString());
+                lobby.SetData("phase", "Lobby");
                 lobby.SetData("joinable", "1");
                 Debug.Log("[SteamLobbyService] Lobby created: id=" + CurrentLobbyId + " max=" + maxMembers);
                 onDone?.Invoke(true);
@@ -310,8 +341,12 @@ namespace Voidward.Networking
         {
             try
             {
+                // AppID 480 (Spacewar) is shared worldwide: filter by our marker and search
+                // worldwide (Steam's default distance filter hides lobbies from other regions).
                 var lobbies = await SteamMatchmaking.LobbyList
-                    .WithMaxResults(20)
+                    .WithKeyValue(GameKey, GameValue)
+                    .FilterDistanceWorldwide()
+                    .WithMaxResults(50)
                     .RequestAsync();
 
                 var entries = new List<LobbyEntry>();
@@ -319,12 +354,17 @@ namespace Voidward.Networking
                 {
                     foreach (var lobby in lobbies)
                     {
+                        // Belt and braces: drop anything without our marker or without a host.
+                        if (lobby.GetData(GameKey) != GameValue) continue;
+                        if (string.IsNullOrEmpty(lobby.GetData("host"))) continue;
                         entries.Add(new LobbyEntry
                         {
                             Id = lobby.Id.Value,
                             Name = lobby.GetData("name"),
                             Members = lobby.MemberCount,
-                            MaxMembers = lobby.MaxMembers
+                            MaxMembers = lobby.MaxMembers,
+                            Version = lobby.GetData("version"),
+                            Phase = lobby.GetData("phase")
                         });
                     }
                 }
@@ -338,6 +378,16 @@ namespace Voidward.Networking
             }
         }
 #endif
+
+        /// <summary>Host only: publishes the session phase ("Lobby", "Playing", ...) in the lobby metadata.</summary>
+        public void SetLobbyPhase(string phase)
+        {
+#if VOIDWARD_STEAM
+            if (_currentLobby == null || HostSteamIdOfJoinedLobby != 0) return;
+            try { _currentLobby.Value.SetData("phase", phase); }
+            catch (Exception e) { Debug.LogWarning("[SteamLobbyService] SetLobbyPhase failed: " + e.Message); }
+#endif
+        }
 
         /// <summary>Leaves the current lobby if any.</summary>
         public void LeaveLobby()

@@ -67,6 +67,7 @@ namespace Voidward.Networking
 
             // Ping forwarding: any local system raises PingRequested -> network broadcast.
             EventBus.PingRequested += OnPingRequested;
+            EventBus.PhaseChanged += OnPhaseChanged;
         }
 
         void OnDestroy()
@@ -74,10 +75,17 @@ namespace Voidward.Networking
             if (Instance == this) Instance = null;
             G.Unregister<SessionManager>();
             EventBus.PingRequested -= OnPingRequested;
+            EventBus.PhaseChanged -= OnPhaseChanged;
             try { Steam?.Shutdown(); } catch { }
         }
 
         void OnPingRequested(Vector3 pos, PingKind kind, string label) => NetworkPlayer.SendPing(pos, kind, label);
+
+        // Host: mirror the session phase into the Steam lobby so the join list can show Lobby / In run.
+        void OnPhaseChanged(GamePhase p)
+        {
+            if (ActiveTransport == TransportKind.Steam && Net != null && Net.IsHost) Steam.SetLobbyPhase(p.ToString());
+        }
 
         /// <summary>Override the display name (main menu callsign). Steam persona name wins when Steam is active.</summary>
         public void SetLocalName(string n)
@@ -212,6 +220,18 @@ namespace Voidward.Networking
             // Automation for local multiplayer tests: -autohost / -autojoin=127.0.0.1
             if (TransportConfig.AutoHost) Invoke(nameof(HostGame), 1f);
             else if (!string.IsNullOrEmpty(TransportConfig.AutoJoinIp)) Invoke(nameof(AutoJoin), 1.5f);
+            else if (TransportConfig.RequestedTransport == TransportKind.Steam)
+            {
+                // Init Steam up front so friend invites ("Join Game") reach us while we sit in the menu.
+                Steam.TryInit();
+                if (Steam.LaunchLobbyId != 0) Invoke(nameof(JoinLaunchLobby), 1.5f);
+            }
+        }
+
+        void JoinLaunchLobby()
+        {
+            EventBus.RaiseNotification("Joining invited lobby...");
+            JoinSteamLobby(Steam.LaunchLobbyId);
         }
 
         void AutoJoin() => JoinGame(TransportConfig.AutoJoinIp);
