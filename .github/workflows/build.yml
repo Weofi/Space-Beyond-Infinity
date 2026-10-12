@@ -6,6 +6,11 @@ on:
       - main
   workflow_dispatch:
 
+# A personal license fails when too many Unity instances activate at once.
+concurrency:
+  group: unity-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Both targets build on Linux (Mono backend), macOS runners are not needed.
   build:
@@ -66,11 +71,27 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download all artifacts
+      # skip-decompress keeps the build zips intact (they would be extracted otherwise).
+      - name: Download Windows build
         uses: actions/download-artifact@v8
         with:
-          path: dist
-          merge-multiple: true
+          name: Voidward-StandaloneWindows64.zip
+          path: dist/win
+          skip-decompress: true
+
+      - name: Download macOS build
+        uses: actions/download-artifact@v8
+        with:
+          name: Voidward-StandaloneOSX.zip
+          path: dist/mac
+          skip-decompress: true
+
+      - name: Name release files
+        run: |
+          mkdir release
+          mv dist/win/* release/Voidward-Windows.zip
+          mv dist/mac/* release/Voidward-macOS.zip
+          ls -la release
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -79,4 +100,5 @@ jobs:
           name: Voidward Build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
-          files: dist/**/*.zip
+          fail_on_unmatched_files: true
+          files: release/*.zip
