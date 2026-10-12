@@ -41,7 +41,7 @@ User speaks German – answer in German.
 
 ## Issue workflow (mandatory)
 Repo: `Weofi/Space-Beyond-Infinity`, default branch `main`. When the user hands over an issue:
-1. Read the issue (incl. images/mockups) via GitHub MCP.
+1. Read the issue (incl. images/mockups) via `gh issue view <nr> --comments`.
 2. `git checkout main && git pull`, then create a dedicated branch `issue-<nr>-<short-slug>` (never work on `main`).
 3. Push the branch early and open a **draft PR** against `main` with `Closes #<nr>` in the body (check for a PR template first).
 4. Implement on that branch with small, descriptive commits (`#<nr>: ...`), push regularly.
@@ -64,7 +64,7 @@ One issue = one branch = one PR. Don't mix issues.
 - Same Unity version on both machines (`ProjectSettings/ProjectVersion.txt`). Line endings are pinned to LF via `.gitattributes`.
 - Before switching machines: commit + push. On the other machine: `git pull` first, then open Unity.
 - `.mcp.json` is git-ignored (machine-specific Unity relay path); each machine keeps its own.
-- GitHub auth: GitHub CLI (`gh auth login --web`). The GitHub MCP server (`https://api.githubcopilot.com/mcp/`) does not support OAuth dynamic client registration, so `.mcp.json` passes the gh token via `headersHelper` (a script that prints `{"Authorization":"Bearer <gh auth token>"}`). `gh` also works directly for issues/PRs if MCP is down.
+- GitHub: use the GitHub CLI (`gh`, logged in via `gh auth login --web`) for issues, PRs and merges. No GitHub MCP server (its OAuth needs dynamic client registration, which Claude Code can't do with GitHub). On Windows, `gh` lives at `C:\Program Files\GitHub CLI\gh.exe` (call it by full path if PATH isn't refreshed yet).
 - After a first open/reimport on a machine, check `git status` before committing: reimport noise (package `.meta` files, emptied `m_List` in `UniversalRenderPipelineGlobalSettings.asset`) must not be committed.
 
 ## Status (2026-10-11)
