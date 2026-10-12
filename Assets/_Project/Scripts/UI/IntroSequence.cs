@@ -41,12 +41,13 @@ namespace Voidward.UI
             public float Duration;
             public Vector3 FromPos, ToPos, FromLook, ToLook;
             public Vector3? Highlight;
+            public Vector3 Up = Vector3.up;
             public bool ShowDistance = true;
         }
 
         enum State { Idle, Playing, SkipFade, Release }
 
-        readonly RectTransform root, caption, marker, skipHint, titleCard;
+        readonly RectTransform root, caption, marker, markerLabelBg, skipHint, titleCard;
         readonly Image black, barTop, barBottom, skipFill, liveDot;
         readonly TextMeshProUGUI captionTitle, captionBody, markerLabel, cardSector, cardName;
         readonly CanvasGroup captionGroup, markerGroup, cardGroup;
@@ -79,25 +80,32 @@ namespace Voidward.UI
             barBottom.rectTransform.anchorMin = new Vector2(0f, 0f);
             barBottom.rectTransform.anchorMax = new Vector2(1f, 0f);
 
-            // POI highlight: gold diamond + label.
+            // POI highlight: callout pin (dot on the target, stem, gold diamond) + label plate.
             marker = UIKit.Rect(root, "Highlight");
             marker.sizeDelta = new Vector2(40, 40);
             markerGroup = marker.gameObject.AddComponent<CanvasGroup>();
+            var dot = UIKit.Image(marker, "Dot", UIKit.Accent2);
+            dot.sprite = UIKit.Circle;
+            UIKit.Place(dot.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10, 10));
+            var stem = UIKit.Image(marker, "Stem", new Color(UIKit.Accent2.r, UIKit.Accent2.g, UIKit.Accent2.b, 0.8f), false);
+            UIKit.Place(stem.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 6), new Vector2(2, 30), new Vector2(0.5f, 0f));
             var outer = UIKit.Image(marker, "Diamond", UIKit.Accent2, false);
-            UIKit.Place(outer.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34, 34));
+            UIKit.Place(outer.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 52), new Vector2(30, 30));
             outer.rectTransform.localRotation = Quaternion.Euler(0, 0, 45);
             var inner = UIKit.Image(outer.transform, "Inner", new Color(0.04f, 0.08f, 0.18f, 0.85f), false);
             UIKit.Stretch(inner.rectTransform, 5, 5, 5, 5);
             var core = UIKit.Image(outer.transform, "Core", new Color(0.55f, 0.95f, 1f), false);
             UIKit.Place(core.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8, 8));
-            markerLabel = UIKit.Text(marker, "", 24, TextAlignmentOptions.Left, UIKit.TextColor, FontStyles.Bold);
-            UIKit.Place(markerLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(34, 0), new Vector2(420, 70), new Vector2(0f, 0.5f));
-            markerLabel.fontSharedMaterial = UIKit.ShadowMaterial;
+            var labelBg = UIKit.Image(marker, "LabelBg", new Color(UIKit.PanelColor.r, UIKit.PanelColor.g, UIKit.PanelColor.b, 0.82f));
+            markerLabelBg = labelBg.rectTransform;
+            UIKit.Place(markerLabelBg, new Vector2(0.5f, 0.5f), new Vector2(28, 52), new Vector2(200, 56), new Vector2(0f, 0.5f));
+            markerLabel = UIKit.Text(markerLabelBg, "", 22, TextAlignmentOptions.MidlineLeft, UIKit.TextColor, FontStyles.Bold);
+            UIKit.Stretch(markerLabel.rectTransform, 14, 10, 4, 4);
             markerLabel.textWrappingMode = TextWrappingModes.NoWrap;
 
             // Caption: chamfered frame, navy interior, blue title plate, typed body text.
             caption = UIKit.Image(root, "Caption", UIKit.Frame).rectTransform;
-            UIKit.Place(caption, new Vector2(0f, 0f), new Vector2(90f, Letterbox + 34f), new Vector2(880f, 214f), Vector2.zero);
+            UIKit.Place(caption, new Vector2(0f, 0f), new Vector2(90f, Letterbox + 34f), new Vector2(880f, 180f), Vector2.zero);
             captionGroup = caption.gameObject.AddComponent<CanvasGroup>();
             var capInner = UIKit.Image(caption, "Inner", new Color(UIKit.PanelColor.r, UIKit.PanelColor.g, UIKit.PanelColor.b, 0.94f));
             UIKit.Stretch(capInner.rectTransform, 5, 5, 5, 5);
@@ -118,7 +126,7 @@ namespace Voidward.UI
             var live = UIKit.Text(caption, "MISSION CONTROL // LIVE", 16, TextAlignmentOptions.Left, UIKit.TextDim, FontStyles.Bold);
             UIKit.Place(live.rectTransform, new Vector2(1f, 1f), new Vector2(-226f, -22f), new Vector2(220f, 24f), new Vector2(0f, 0.5f));
             captionBody = UIKit.Text(caption, "", 25, TextAlignmentOptions.TopLeft, UIKit.TextColor);
-            UIKit.Stretch(captionBody.rectTransform, 30, 30, 50, 20);
+            UIKit.Stretch(captionBody.rectTransform, 30, 30, 50, 16);
 
             // Skip hint with hold progress, inside the bottom letterbox bar.
             skipHint = UIKit.Rect(root, "SkipHint");
@@ -308,7 +316,7 @@ namespace Voidward.UI
             Vector3 pos = Vector3.Lerp(shot.FromPos, shot.ToPos, e);
             Vector3 look = Vector3.Lerp(shot.FromLook, shot.ToLook, e);
             if ((look - pos).sqrMagnitude > 0.01f)
-                cam.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(look - pos, Vector3.up));
+                cam.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(look - pos, shot.Up));
 
             // Caption: slide in, type out with radio blips, fade before the cut.
             float capIn = Mathf.Clamp01((shotTime - 0.25f) / 0.35f);
@@ -343,9 +351,15 @@ namespace Voidward.UI
             marker.anchoredPosition = local;
             marker.localScale = Vector3.one * Mathf.Lerp(1.8f, 1f, Ease(Mathf.Clamp01(t / 0.35f)));
             float dist = Vector3.Distance(anchor, shot.Highlight.Value);
-            markerLabel.text = shot.ShowDistance
+            string text = shot.ShowDistance
                 ? $"{shot.Label}\n<size=75%><color=#9FBCE6>{(dist > 1000f ? (dist / 1000f).ToString("0.0") + " km" : dist.ToString("0") + " m")} from you</color></size>"
                 : shot.Label;
+            if (markerLabel.text != text)
+            {
+                markerLabel.text = text;
+                Vector2 pref = markerLabel.GetPreferredValues(text);
+                markerLabelBg.sizeDelta = new Vector2(pref.x + 28f, pref.y + 12f);
+            }
         }
 
         bool NextShot()
@@ -365,7 +379,7 @@ namespace Voidward.UI
                 markerGroup.alpha = 0f;
                 Sfx.PlayUI(s.Sfx ?? "whoosh", 0.7f);
                 if (shotIndex > 0) Sfx.PlayUI("radio", 0.45f);
-                cam.transform.SetPositionAndRotation(s.FromPos, Quaternion.LookRotation(s.FromLook - s.FromPos, Vector3.up));
+                cam.transform.SetPositionAndRotation(s.FromPos, Quaternion.LookRotation(s.FromLook - s.FromPos, s.Up));
                 cam.PreviousStateIsValid = false;
                 return true;
             }
@@ -408,10 +422,10 @@ namespace Voidward.UI
                 Title = "Your crew",
                 Body = "You just dropped out of hyperspace at the edge of a dying sector. Every crew member flies their own ship - stick together.",
                 Label = "YOUR SHIP", ShowDistance = false, Highlight = s,
-                Duration = 6f,
-                FromPos = s + f * 70f - r * 44f + Vector3.up * 16f,
-                ToPos = s + f * 30f - r * 20f + Vector3.up * 6f,
-                FromLook = s - f * 20f, ToLook = s - f * 2f,
+                Duration = 5f,
+                FromPos = s - f * 60f - r * 30f + Vector3.up * 16f,
+                ToPos = s - f * 24f - r * 12f + Vector3.up * 6f,
+                FromLook = s + f * 10f, ToLook = s + f * 40f,
             };
         }
 
@@ -425,11 +439,11 @@ namespace Voidward.UI
             {
                 Title = "The Collapse",
                 Body = "Behind you a black hole is swallowing the sector, and it never stops. Anything it touches is lost for good - keep moving forward.",
-                Label = "THE COLLAPSE", Highlight = wall, Sfx = "rumble",
-                Duration = 6f,
-                FromPos = s + new Vector3(-8f, 10f, 26f),
-                ToPos = s + new Vector3(-34f, 5f, 12f),
-                FromLook = wall + Vector3.up * 260f + Vector3.forward * 200f, ToLook = wall,
+                Label = "THE COLLAPSE", Highlight = wall + new Vector3(0f, 140f, -260f), Sfx = "rumble",
+                Duration = 5.5f,
+                FromPos = s + new Vector3(34f, 12f, -22f),
+                ToPos = s + new Vector3(28f, 4f, -10f),
+                FromLook = wall + Vector3.up * 260f + Vector3.forward * 200f, ToLook = wall - Vector3.up * 120f,
             };
         }
 
@@ -446,9 +460,9 @@ namespace Voidward.UI
                 Title = "Derelict Ark",
                 Body = "A derelict capital ship drifts nearby. Bring 8 Scrap to restore its power - the whole crew can man its helm, turrets and engines.",
                 Label = "DERELICT ARK", Highlight = c,
-                Duration = 5.5f,
-                FromPos = c + Quaternion.AngleAxis(-25f, Vector3.up) * toAnchor * 150f + Vector3.up * 45f,
-                ToPos = c + Quaternion.AngleAxis(15f, Vector3.up) * toAnchor * 105f + Vector3.up * 22f,
+                Duration = 5f,
+                FromPos = c + Quaternion.AngleAxis(-25f, Vector3.up) * toAnchor * 115f + Vector3.up * 38f,
+                ToPos = c + Quaternion.AngleAxis(15f, Vector3.up) * toAnchor * 70f + Vector3.up * 16f,
                 FromLook = c + Vector3.up * 10f, ToLook = c,
             };
         }
@@ -465,7 +479,7 @@ namespace Voidward.UI
                 Title = "Planets",
                 Body = "Land to mine ore, crystals and fuel and to crack loot crates. Watch your oxygen - only some atmospheres are breathable.",
                 Label = "PLANET", Highlight = c,
-                Duration = 5.5f,
+                Duration = 5f,
                 FromPos = c + Quaternion.AngleAxis(-18f, Vector3.up) * d * r * 3.4f + Vector3.up * r * 0.5f,
                 ToPos = c + Quaternion.AngleAxis(14f, Vector3.up) * d * r * 2.5f + Vector3.up * r * 0.2f,
                 FromLook = c, ToLook = c,
@@ -491,10 +505,10 @@ namespace Voidward.UI
                 Title = "Hostile life",
                 Body = "Alien nests guard the planets and spawn creatures when you get close. Destroy them for loot - some hide Energy Cells.",
                 Label = "ALIEN NEST", Highlight = c + up * 1.5f, Sfx = "nest",
-                Duration = 5.5f,
+                Duration = 5f,
                 FromPos = c + up * 26f + t * 34f,
                 ToPos = c + up * 9f + t * 17f,
-                FromLook = c + up * 2f, ToLook = c + up * 1.5f,
+                FromLook = c + up * 2f, ToLook = c + up * 1.5f, Up = up,
             };
         }
 
@@ -510,7 +524,7 @@ namespace Voidward.UI
                 Title = "Trader station",
                 Body = "Buy Energy Cells, modules and fuel, sell what you find and repair your ship. Credits come from salvage and loot.",
                 Label = "TRADER STATION", Highlight = c,
-                Duration = 5f,
+                Duration = 4.5f,
                 FromPos = c + Quaternion.AngleAxis(30f, Vector3.up) * toAnchor * 120f + Vector3.up * 30f,
                 ToPos = c + Quaternion.AngleAxis(-5f, Vector3.up) * toAnchor * 80f + Vector3.up * 12f,
                 FromLook = c, ToLook = c,
@@ -528,7 +542,7 @@ namespace Voidward.UI
                 Title = "Mission: power the jump gate",
                 Body = $"Bring {cells} Energy Cells to the gate at the end of the sector. Once it is charged, the whole crew gathers here to jump. Cross 3 sectors and defeat the Warden.",
                 Label = "JUMP GATE", Highlight = c, Sfx = "jump_charge",
-                Duration = 7f,
+                Duration = 6.5f,
                 FromPos = c + new Vector3(-190f, 40f, 95f),
                 ToPos = c + new Vector3(-105f, 12f, 48f),
                 FromLook = c + Vector3.up * 20f, ToLook = c,
@@ -552,8 +566,8 @@ namespace Voidward.UI
                 Label = null,
                 Duration = 5f,
                 FromPos = vpPos - f * 40f + r * 22f + u * 12f,
-                ToPos = vpPos - f * 9f + u * 2.2f,
-                FromLook = s, ToLook = vpPos + f * 80f,
+                ToPos = vpPos - f * 14f + u * 4f,
+                FromLook = s, ToLook = vpPos + f * 40f - u * 3f, Up = u,
             };
         }
 
