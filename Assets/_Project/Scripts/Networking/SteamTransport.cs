@@ -216,7 +216,14 @@ namespace Voidward.Networking
         /// <inheritdoc/>
         public override ulong GetCurrentRtt(ulong clientId)
         {
-            // Estimate: Steam relay RTT is not directly exposed per-connection in this API.
+            try
+            {
+                if (_socketManager != null && _clientToConnection.TryGetValue(clientId, out var conn))
+                    return (ulong)Mathf.Max(0, conn.QuickStatus().Ping);
+                if (_connectionManager != null)
+                    return (ulong)Mathf.Max(0, _connectionManager.Connection.QuickStatus().Ping);
+            }
+            catch { }
             return 30;
         }
 
@@ -239,16 +246,11 @@ namespace Voidward.Networking
         {
             if (payload.Count == 0 || payload.Array == null) return;
 
-            if (payload.Offset == 0)
-            {
-                // SendMessage(byte[], SendType) — full array
-                conn.SendMessage(payload.Array, sendType);
-            }
-            else
-            {
-                // SendMessage(byte[], int offset, int size, SendType) — sub-range
-                conn.SendMessage(payload.Array, payload.Offset, payload.Count, sendType);
-            }
+            // Always send exactly the segment: NGO hands us a reused, larger cache array with
+            // Offset 0, so sending the whole array appends garbage and NGO rejects the batch.
+            var result = conn.SendMessage(payload.Array, payload.Offset, payload.Count, sendType);
+            if (result != Result.OK)
+                Debug.LogWarning("[SteamTransport] SendMessage failed: " + result + " (" + payload.Count + " bytes)");
         }
 
         // ---- Event enqueue helpers (called by socket/connection manager) ----
@@ -295,10 +297,18 @@ namespace Voidward.Networking
         {
             public SteamTransport Transport;
 
+            public override void OnConnecting(Connection connection, ConnectionInfo info)
+            {
+                Debug.Log("[SteamTransport] Incoming connection from " + info.Identity.SteamId.Value);
+                base.OnConnecting(connection, info); // accepts
+            }
+
             public override void OnConnected(Connection connection, ConnectionInfo info)
             {
+                // base adds the connection to the poll group; without it Receive() never sees its messages.
+                base.OnConnected(connection, info);
                 ulong id = Transport.RegisterConnection(connection);
-                Debug.Log("[SteamTransport] Client connected: id=" + id);
+                Debug.Log("[SteamTransport] Client connected: id=" + id + " steamId=" + info.Identity.SteamId.Value);
                 Transport.EnqueueConnect(id);
             }
 
@@ -306,8 +316,10 @@ namespace Voidward.Networking
             {
                 ulong id = Transport.GetClientIdFor(connection);
                 Transport.UnregisterConnection(connection);
-                Debug.Log("[SteamTransport] Client disconnected: id=" + id);
-                Transport.EnqueueDisconnect(id);
+                base.OnDisconnected(connection, info); // closes the connection, leaves the poll group
+                Debug.Log("[SteamTransport] Client disconnected: id=" + id + " state=" + info.State + " reason=" + info.EndReason);
+                // id 0 = never registered (closed while connecting) or already kicked: nothing to tell NGO.
+                if (id != 0) Transport.EnqueueDisconnect(id);
             }
 
             public override void OnMessage(Connection connection, NetIdentity identity, IntPtr data, int size, long recvTime, long msgNum, int channel)
@@ -326,13 +338,15 @@ namespace Voidward.Networking
 
             public override void OnConnected(ConnectionInfo info)
             {
+                base.OnConnected(info);
                 Debug.Log("[SteamTransport] Connected to host.");
                 Transport.EnqueueConnect(Transport.ServerClientId);
             }
 
             public override void OnDisconnected(ConnectionInfo info)
             {
-                Debug.Log("[SteamTransport] Disconnected from host.");
+                base.OnDisconnected(info);
+                Debug.Log("[SteamTransport] Disconnected from host: state=" + info.State + " reason=" + info.EndReason);
                 Transport.EnqueueDisconnect(Transport.ServerClientId);
             }
 

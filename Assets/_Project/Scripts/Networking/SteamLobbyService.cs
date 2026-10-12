@@ -44,20 +44,14 @@ namespace Voidward.Networking
     /// </summary>
     public class SteamCallbackPump : MonoBehaviour
     {
-        float _accumulator;
-
 #if VOIDWARD_STEAM
+        // Every frame: connection status changes (relay connect/accept) arrive through these callbacks.
         void Update()
         {
             if (!SteamClient.IsValid) return;
             try
             {
-                _accumulator += Time.unscaledDeltaTime;
-                if (_accumulator >= 0.1f)
-                {
-                    _accumulator = 0f;
-                    SteamClient.RunCallbacks();
-                }
+                SteamClient.RunCallbacks();
             }
             catch (Exception e)
             {
@@ -156,6 +150,8 @@ namespace Voidward.Networking
                     Debug.Log("[SteamLobbyService] Steam initialised. SteamId=" + SteamClient.SteamId.Value + " Name=" + SteamClient.Name);
                     InstallHooks();
                     ReadLaunchLobby();
+                    // Warm up the relay network now so the first P2P connect doesn't stall on it.
+                    try { SteamNetworkingUtils.InitRelayNetworkAccess(); } catch (Exception e) { Debug.LogWarning("[SteamLobbyService] InitRelayNetworkAccess failed: " + e.Message); }
                     SteamCallbackPump.EnsureExists();
                     SteamInitialized?.Invoke();
                 }
