@@ -341,6 +341,26 @@ namespace Voidward.Core
             }
         }
 
+        /// <summary>
+        /// Soft per-vertex weathering for everything added since `from`: blends vertex colours towards `tint` by
+        /// amount(position) in 0..1 and dulls the gloss accordingly. Shared positions get identical values, so the
+        /// result is a smooth gradient across faces (soot, burns, dust) instead of hard painted patches.
+        /// </summary>
+        public void Weather(int from, System.Func<Vector3, float> amount, Color tint, float dull = 0.8f)
+        {
+            for (int i = from; i < verts.Count; i++)
+            {
+                float k = Mathf.Clamp01(amount(verts[i]));
+                if (k <= 0f) continue;
+                var c = colors[i];
+                colors[i] = new Color(Mathf.Lerp(c.r, tint.r, k), Mathf.Lerp(c.g, tint.g, k), Mathf.Lerp(c.b, tint.b, k), c.a);
+                var s = surface[i];
+                s.x *= 1f - k * dull;
+                s.y *= 1f - k;
+                surface[i] = s;
+            }
+        }
+
         void PaintTri(int t, Color col, float gloss, float metal)
         {
             for (int k = t * 3; k < t * 3 + 3; k++)
