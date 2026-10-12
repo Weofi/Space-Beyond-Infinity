@@ -7,7 +7,8 @@ namespace Voidward.Core
     /// All clips are procedurally synthesized; ids are stable strings (see README/audio dev).
     /// Known ids: "laser","laser_ship","missile","flak","explosion","explosion_big","hit",
     /// "shield_hit","pickup","mine","craft","trade","ui_click","ui_back","ui_hover","alarm","low_oxygen",
-    /// "heal","jump_gate","jump_charge","landing","thud","ping","spawn","boss_roar","stardust".
+    /// "heal","jump_gate","jump_charge","landing","thud","ping","spawn","boss_roar","stardust",
+    /// "intro_swell","whoosh","radio","blip","highlight","rumble".
     /// </summary>
     public interface IAudioService
     {
