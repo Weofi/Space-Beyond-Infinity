@@ -39,6 +39,13 @@ namespace Voidward.AI
         Vector3 velocity;
         GravitySource planet;
         readonly RaycastHit[] groundHits = new RaycastHit[4];
+        // Space leash: after losing a target the enemy flies home and ignores players for a while.
+        float disengageUntil;
+        bool returning;
+        float lastHp = -1f;
+
+        /// <summary>Seconds a disengaged space enemy ignores players (unless shot).</summary>
+        const float DisengageTime = 8f;
 
         public bool IsSpaceEnemy => def != null && def.IsSpace;
 
@@ -77,11 +84,17 @@ namespace Voidward.AI
             float dt = Time.deltaTime;
             stateTimer += dt;
 
+            // Getting shot always (re)provokes, even while disengaged.
+            if (lastHp >= 0f && health.Hp.Value < lastHp - 0.01f) { disengageUntil = 0f; returning = false; }
+            lastHp = health.Hp.Value;
+
             retargetTimer -= dt;
             if (retargetTimer <= 0f)
             {
                 retargetTimer = 0.5f + Random.value * 0.3f;
-                target = FindTarget();
+                var prev = target;
+                target = Time.time < disengageUntil ? null : FindTarget();
+                if (def.IsSpace && prev != null && (target == null || OutOfPursuit())) Disengage();
             }
 
             // State transitions.
@@ -103,7 +116,14 @@ namespace Voidward.AI
 
             switch (CurrentState.Value)
             {
-                case State.Patrol: Patrol(dt); break;
+                case State.Patrol:
+                    if (returning)
+                    {
+                        MoveToward(home, def.MoveSpeed * 0.8f, dt);
+                        if ((transform.position - home).sqrMagnitude < 60f * 60f) returning = false;
+                    }
+                    else Patrol(dt);
+                    break;
                 case State.Chase: MoveToward(target.transform.position, def.MoveSpeed, dt); break;
                 case State.Attack: AttackTick(dt, dist); break;
                 case State.Flee:
@@ -120,9 +140,24 @@ namespace Voidward.AI
             stateTimer = 0f;
         }
 
+        /// <summary>Space enemies give up a chase that drags them too far from their patrol area.</summary>
+        bool OutOfPursuit() => def.PursuitRange > 0f && (transform.position - home).sqrMagnitude > def.PursuitRange * def.PursuitRange;
+
+        /// <summary>Lose the target (outran / out of range): fly home and ignore players for a while.</summary>
+        void Disengage()
+        {
+            target = null;
+            disengageUntil = Time.time + DisengageTime;
+            returning = true;
+            stateTimer = 0f;
+            SetState(State.Patrol);
+        }
+
         HealthComponent FindTarget()
         {
-            float range = def.AggroRange * (CurrentState.Value == State.Patrol ? 1f : 1.5f);
+            bool chasing = CurrentState.Value != State.Patrol;
+            // Space: once engaged, the target stays tracked until it leaves the leash range (outrun it to escape).
+            float range = def.IsSpace && chasing && def.LeashRange > 0f ? def.LeashRange : def.AggroRange * (chasing ? 1.5f : 1f);
             bool space = def.IsSpace;
             return HealthComponent.NearestOfTeam(Team.Players, transform.position, range, h =>
             {

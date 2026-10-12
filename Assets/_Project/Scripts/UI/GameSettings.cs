@@ -15,6 +15,8 @@ namespace Voidward.UI
         public float Music = 0.55f;
         public float SfxVol = 0.9f;
         public float Sensitivity = 1f;
+        public float ShipSensitivity = 1f;
+        public bool ShipAimAssist = true;
         public bool InvertY;
         public float Fov = 75f;
         public string PlayerName = "";
@@ -41,6 +43,8 @@ namespace Voidward.UI
                 UnityEngine.Screen.fullScreenMode = Fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed;
             Sfx.SetVolumes(Master, Music, SfxVol);
             VwInput.LookSensitivity = Sensitivity;
+            VwInput.ShipSensitivity = ShipSensitivity;
+            VwInput.ShipAimAssist = ShipAimAssist;
             VwInput.InvertY = InvertY;
             GameState.FieldOfView = Fov;
             Applied?.Invoke();

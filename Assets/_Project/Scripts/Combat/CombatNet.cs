@@ -47,7 +47,7 @@ namespace Voidward.Combat
             public ProjectileKind Kind;
             public Spec Spec;
             public Vector3 Pos, Dir;
-            public float Dmg, Age;
+            public float Dmg, Age, ProxMult = 1f;
             public Team Team;
             public ulong Src;
             public bool ByPlayer;
@@ -87,13 +87,15 @@ namespace Voidward.Combat
         // ------------------------------------------------------------------ API
 
         /// <summary>Server: fire an authoritative projectile.</summary>
-        public void Fire(ProjectileKind kind, Vector3 pos, Vector3 dir, float dmg, Team team, ulong srcClient, bool byPlayer, NetworkObject homingTarget = null)
+        public void Fire(ProjectileKind kind, Vector3 pos, Vector3 dir, float dmg, Team team, ulong srcClient, bool byPlayer, NetworkObject homingTarget = null, float radiusMult = 1f)
         {
             if (!IsServer) return;
             dir = dir.sqrMagnitude > 0.0001f ? dir.normalized : Vector3.forward;
+            var spec = GetSpec(kind);
+            spec.Radius *= Mathf.Clamp(radiusMult, 0.5f, 6f);
             var p = new Proj
             {
-                Id = nextId++, Kind = kind, Spec = GetSpec(kind), Pos = pos, Dir = dir, Dmg = dmg,
+                Id = nextId++, Kind = kind, Spec = spec, Pos = pos, Dir = dir, Dmg = dmg, ProxMult = Mathf.Clamp(radiusMult, 1f, 3f),
                 Team = team, Src = srcClient, ByPlayer = byPlayer,
                 Target = homingTarget != null ? homingTarget.transform : null
             };
@@ -102,10 +104,13 @@ namespace Voidward.Combat
         }
 
         /// <summary>Static convenience: safe to call when the system is missing.</summary>
-        public static void ServerFire(ProjectileKind kind, Vector3 pos, Vector3 dir, float dmg, Team team, ulong srcClient = 0, bool byPlayer = false, NetworkObject target = null)
+        public static void ServerFire(ProjectileKind kind, Vector3 pos, Vector3 dir, float dmg, Team team, ulong srcClient = 0, bool byPlayer = false, NetworkObject target = null, float radiusMult = 1f)
         {
-            if (Instance != null) Instance.Fire(kind, pos, dir, dmg, team, srcClient, byPlayer, target);
+            if (Instance != null) Instance.Fire(kind, pos, dir, dmg, team, srcClient, byPlayer, target, radiusMult);
         }
+
+        /// <summary>Muzzle speed of a projectile kind (m/s), e.g. for lead indicators.</summary>
+        public static float ProjectileSpeed(ProjectileKind kind) => GetSpec(kind).Speed;
 
         /// <summary>Client: on-foot weapons request a projectile (server clamps damage).</summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
@@ -177,7 +182,7 @@ namespace Voidward.Combat
                 Vector3 impact = p.Pos + p.Dir * step;
 
                 // proximity fuse (flak)
-                if (p.Kind == ProjectileKind.Flak && p.Age > 0.15f && EnemyNear(p.Pos, 6f, p.Team))
+                if (p.Kind == ProjectileKind.Flak && p.Age > 0.15f && EnemyNear(p.Pos, 6f * p.ProxMult, p.Team))
                 {
                     impact = p.Pos;
                     done = true;

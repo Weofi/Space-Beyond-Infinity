@@ -27,6 +27,10 @@ namespace Voidward.Data
         public EnemyKind[] SpaceEnemies = { EnemyKind.PirateFighter };
         [Tooltip("Max simultaneously alive space enemies in this sector.")]
         public int SpaceEnemyCap = 6;
+        [Tooltip("Seconds after sector start before space enemies spawn (patrols, distress pirates).")]
+        public float SpaceEnemyGrace = 60f;
+        [Tooltip("Seconds after the grace period over which the space enemy cap ramps from 1 to SpaceEnemyCap.")]
+        public float SpaceEnemyRamp = 120f;
         public EnemyKind[] SurfaceEnemies = { EnemyKind.Crawler };
         public float EnemyTier = 1f;             // stat multiplier
 

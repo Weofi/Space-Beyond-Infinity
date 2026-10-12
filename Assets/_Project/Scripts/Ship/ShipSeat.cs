@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using Voidward.Combat;
 using Voidward.Core;
 using Voidward.Data;
 
@@ -37,6 +38,10 @@ namespace Voidward.Ship
 
         Vector2 localAim;
         float aimSendTimer;
+        Vector2 pilotLook;
+
+        /// <summary>Max distance for aim assist / lead indicators.</summary>
+        const float AssistRange = 900f;
 
         static readonly List<ShipSeat> all = new List<ShipSeat>();
         public static IReadOnlyList<ShipSeat> All => all;
@@ -177,23 +182,35 @@ namespace Voidward.Ship
         void TickPilot(bool input)
         {
             if (flight == null || Ship == null) return;
-            if (!input) { flight.SetPilotInput(Vector3.zero, Vector3.zero, false, false); return; }
+            if (!input) { pilotLook = Vector2.zero; AimAssist.Clear(); flight.SetPilotInput(Vector3.zero, Vector3.zero, false, false); return; }
             Vector2 mv = VwInput.Move.ReadValue<Vector2>();
             float vert = VwInput.Vertical.ReadValue<float>();
             float roll = VwInput.Roll.ReadValue<float>();
-            Vector2 look = VwInput.LookDelta * 0.09f;
-            flight.SetPilotInput(new Vector3(mv.x, vert, mv.y), new Vector3(-look.y, look.x, roll),
+            // Mouse speed -> turn rate, lightly smoothed against per-frame mouse jitter.
+            float dt = Time.deltaTime;
+            pilotLook = Vector2.Lerp(pilotLook, VwInput.ShipLookRate(dt), 1f - Mathf.Exp(-30f * dt));
+            flight.SetPilotInput(new Vector3(mv.x, vert, mv.y), new Vector3(-pilotLook.y, pilotLook.x, roll),
                 VwInput.Held(VwInput.Sprint), VwInput.Held(VwInput.Brake));
 
-            Vector3 aim = AimDirection(Ship.transform.forward, Ship.transform.position);
+            var s = Ship.Stats;
+            var muzzle = Ship.MuzzlesA != null && Ship.MuzzlesA.Length > 0 && Ship.MuzzlesA[0] != null ? Ship.MuzzlesA[0].position : Ship.transform.position;
+            var kindA = s.WeaponA != WeaponKind.None ? s.WeaponA : s.WeaponB;
+            Vector3 aim = AimDirection(muzzle, kindA, s.AimAssist);
             if (VwInput.Held(VwInput.Fire)) Ship.TryFireThrottled(0, aim);
-            if (VwInput.Held(VwInput.AltFire)) Ship.TryFireThrottled(1, aim);
+            if (VwInput.Held(VwInput.AltFire)) Ship.TryFireThrottled(1, s.WeaponB == kindA ? aim : AimDirection(muzzle, s.WeaponB, s.AimAssist));
         }
 
-        /// <summary>Converge fire on whatever is under the crosshair (or 400 m ahead).</summary>
-        Vector3 AimDirection(Vector3 fwd, Vector3 from)
+        /// <summary>
+        /// Converge fire on whatever is under the crosshair (or 400 m ahead); with a hostile inside the
+        /// assist cone, fire at its lead point instead.
+        /// </summary>
+        Vector3 AimDirection(Vector3 from, WeaponKind weapon, float assistDeg)
         {
             var vp = ViewPoint;
+            // Missiles home on their own: no lead needed, but still show the indicator.
+            float speed = weapon == WeaponKind.None ? 0f : CombatNet.ProjectileSpeed(ShipCore.ProjectileFor(weapon));
+            if (AimAssist.Solve(vp.position, vp.forward, from, speed, weapon == WeaponKind.Missile ? 0f : assistDeg, AssistRange, out var assisted))
+                return assisted;
             Vector3 target = vp.position + vp.forward * 400f;
             if (Physics.Raycast(vp.position + vp.forward * 12f, vp.forward, out var hit, 900f, ~0, QueryTriggerInteraction.Ignore))
                 target = hit.point;
@@ -215,11 +232,13 @@ namespace Voidward.Ship
                 aimSendTimer = 0.1f;
                 AimServerRpc(localAim);
             }
-            if (input && VwInput.Held(VwInput.Fire) && Time.time >= localFireTime)
+            if (!input) { AimAssist.Clear(); return; }
+            var m = Muzzle != null ? Muzzle : ViewPoint;
+            Vector3 dir = AimDirection(m.position, TurretWeapon, Ship != null ? Ship.Stats.AimAssist : ShipCore.BaseAimAssist);
+            if (VwInput.Held(VwInput.Fire) && Time.time >= localFireTime)
             {
                 localFireTime = Time.time + ShipCore.Cooldown(TurretWeapon, 2) * 0.9f;
-                var m = Muzzle != null ? Muzzle : ViewPoint;
-                TurretFireServerRpc(AimDirection(m.forward, m.position));
+                TurretFireServerRpc(dir);
             }
         }
 

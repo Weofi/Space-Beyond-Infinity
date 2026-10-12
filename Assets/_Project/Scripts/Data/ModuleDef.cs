@@ -32,6 +32,14 @@ namespace Voidward.Data
         public float FuelEfficiencyMult = 1f;   // <1 = burns less
         public float FuelTankAdd;
 
+        [Header("Combat upgrades (Targeting / WeaponMod slots)")]
+        [Tooltip("Pilot aim assist cone (degrees) added to the base assist.")]
+        public float AimAssistAdd;
+        [Tooltip("Extra projectiles per pilot shot (fanned around the aim).")]
+        public int ExtraProjectiles;
+        [Tooltip("Projectile hit radius multiplier for pilot weapons.")]
+        public float HitboxMult = 1f;
+
         [Header("Weapon modules only")]
         public WeaponKind Weapon = WeaponKind.None;
 
@@ -49,6 +57,9 @@ namespace Voidward.Data
             if (ScannerRangeAdd != 0f) sb.AppendLine($"Scanner +{ScannerRangeAdd:0}m");
             if (FuelEfficiencyMult != 1f) sb.AppendLine($"Fuel use x{FuelEfficiencyMult:0.##}");
             if (FuelTankAdd != 0f) sb.AppendLine($"Fuel tank +{FuelTankAdd:0}");
+            if (AimAssistAdd != 0f) sb.AppendLine($"Aim assist +{AimAssistAdd:0.#} deg");
+            if (ExtraProjectiles != 0) sb.AppendLine($"+{ExtraProjectiles} projectile{(ExtraProjectiles > 1 ? "s" : "")} per shot");
+            if (HitboxMult != 1f) sb.AppendLine($"Hit radius x{HitboxMult:0.##}");
             if (Weapon != WeaponKind.None) sb.AppendLine($"Weapon: {Weapon}");
             return sb.ToString().TrimEnd();
         }

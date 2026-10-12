@@ -15,7 +15,7 @@ namespace Voidward.Core
     public enum GearKind { None, Suit, Oxygen, Jetpack, MiningTool, Rifle }
 
     /// <summary>Ship module socket types. A ship has one socket per slot (WeaponA/B are two weapon sockets).</summary>
-    public enum ModuleSlot { Engine, WeaponA, WeaponB, Shield, Hull, Cargo, Scanner, FuelTank }
+    public enum ModuleSlot { Engine, WeaponA, WeaponB, Shield, Hull, Cargo, Scanner, FuelTank, Targeting, WeaponMod }
 
     public enum ModuleTier { Mk1 = 1, Mk2 = 2, Mk3 = 3 }
 

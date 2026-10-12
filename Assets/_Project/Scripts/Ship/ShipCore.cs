@@ -19,6 +19,8 @@ namespace Voidward.Ship
         public WeaponKind WeaponA, WeaponB;
         public int TierA, TierB;
         public float DmgMultA, DmgMultB, RateMult;
+        public float AimAssist, HitboxMult;
+        public int ExtraShots;
     }
 
     /// <summary>
@@ -29,7 +31,13 @@ namespace Voidward.Ship
     public class ShipCore : NetworkBehaviour
     {
         public const ulong NoPlayer = ulong.MaxValue;
-        public const int ModuleSlotCount = 8;
+        public const int ModuleSlotCount = 10;
+        /// <summary>Pilot aim assist cone (degrees) without a Targeting module.</summary>
+        public const float BaseAimAssist = 4f;
+        /// <summary>Fan angle between extra projectiles of a multishot salvo.</summary>
+        const float MultishotSpreadDeg = 1.8f;
+        /// <summary>Damage of each extra multishot projectile relative to the main one.</summary>
+        const float MultishotDamage = 0.6f;
 
         public ShipClass Class = ShipClass.Dart;
         [Tooltip("Muzzles for weapon slot A / B (pilot weapons).")]
@@ -156,6 +164,7 @@ namespace Voidward.Ship
             s.MaxSpeed = d.MaxSpeed; s.MaxShield = d.MaxShield; s.ShieldRegen = d.ShieldRegen; s.MaxHull = d.MaxHull;
             s.MaxFuel = d.MaxFuel; s.FuelEff = 1f; s.Scanner = 600f; s.CargoSlots = d.CargoWidth * d.CargoHeight;
             s.DmgMultA = 1f; s.DmgMultB = 1f; s.RateMult = 1f;
+            s.AimAssist = BaseAimAssist; s.HitboxMult = 1f; s.ExtraShots = 0;
 
             for (int i = 0; i < Modules.Count; i++)
             {
@@ -166,7 +175,8 @@ namespace Voidward.Ship
                 s.MaxShield += m.ShieldMaxAdd; s.ShieldRegen += m.ShieldRegenAdd; s.MaxHull += m.HullMaxAdd;
                 s.CargoSlots += m.CargoSlotsAdd; s.Scanner += m.ScannerRangeAdd; s.FuelEff *= m.FuelEfficiencyMult;
                 s.MaxFuel += m.FuelTankAdd;
-                if (i == (int)ModuleSlot.WeaponA) { s.WeaponA = m.Weapon; s.TierA = m.Tier; s.DmgMultA = m.WeaponDamageMult; s.RateMult *= 1f; }
+                s.RateMult *= m.FireRateMult; s.AimAssist += m.AimAssistAdd; s.HitboxMult *= m.HitboxMult; s.ExtraShots += m.ExtraProjectiles;
+                if (i == (int)ModuleSlot.WeaponA) { s.WeaponA = m.Weapon; s.TierA = m.Tier; s.DmgMultA = m.WeaponDamageMult; }
                 if (i == (int)ModuleSlot.WeaponB) { s.WeaponB = m.Weapon; s.TierB = m.Tier; s.DmgMultB = m.WeaponDamageMult; }
             }
             var p = Power.Value;
@@ -318,7 +328,21 @@ namespace Voidward.Ship
             float dmg = Damage(kind, tier) * (slot == 0 ? s.DmgMultA : s.DmgMultB);
             NetworkObject target = kind == WeaponKind.Missile ? FindMissileTarget(m.position, aimDir) : null;
             Vector3 dir = aimDir.sqrMagnitude > 0.01f ? aimDir.normalized : transform.forward;
-            CombatNet.ServerFire(ProjectileFor(kind), m.position + dir * 1.5f, dir, dmg, Team.Players, rp.Receive.SenderClientId, true, target);
+            var proj = ProjectileFor(kind);
+            ulong src = rp.Receive.SenderClientId;
+            CombatNet.ServerFire(proj, m.position + dir * 1.5f, dir, dmg, Team.Players, src, true, target, s.HitboxMult);
+
+            // Multishot: extra projectiles fanned around the aim, alternating sides.
+            int extra = Mathf.Clamp(s.ExtraShots, 0, 4);
+            Vector3 right = Vector3.Cross(transform.up, dir).normalized;
+            if (right.sqrMagnitude < 0.01f) right = transform.right;
+            for (int i = 0; i < extra; i++)
+            {
+                float side = (i % 2 == 0 ? 1f : -1f) * (i / 2 + 1) * MultishotSpreadDeg;
+                Vector3 d = Quaternion.AngleAxis(side, transform.up) * dir;
+                Vector3 offset = right * (i % 2 == 0 ? 1f : -1f) * (0.8f + 0.6f * (i / 2));
+                CombatNet.ServerFire(proj, m.position + offset + d * 1.5f, d, dmg * MultishotDamage, Team.Players, src, true, target, s.HitboxMult);
+            }
         }
 
         /// <summary>Server: fire from a turret seat.</summary>

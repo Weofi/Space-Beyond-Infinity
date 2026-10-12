@@ -46,6 +46,7 @@ namespace Voidward.World
         float distanceDone;
         float maxXThisSector;
         float spawnTimer;
+        float sectorStartTime;
         float eventTimer;
         int eventsLeft;
         float flareUntil;
@@ -290,6 +291,7 @@ namespace Voidward.World
             eventsLeft = def != null ? def.EventCount : 2;
             eventTimer = Random.Range(70f, 140f);
             spawnTimer = 40f;
+            sectorStartTime = Time.time;
             SectorIndex.Value = index;
             SectorSeed.Value = seed;
             GameState.Objective = def != null && def.IsBossSector ? "Defeat the Warden" : "Power the Jump Gate";
@@ -773,6 +775,19 @@ namespace Voidward.World
 
         static float TierFor(int sector) => 1f + (sector - 1) * 0.45f;
 
+        /// <summary>
+        /// Space enemy cap right now: 0 during the sector's grace period, then ramping from 1 up to
+        /// SpaceEnemyCap so new players get time to learn flying before the pirates show up.
+        /// </summary>
+        int SpaceEnemyCapNow(SectorDef def)
+        {
+            if (def == null) return 0;
+            float t = Time.time - sectorStartTime - def.SpaceEnemyGrace;
+            if (t < 0f) return 0;
+            int cap = Mathf.Max(1, def.SpaceEnemyCap);
+            return Mathf.Clamp(1 + Mathf.FloorToInt((cap - 1) * t / Mathf.Max(1f, def.SpaceEnemyRamp)), 1, cap);
+        }
+
         void TickSpawns(float dt)
         {
             spawnTimer -= dt;
@@ -808,7 +823,7 @@ namespace Voidward.World
                 else
                 {
                     int space = EnemyFactory.CountWhere(e => e.IsSpaceEnemy);
-                    if (space >= def.SpaceEnemyCap || def.SpaceEnemies.Length == 0 || Random.value < 0.55f) continue;
+                    if (space >= SpaceEnemyCapNow(def) || def.SpaceEnemies.Length == 0 || Random.value < 0.55f) continue;
                     var kind = def.SpaceEnemies[Random.Range(0, def.SpaceEnemies.Length)];
                     int group = kind == EnemyKind.DroneSwarm ? 3 : kind == EnemyKind.PirateGunship ? 1 : Random.Range(1, 3);
                     Vector3 basePos = p.transform.position + new Vector3(Random.Range(250f, 500f), Random.Range(-150f, 150f), Random.Range(-350f, 350f));
@@ -874,7 +889,7 @@ namespace Voidward.World
                     var rng = new System.Random(Random.Range(1, 99999));
                     SpawnWreckSite(c, rng, SectorIndex.Value + 1);
                     var def = layout.Def;
-                    if (def != null && def.SpaceEnemies.Length > 0)
+                    if (def != null && def.SpaceEnemies.Length > 0 && SpaceEnemyCapNow(def) > 0)
                         for (int i = 0; i < 2 + SectorIndex.Value; i++)
                             EnemyFactory.Spawn(def.SpaceEnemies[0], c + Random.onUnitSphere * 60f, Quaternion.identity, TierFor(SectorIndex.Value));
                     PingAllClientRpc(c, "Distress signal");
