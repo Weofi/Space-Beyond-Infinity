@@ -364,7 +364,7 @@ namespace Voidward.Ship
             float bestScore = float.MaxValue;
             foreach (var h in HealthComponent.All)
             {
-                if (h == null || !h.IsAlive || h.Team == Team.Players || h.Team == Team.Neutral) continue;
+                if (h == null || !h.IsTargetable || h.Team == Team.Players || h.Team == Team.Neutral) continue;
                 Vector3 to = h.transform.position - from;
                 float dist = to.magnitude;
                 if (dist > 700f) continue;

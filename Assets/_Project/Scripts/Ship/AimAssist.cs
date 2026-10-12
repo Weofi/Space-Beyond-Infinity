@@ -79,7 +79,7 @@ namespace Voidward.Ship
         }
 
         static bool IsHostile(HealthComponent h) =>
-            h != null && h.IsAlive && h.Team != Team.Players && h.Team != Team.Neutral && h.gameObject.activeInHierarchy;
+            h != null && h.IsTargetable && h.Team != Team.Players && h.Team != Team.Neutral && h.gameObject.activeInHierarchy;
 
         /// <summary>Point where a projectile fired now from <paramref name="from"/> meets a target moving at constant velocity.</summary>
         public static Vector3 Intercept(Vector3 from, Vector3 targetPos, Vector3 targetVel, float speed)

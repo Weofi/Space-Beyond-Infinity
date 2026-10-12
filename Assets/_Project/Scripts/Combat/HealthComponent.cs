@@ -20,7 +20,10 @@ namespace Voidward.Combat
         [Tooltip("If true and CheatManager.GodMode is on, damage is ignored (player pawns, player ships).")]
         public bool GodModeEligible;
         [Tooltip("Invulnerable until this is false (e.g. boss hull until weak points destroyed).")]
-        public bool Invulnerable;
+        [UnityEngine.Serialization.FormerlySerializedAs("Invulnerable")]
+        [SerializeField] bool invulnerable;
+        [Tooltip("Hint shown to a player whose shot hits this while invulnerable (empty = none).")]
+        public string ImmuneHint = "";
         [Tooltip("Incoming damage multiplier (armor). 1 = no reduction.")]
         public float DamageTakenMult = 1f;
         [Tooltip("Mark this part as a weak point (always counts as IsWeakPoint).")]
@@ -30,6 +33,17 @@ namespace Voidward.Combat
             100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
         public NetworkVariable<float> MaxHp = new NetworkVariable<float>(
             100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        readonly NetworkVariable<bool> invulnerableNet = new NetworkVariable<bool>(false);
+
+        /// <summary>Damage is ignored while set. Server writes, every peer reads (aim assist, HUD).</summary>
+        public bool Invulnerable
+        {
+            get => IsSpawned ? invulnerableNet.Value : invulnerable;
+            set { invulnerable = value; if (IsSpawned && IsServer) invulnerableNet.Value = value; }
+        }
+
+        /// <summary>Alive and currently damageable: what aim assist and homing should pick.</summary>
+        public bool IsTargetable => IsAlive && !Invulnerable;
 
         /// <summary>Server-side hook (shields): returns the damage amount that reaches the hull.</summary>
         public Func<DamageInfo, float> DamageFilter;
@@ -45,6 +59,8 @@ namespace Voidward.Combat
         public bool IsAlive => Hp.Value > 0f;
         public float Fraction => MaxHp.Value > 0f ? Hp.Value / MaxHp.Value : 0f;
         GameObject IDamageable.gameObject => gameObject;
+        float nextImmuneFx;
+        static float nextImmuneHint;
 
         /// <summary>All spawned health components (every client) — used for targeting.</summary>
         public static readonly List<HealthComponent> All = new List<HealthComponent>();
@@ -58,6 +74,7 @@ namespace Voidward.Combat
             {
                 MaxHp.Value = MaxHealth;
                 Hp.Value = MaxHealth;
+                invulnerableNet.Value = invulnerable;
             }
             Hp.OnValueChanged += OnHpChanged;
             HealthChanged?.Invoke(Hp.Value, MaxHp.Value);
@@ -85,7 +102,13 @@ namespace Voidward.Combat
         /// <summary>Server-side damage entry (IDamageable). No-op on clients.</summary>
         public void ApplyDamage(DamageInfo info)
         {
-            if (!IsServer || !IsSpawned || !IsAlive || Invulnerable) return;
+            if (!IsServer || !IsSpawned || !IsAlive) return;
+            if (Invulnerable)
+            {
+                // Tell the shooter why nothing happens (throttled): shield flash + hint.
+                if (info.ByPlayer && Time.time >= nextImmuneFx) { nextImmuneFx = Time.time + 0.2f; ImmuneClientRpc(info.Point, info.SourceClientId); }
+                return;
+            }
             if (GodModeEligible && CheatManager.GodMode) return;
 
             float amount = info.Amount * DamageTakenMult;
@@ -129,6 +152,17 @@ namespace Voidward.Combat
         {
             if (!IsServer) return;
             Hp.Value = MaxHp.Value;
+        }
+
+        [ClientRpc]
+        void ImmuneClientRpc(Vector3 point, ulong shooter)
+        {
+            Vfx.ShieldHit(point);
+            Sfx.Play("shield_hit", point, 0.8f, UnityEngine.Random.Range(0.9f, 1.1f));
+            if (shooter != NetworkManager.LocalClientId || string.IsNullOrEmpty(ImmuneHint) || Time.time < nextImmuneHint) return;
+            nextImmuneHint = Time.time + 6f;
+            EventBus.RaiseNotification(ImmuneHint);
+            Sfx.PlayUI("ui_back");
         }
 
         [ClientRpc]

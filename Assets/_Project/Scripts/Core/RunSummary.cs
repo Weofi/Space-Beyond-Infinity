@@ -18,7 +18,7 @@ namespace Voidward.Core
         /// <summary>Stardust conversion: the meta currency earned by this run.</summary>
         public int ComputeStardust()
         {
-            float dust = DistanceTraveled * 0.01f + Kills * 2f + (SectorReached - 1) * 50f + (Victory ? 150f : 0f);
+            float dust = DistanceTraveled * 0.005f + Kills * 2f + (SectorReached - 1) * 50f + (Victory ? 150f : 0f);
             return UnityEngine.Mathf.Max(0, UnityEngine.Mathf.RoundToInt(dust));
         }
     }

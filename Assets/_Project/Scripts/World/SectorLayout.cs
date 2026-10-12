@@ -8,8 +8,8 @@ namespace Voidward.World
     /// Deterministic sector layout shared by server (spawning) and clients (local visuals).
     /// The corridor runs along +X and is centered on the origin: every sector is rebuilt around
     /// (0,0,0), which is our floating-origin strategy (world rebasing on each jump keeps all
-    /// coordinates within ~8 km incl. the kilometre-scale planets, so float precision stays around a
-    /// millimetre in multiplayer).
+    /// coordinates within ~12 km incl. the kilometre-scale planets, so float precision stays around a
+    /// millimetre in multiplayer). Distances are deliberately large (#22): crossing a sector is a trip.
     /// </summary>
     public class SectorLayout
     {
@@ -37,36 +37,36 @@ namespace Voidward.World
         {
             var L = new SectorLayout { Seed = seed, Def = def };
             var rng = new System.Random(seed);
-            L.Length = def != null ? def.CorridorLength : 4500f;
+            L.Length = def != null ? def.CorridorLength : 9000f;
             L.StartX = -L.Length * 0.5f;
             L.EndX = L.Length * 0.5f;
             L.StartPoint = new Vector3(L.StartX + 80f, 0f, 0f);
             L.GatePos = new Vector3(L.EndX, 0f, 0f);
             L.BossPos = new Vector3(L.EndX - 300f, 40f, 0f);
-            L.StationPos = new Vector3(MathUtils.Range(rng, -300f, 300f), MathUtils.Range(rng, -60f, 60f), MathUtils.Range(rng, 180f, 260f) * Sign(rng));
-            L.ArkPos = new Vector3(L.StartX + 700f, 25f, -140f);
+            L.StationPos = new Vector3(MathUtils.Range(rng, -L.Length * 0.15f, L.Length * 0.15f), MathUtils.Range(rng, -120f, 120f), MathUtils.Range(rng, 350f, 600f) * Sign(rng));
+            L.ArkPos = new Vector3(L.StartX + 1500f, 40f, -320f);
 
             int nPlanets = def != null ? rng.Next(def.MinPlanets, def.MaxPlanets + 1) : 3;
             L.Planets = new PlanetSpot[nPlanets];
             var cat = ContentCatalog.Instance;
-            float usable = L.Length - 1400f;
+            float usable = L.Length - 2600f;
             float firstSide = Sign(rng);
             for (int i = 0; i < nPlanets; i++)
             {
                 // Kilometre-scale worlds alternate sides of the corridor, their atmospheres just clear of the lane.
                 float t = (i + 0.5f) / nPlanets;
-                float x = L.StartX + 700f + usable * t + MathUtils.Range(rng, -150f, 150f);
+                float x = L.StartX + 1300f + usable * t + MathUtils.Range(rng, -350f, 350f);
                 float r = MathUtils.Range(rng, MinPlanetRadius, MaxPlanetRadius);
                 float side = (i % 2 == 0 ? 1f : -1f) * firstSide;
-                float off = r * 1.3f + MathUtils.Range(rng, 260f, 600f);
+                float off = r * 1.3f + MathUtils.Range(rng, 600f, 1300f);
                 float ang = MathUtils.Range(rng, -0.45f, 0.45f);
                 Vector3 p = new Vector3(x, Mathf.Sin(ang) * off, Mathf.Cos(ang) * off * side);
                 Vector3 outward = new Vector3(0f, p.y, p.z).normalized;
                 for (int k = 0; k < 8; k++)
                 {
-                    bool clear = Vector3.Distance(p, L.StationPos) > r * 1.4f + 250f;
+                    bool clear = Vector3.Distance(p, L.StationPos) > r * 1.4f + 400f;
                     for (int j = 0; j < i && clear; j++)
-                        if (Vector3.Distance(p, L.Planets[j].Pos) < (r + L.Planets[j].Radius) * 1.35f + 300f) clear = false;
+                        if (Vector3.Distance(p, L.Planets[j].Pos) < (r + L.Planets[j].Radius) * 1.35f + 600f) clear = false;
                     if (clear) break;
                     p += outward * 400f;
                 }
@@ -84,13 +84,13 @@ namespace Voidward.World
             L.Fields = new Field[nFields];
             for (int i = 0; i < nFields; i++)
             {
-                float x = L.StartX + 500f + (L.Length - 900f) * ((i + 0.5f) / nFields) + MathUtils.Range(rng, -200f, 200f);
-                Vector3 c = new Vector3(x, MathUtils.Range(rng, -120f, 120f), MathUtils.Range(rng, -160f, 160f));
+                float x = L.StartX + 900f + (L.Length - 1700f) * ((i + 0.5f) / nFields) + MathUtils.Range(rng, -350f, 350f);
+                Vector3 c = new Vector3(x, MathUtils.Range(rng, -120f, 120f), MathUtils.Range(rng, -220f, 220f));
                 L.Fields[i] = new Field
                 {
                     Center = c,
-                    Extents = new Vector3(MathUtils.Range(rng, 120f, 220f), MathUtils.Range(rng, 50f, 110f), MathUtils.Range(rng, 120f, 220f)),
-                    Count = rng.Next(45, 80),
+                    Extents = new Vector3(MathUtils.Range(rng, 160f, 300f), MathUtils.Range(rng, 60f, 130f), MathUtils.Range(rng, 160f, 300f)),
+                    Count = rng.Next(55, 95),
                     Seed = rng.Next()
                 };
             }
@@ -98,7 +98,7 @@ namespace Voidward.World
             int nWrecks = def != null ? def.WreckCount : 2;
             L.Wrecks = new Vector3[nWrecks];
             for (int i = 0; i < nWrecks; i++)
-                L.Wrecks[i] = new Vector3(MathUtils.Range(rng, L.StartX + 400f, L.EndX - 500f), MathUtils.Range(rng, -80f, 80f), MathUtils.Range(rng, 80f, 200f) * Sign(rng));
+                L.Wrecks[i] = new Vector3(MathUtils.Range(rng, L.StartX + 800f, L.EndX - 900f), MathUtils.Range(rng, -150f, 150f), MathUtils.Range(rng, 150f, 450f) * Sign(rng));
             return L;
         }
 

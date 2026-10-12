@@ -35,6 +35,7 @@ namespace Voidward.UI
         readonly List<TextMeshProUGUI> pingLabels = new List<TextMeshProUGUI>();
         readonly List<TextMeshProUGUI> siteLabels = new List<TextMeshProUGUI>();
         TextMeshProUGUI gateMarker, stationMarker, arkMarker;
+        readonly TextMeshProUGUI[] bossMarkers = new TextMeshProUGUI[4];
         float vignetteAlpha;
         float lowO2Beep;
         bool lowO2;
@@ -58,6 +59,7 @@ namespace Voidward.UI
             gateMarker = Marker("[ GATE ]", UIKit.Accent);
             stationMarker = Marker("[ STATION ]", UIKit.Warn);
             arkMarker = Marker("[ ARK ]", UIKit.Accent2);
+            for (int i = 0; i < bossMarkers.Length; i++) bossMarkers[i] = Marker("", UIKit.Bad);
 
             // Vitals (bottom-left)
             var vit = UIKit.Panel(root, "Vitals");
@@ -402,6 +404,8 @@ namespace Voidward.UI
             foreach (var s in ShipCore.All) if (s != null && s.Class == ShipClass.Ark) ark = s;
             Place(arkMarker, cam, ark != null ? ark.transform.position + ark.transform.up * 8f : (Vector3?)null, ark != null && ark.Derelict.Value ? "[ DERELICT ARK ]" : "[ ARK ]");
 
+            UpdateBossMarkers(cam);
+
             pings.RemoveAll(p => Time.time > p.Until);
             while (pingLabels.Count < pings.Count) pingLabels.Add(Marker("", Color.white));
             for (int i = 0; i < pingLabels.Count; i++)
@@ -492,6 +496,29 @@ namespace Voidward.UI
             float d = to.magnitude;
             if (d < minDist || d > maxDist) return false;
             return Vector3.Dot((p - center).normalized, to / d) > -0.05f;
+        }
+
+        /// <summary>Boss fight: mark the live core pods while the hull is shielded, then the hull itself.</summary>
+        void UpdateBossMarkers(Camera cam)
+        {
+            var boss = BossBrain.Instance;
+            bool fight = boss != null && boss.IsSpawned;
+            for (int i = 0; i < bossMarkers.Length; i++)
+            {
+                Vector3? at = null;
+                string label = "";
+                if (fight && boss.Phase.Value == 1 && i < boss.Pods.Length && boss.Pods[i] != null && boss.Pods[i].IsAlive)
+                {
+                    at = boss.Pods[i].transform.position;
+                    label = "> CORE <";
+                }
+                else if (fight && boss.Phase.Value >= 2 && i == bossMarkers.Length - 1)
+                {
+                    at = boss.transform.position;
+                    label = "[ HULL - FIRE! ]";
+                }
+                Place(bossMarkers[i], cam, at, label);
+            }
         }
 
         static void Place(TextMeshProUGUI marker, Camera cam, Vector3? world, string label)

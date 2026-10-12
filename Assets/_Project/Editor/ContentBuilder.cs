@@ -444,15 +444,15 @@ namespace Voidward.EditorTools
             }
             return new[]
             {
-                S(1, "Pastel Drift", "Calm before the storm. Gather Energy Cells - and find the derelict Ark.", 4500, 2, 3, 3, 2,
+                S(1, "Pastel Drift", "Calm before the storm. Gather Energy Cells - and find the derelict Ark.", 9000, 2, 3, 4, 3,
                     new[] { biomes["Ice"], biomes["Desert"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.DroneSwarm }, 3,
-                    new[] { EnemyKind.Crawler, EnemyKind.Spitter }, 1f, 6f, 1200, 2, 2, false),
-                S(2, "Verdigris Expanse", "Pirate gunships patrol these lanes. The Collapse is hungrier.", 5000, 2, 3, 4, 3,
+                    new[] { EnemyKind.Crawler, EnemyKind.Spitter }, 1f, 9.5f, 1900, 3, 2, false),
+                S(2, "Verdigris Expanse", "Pirate gunships patrol these lanes. The Collapse is hungrier.", 10000, 2, 3, 5, 4,
                     new[] { biomes["ToxicJungle"], biomes["Desert"], biomes["Ice"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.DroneSwarm, EnemyKind.PirateGunship }, 4,
-                    new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter }, 1.5f, 7.5f, 1000, 3, 3, false),
-                S(3, "Ember Maw", "The Warden guards the last way out. Prepare, then face it.", 5000, 2, 3, 3, 2,
+                    new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter }, 1.5f, 12f, 1600, 4, 3, false),
+                S(3, "Ember Maw", "The Warden guards the last way out. Prepare, then face it.", 10000, 2, 3, 4, 3,
                     new[] { biomes["Volcanic"], biomes["ToxicJungle"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.PirateGunship, EnemyKind.DroneSwarm }, 5,
-                    new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter }, 2f, 8.5f, 900, 3, 0, true),
+                    new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter }, 2f, 13.5f, 1450, 4, 0, true),
             };
         }
 
@@ -504,11 +504,11 @@ namespace Voidward.EditorTools
             }
             return new[]
             {
-                S(ShipClass.Dart, "Dart", 110, 50, 6, 100, 0.5f, 34, 2.0f, 110, 140, 95, 0.35f, 3f, new[] { StationRole.Pilot }, 4, 2, false,
+                S(ShipClass.Dart, "Dart", 110, 50, 6, 150, 0.5f, 34, 2.0f, 110, 140, 95, 0.35f, 3f, new[] { StationRole.Pilot }, 4, 2, false,
                   new[] { "module_engine_mk1", "module_laser_mk1" }),
-                S(ShipClass.Mule, "Mule", 180, 80, 7, 160, 0.6f, 26, 1.8f, 80, 110, 80, 0.4f, 3f, new[] { StationRole.Pilot }, 6, 3, false,
+                S(ShipClass.Mule, "Mule", 180, 80, 7, 230, 0.6f, 26, 1.8f, 80, 110, 80, 0.4f, 3f, new[] { StationRole.Pilot }, 6, 3, false,
                   new[] { "module_engine_mk1", "module_laser_mk1", "module_flak_mk1", "module_cargo_mk1" }),
-                S(ShipClass.Ark, "Ark", 600, 250, 14, 300, 0.7f, 16, 1.6f, 38, 45, 70, 0.4f, 3.5f,
+                S(ShipClass.Ark, "Ark", 600, 250, 14, 420, 0.7f, 16, 1.6f, 38, 45, 70, 0.4f, 3.5f,
                   new[] { StationRole.Pilot, StationRole.Turret, StationRole.Turret, StationRole.Engineer }, 8, 4, true,
                   new[] { "module_engine_ark", "module_laser_mk2", "module_missile_mk1", "module_shield_mk2", "module_hull_mk2" }),
             };
