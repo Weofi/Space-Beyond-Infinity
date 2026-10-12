@@ -4,89 +4,78 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
-  # --- 1. WINDOWS BUILD ---
-  build-windows:
-    name: Build for Windows 🪟
+  # Both targets build on Linux (Mono backend), macOS runners are not needed.
+  build:
+    name: Build ${{ matrix.targetPlatform }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      matrix:
+        targetPlatform:
+          - StandaloneWindows64
+          - StandaloneOSX
     steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Load Library cache (Windows)
+      - name: Load Library cache
         uses: actions/cache@v4
         with:
-            path: Library
-            key: library-build-windows-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
-            restore-keys: |
-              library-build-windows-
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ matrix.targetPlatform }}-
 
-      - name: Build project (Windows)
+      - name: Build project
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          targetPlatform: StandaloneWindows64
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: Voidward
 
-      - name: Upload build result (Windows)
+      - name: Fix macOS executable bit
+        if: matrix.targetPlatform == 'StandaloneOSX'
+        run: sudo chmod -R +x build/StandaloneOSX/*.app/Contents/MacOS
+
+      # Release assets must be files, not folders (.app and _Data are directories).
+      - name: Zip build
+        run: |
+          cd build/${{ matrix.targetPlatform }}
+          zip -qry "$GITHUB_WORKSPACE/Voidward-${{ matrix.targetPlatform }}.zip" .
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-build
-          path: build/StandaloneWindows64
+          name: Voidward-${{ matrix.targetPlatform }}
+          path: Voidward-${{ matrix.targetPlatform }}.zip
 
-  # --- 2. MACOS BUILD ---
-  build-mac:
-    name: Build for macOS 🍏
-    runs-on: macos-latest
-    strategy:
-      fail-fast: false
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Load Library cache (Mac)
-        uses: actions/cache@v4
-        with:
-            path: Library
-            key: library-build-mac-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
-            restore-keys: |
-              library-build-mac-
-
-      - name: Build project (macOS)
-        uses: game-ci/unity-builder@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        with:
-          targetPlatform: StandaloneOSX
-
-      - name: Upload build result (macOS)
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-build
-          path: build/StandaloneOSX
-
-  # --- 3. RELEASE ERSTELLEN (Wartet, bis Windows und Mac fertig sind) ---
   release:
-    needs: [build-windows, build-mac]
+    needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: all-artifacts
+          path: dist
+          merge-multiple: true
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            all-artifacts/windows-build/*
-            all-artifacts/macos-build/*
+          files: dist/*.zip
