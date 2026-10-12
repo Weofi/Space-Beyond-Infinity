@@ -56,6 +56,7 @@ namespace Voidward.Data
 
         [Header("Shared rendering")]
         public Material ToonMaterial;
+        public Material TerrainMaterial;
         public Material SkyboxMaterial;
         public Material CollapseMaterial;
         public Material AtmosphereMaterial;

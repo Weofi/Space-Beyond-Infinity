@@ -10,6 +10,8 @@ Shader "VOIDWARD/NebulaSkybox"
         _NebulaStrength ("Nebula Strength", Range(0,3)) = 1.2
         _StarColor ("Star Color", Color) = (1,0.95,0.9,1)
         _StarDensity ("Star Density", Range(10,400)) = 160
+        _GalaxyStrength ("Galaxy Strength", Range(0,3)) = 1
+        _SunDiscStrength ("Sun Disc Strength", Range(0,4)) = 1
         _Seed ("Variation Seed", Float) = 0
     }
     SubShader
@@ -41,6 +43,8 @@ Shader "VOIDWARD/NebulaSkybox"
                 float _NebulaStrength;
                 float4 _StarColor;
                 float _StarDensity;
+                float _GalaxyStrength;
+                float _SunDiscStrength;
                 float _Seed;
             CBUFFER_END
 
@@ -97,35 +101,62 @@ Shader "VOIDWARD/NebulaSkybox"
                 return sum;
             }
 
+            float starLayer(float3 dir, float density, float threshold, float size)
+            {
+                float3 cellPos = dir * density;
+                float3 cell = floor(cellPos);
+                float h = hash31(cell);
+                if (h <= threshold) return 0.0;
+                float3 jitter = float3(hash31(cell + 11.3), hash31(cell + 23.9), hash31(cell + 37.1)) * 0.3 + 0.35;
+                float d = length(frac(cellPos) - jitter);
+                float star = saturate(1.0 - d * size);
+                float bright = (h - threshold) / (1.0 - threshold);
+                return star * star * star * lerp(0.25, 1.0, bright * bright);
+            }
+
             half4 frag(Varyings IN) : SV_Target
             {
                 float3 dir = normalize(IN.dir);
 
-                // vertical gradient
+                // Near-black base with a barely visible gradient (zenith/horizon come from the sector palette).
                 float g = saturate(dir.y * 0.5 + 0.5);
                 float3 col = lerp(_HorizonColor.rgb, _ZenithColor.rgb, pow(g, 0.75));
 
-                // nebula clouds (two tinted fbm layers)
+                // Faint nebula wisps, masked by a large-scale band so most of the sky stays black.
+                float band = smoothstep(0.45, 0.75, fbm(dir * 0.9 + _Seed * 0.3 + 5.3));
                 float n1 = fbm(dir * _NebulaScale + _Seed);
                 float n2 = fbm(dir * (_NebulaScale * 1.7) - _Seed * 0.7 + 31.7);
-                float neb = smoothstep(0.42, 0.85, n1) * _NebulaStrength;
-                float neb2 = smoothstep(0.5, 0.9, n2) * _NebulaStrength * 0.7;
-                col += _NebulaColorA.rgb * neb * 0.9;
-                col += _NebulaColorB.rgb * neb2 * 0.8;
+                float neb = smoothstep(0.45, 0.9, n1) * band * _NebulaStrength;
+                float neb2 = smoothstep(0.52, 0.92, n2) * band * _NebulaStrength * 0.7;
+                col += _NebulaColorA.rgb * neb * 0.35;
+                col += _NebulaColorB.rgb * neb2 * 0.3;
 
-                // stars: cell-hashed points with soft falloff
-                float3 cellPos = dir * _StarDensity;
-                float3 cell = floor(cellPos);
-                float h = hash31(cell);
-                if (h > 0.9965)
+                // Distant galaxies: rare soft elongated smudges with a bright core.
+                float3 gp = dir * 4.0;
+                float3 gc = floor(gp);
+                if (hash31(gc + 71.7) > 0.86)
                 {
-                    float3 center = cell + 0.5;
-                    float d = length(frac(cellPos) - 0.5);
-                    float star = saturate(1.0 - d * 2.2);
-                    star = star * star;
-                    float bright = (h - 0.9965) / 0.0035; // 0..1
-                    col += _StarColor.rgb * star * lerp(0.4, 2.2, bright);
+                    float3 f = frac(gp) - 0.5;
+                    float3 ax = normalize(float3(hash31(gc + 1.3), hash31(gc + 2.7), hash31(gc + 5.1)) - 0.5);
+                    float along = dot(f, ax);
+                    float3 perp = f - ax * along;
+                    float d2 = along * along + dot(perp, perp) * 7.0;
+                    float tint = hash31(gc + 9.9);
+                    float3 gcol = lerp(float3(0.75, 0.82, 1.0), float3(1.0, 0.85, 0.7), tint);
+                    col += gcol * (exp(-d2 * 260.0) * 0.18 + exp(-d2 * 4000.0) * 0.6) * _GalaxyStrength;
                 }
+
+                // Stars: dense faint dust + sparse bright stars, slightly tinted.
+                float dust = starLayer(dir, _StarDensity * 2.2, 0.978, 4.0) * 0.55;
+                float bright = starLayer(dir, _StarDensity, 0.9965, 3.0) * 2.4;
+                float starTint = hash31(floor(dir * _StarDensity));
+                float3 sc = _StarColor.rgb * lerp(float3(0.8, 0.88, 1.0), float3(1.0, 0.92, 0.8), starTint);
+                col += sc * (dust + bright) * (1.0 - neb * 0.5);
+
+                // Sun disc + soft corona in the main light direction (bloom does the rest).
+                float3 sunCol = _MainLightColor.rgb / max(max(_MainLightColor.r, _MainLightColor.g), max(_MainLightColor.b, 0.001));
+                float sd = saturate(dot(dir, _MainLightPosition.xyz));
+                col += sunCol * (smoothstep(0.99985, 0.99993, sd) * 30.0 + pow(sd, 900.0) * 1.5 + pow(sd, 40.0) * 0.06) * _SunDiscStrength;
 
                 return half4(col, 1);
             }

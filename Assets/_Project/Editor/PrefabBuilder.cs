@@ -66,6 +66,32 @@ namespace Voidward.EditorTools
             Shiny(mb, Matte, () => mb.AddPrism(TR(rear.x, rear.y, rear.z - len * 0.05f, 90, 0, 0), r * 0.74f, r * 0.74f, len * 0.06f, 8, Dark));
         }
 
+        /// <summary>Unshadowed local light. URP point/spot falloff is inverse-square, so intensity scales with range squared.</summary>
+        static Light AddLight(Transform parent, string name, Vector3 pos, Color color, float intensity, float range, float spotAngle = 0f, Quaternion? rot = null)
+        {
+            var go = Child(parent, name, pos, rot);
+            var l = go.AddComponent<Light>();
+            l.type = spotAngle > 0f ? LightType.Spot : LightType.Point;
+            l.color = color;
+            l.intensity = intensity;
+            l.range = range;
+            if (spotAngle > 0f) { l.spotAngle = spotAngle; l.innerSpotAngle = spotAngle * 0.45f; }
+            l.shadows = LightShadows.None;
+            return l;
+        }
+
+        static readonly Color LampWhite = new Color(1f, 0.95f, 0.86f);
+
+        /// <summary>Ship headlights (driven by ShipLights) plus an always-on cyan ground beacon so parked ships are easy to find.</summary>
+        static void ShipLighting(GameObject ship, Vector3 beacon, float beaconRange, params Vector3[] headlights)
+        {
+            var lights = new Light[headlights.Length];
+            for (int i = 0; i < headlights.Length; i++)
+                lights[i] = AddLight(ship.transform, "Headlight", headlights[i], LampWhite, 1100f, 170f, 48f, Quaternion.Euler(4f, 0f, 0f));
+            ship.AddComponent<ShipLights>().Headlights = lights;
+            AddLight(ship.transform, "Beacon", beacon, Cyan, beaconRange * 0.5f, beaconRange);
+        }
+
         static Matrix4x4 T(float x, float y, float z) => Matrix4x4.Translate(new Vector3(x, y, z));
         static Matrix4x4 TR(float x, float y, float z, float rx, float ry, float rz) => Matrix4x4.TRS(new Vector3(x, y, z), Quaternion.Euler(rx, ry, rz), Vector3.one);
 
@@ -329,6 +355,9 @@ namespace Voidward.EditorTools
             SetArray(pawn, "toolModels", tools);
             Set(pawn, "muzzle", muzzle.transform);
             Set(pawn, "beam", lr);
+
+            var lamp = AddLight(go.transform, "Headlamp", new Vector3(0, 1.74f, 0.4f), LampWhite, 180f, 60f, 58f);
+            Set(go.AddComponent<PlayerHeadlamp>(), "lamp", lamp);
             return SavePrefab(go);
         }
 
@@ -483,6 +512,7 @@ namespace Voidward.EditorTools
             core.FabricatorPoint = go.transform;
             var fx = go.AddComponent<ShipEngineFx>();
             fx.Thrusters = Thrusters(go.transform, new Vector3(-0.75f, 0, -4.4f), new Vector3(0.75f, 0, -4.4f));
+            ShipLighting(go, new Vector3(0, -1.2f, 0), 10f, new Vector3(-1.2f, -0.35f, 3.3f), new Vector3(1.2f, -0.35f, 3.3f));
             return SavePrefab(go);
         }
 
@@ -532,6 +562,7 @@ namespace Voidward.EditorTools
             core.FabricatorPoint = go.transform;
             var fx = go.AddComponent<ShipEngineFx>();
             fx.Thrusters = Thrusters(go.transform, new Vector3(-1f, 0.55f, -6.1f), new Vector3(-1f, -0.55f, -6.1f), new Vector3(1f, 0.55f, -6.1f), new Vector3(1f, -0.55f, -6.1f));
+            ShipLighting(go, new Vector3(0, -2f, -1f), 12f, new Vector3(-1.6f, -0.9f, 3.4f), new Vector3(1.6f, -0.9f, 3.4f));
             return SavePrefab(go);
         }
 
@@ -685,6 +716,9 @@ namespace Voidward.EditorTools
             var fx = go.AddComponent<ShipEngineFx>();
             fx.Thrusters = Thrusters(go.transform, new Vector3(-3.6f, 2.8f, -17.2f), new Vector3(-3.6f, 0.2f, -17.2f), new Vector3(3.6f, 2.8f, -17.2f), new Vector3(3.6f, 0.2f, -17.2f));
             foreach (var t in fx.Thrusters) t.localScale = new Vector3(2.6f, 2.6f, 2.6f);
+            ShipLighting(go, new Vector3(0, -3f, 0), 24f, new Vector3(-3f, -1.2f, 17.2f), new Vector3(3f, -1.2f, 17.2f));
+            // Interior: the hull blocks the sun, so the cabin gets its own cool ceiling lights.
+            for (int i = 0; i < 3; i++) AddLight(go.transform, "CabinLight", new Vector3(0, 3.6f, -8f + i * 8f), new Color(0.75f, 0.88f, 1f), 9f, 9f);
             return SavePrefab(go);
         }
 
@@ -910,6 +944,7 @@ namespace Voidward.EditorTools
             Shiny(mb, Matte, () => mb.AddBox(T(0, 0.04f, 0), new Vector3(1.42f, 0.08f, 0.92f), Dark));
             Glow(mb, () => mb.AddBox(T(0, 0.5f, 0.455f), new Vector3(0.3f, 0.06f, 0.02f), Cyan));
             Visual(go.transform, "Body", SaveMesh(mb, "Crate_Body"));
+            AddLight(go.transform, "Glow", new Vector3(0, 0.9f, 0.7f), Cyan, 2.5f, 4f);
             var lid = Child(go.transform, "LidPivot", new Vector3(0, 0.7f, -0.45f));
             var lm = MB();
             lm.AddBox(T(0, 0.08f, 0.45f), new Vector3(1.44f, 0.16f, 0.94f), White);
@@ -987,6 +1022,7 @@ namespace Voidward.EditorTools
             }
             Glow(mb, () => mb.AddPrism(T(0, 2.4f, 0), 0.6f, 0.1f, 1.4f, 6, Pink), 0.8f);
             Visual(go.transform, "Mound", SaveMesh(mb, "Nest"));
+            AddLight(go.transform, "Glow", new Vector3(0, 3.6f, 0), Pink, 12f, 12f);
             var sc = go.AddComponent<SphereCollider>();
             sc.radius = 2.6f; sc.center = new Vector3(0, 1f, 0);
             return SavePrefab(go);
@@ -1019,6 +1055,7 @@ namespace Voidward.EditorTools
             }, 0.9f);
             Box(go, new Vector3(0, 0.15f, 0), new Vector3(8f, 0.3f, 8f));
             Visual(go.transform, "Mesh", SaveMesh(mb, "Ruin"));
+            AddLight(go.transform, "Glow", new Vector3(0, 2.6f, 0), Cyan, 20f, 15f);
             return SavePrefab(go);
         }
 
@@ -1034,6 +1071,7 @@ namespace Voidward.EditorTools
             Shiny(mb, Matte, () => mb.AddPrism(TR(-1f, 0.6f, -4.5f, 80, 15, 0), 0.8f, 0.6f, 1.6f, 8, Dark));
             Glow(mb, () => mb.AddBox(TR(0.6f, 1.9f, 1f, 8, 15, 12), new Vector3(0.6f, 0.06f, 0.6f), Red), 0.8f);
             Visual(go.transform, "Mesh", SaveMesh(mb, "CrashedShip"));
+            AddLight(go.transform, "Warning", new Vector3(0.6f, 2.6f, 1f), Red, 8f, 10f);
             Box(go, new Vector3(0, 0.8f, 0), new Vector3(3.4f, 2.2f, 9f));
             return SavePrefab(go);
         }
@@ -1080,6 +1118,8 @@ namespace Voidward.EditorTools
                 for (int i = 0; i < 4; i++) mb.AddPrism(T(-14f + (i % 2) * 28f, 1f, 20f + (i / 2) * 28f), 0.3f, 0.3f, 4f, 6, Cyan);
             }, 0.9f);
             Visual(go.transform, "Hub", SaveMesh(mb, "Station_Hub"));
+            for (int i = 0; i < 4; i++) AddLight(go.transform, "PadLight", new Vector3(-14f + (i % 2) * 28f, 3.5f, 20f + (i / 2) * 28f), Cyan, 40f, 22f);
+            AddLight(go.transform, "ConsoleLight", new Vector3(0, 3.5f, 26f), LampWhite, 30f, 14f);
             var ring = MB(0.15f);
             for (int i = 0; i < 16; i++)
             {
@@ -1149,6 +1189,8 @@ namespace Voidward.EditorTools
             Box(grav, Vector3.zero, new Vector3(16f, 9f, 16f), true);
             grav.AddComponent<GravityVolume>();
             Set(gate, "ring", ringGo.transform);
+            AddLight(go.transform, "CoreLight", Vector3.zero, Cyan, 6000f, 140f);
+            AddLight(go.transform, "SocketLight", new Vector3(0, -R - 5f, 0), Cyan, 40f, 16f);
             Set(gate, "core", core.GetComponent<MeshRenderer>());
             return SavePrefab(go);
         }

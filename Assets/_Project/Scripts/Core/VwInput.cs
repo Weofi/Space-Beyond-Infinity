@@ -33,6 +33,7 @@ namespace Voidward.Core
         public static InputAction Inventory { get; private set; }   // Tab
         public static InputAction Roll { get; private set; }        // 1D axis Q/E (ships)
         public static InputAction Brake { get; private set; }       // X (ships)
+        public static InputAction Flashlight { get; private set; }  // L: helmet lamp
         public static InputAction Vertical { get; private set; }    // 1D axis Space(+)/LeftCtrl(-): jetpack / ship thrust
         public static readonly InputAction[] Hotbar = new InputAction[5]; // digits 1-5
 
@@ -81,6 +82,7 @@ namespace Voidward.Core
             Ping.AddBinding("<Mouse>/middleButton");
             Inventory = Button(gameplay, "Inventory", "<Keyboard>/tab", "<Gamepad>/buttonNorth");
             Brake = Button(gameplay, "Brake", "<Keyboard>/x", "<Gamepad>/buttonEast");
+            Flashlight = Button(gameplay, "Flashlight", "<Keyboard>/l", "<Gamepad>/dpad/up");
 
             Roll = gameplay.AddAction("Roll", InputActionType.Value);
             Roll.AddCompositeBinding("1DAxis")
@@ -180,7 +182,7 @@ namespace Voidward.Core
         public static (string label, InputAction action)[] Rebindable => new[]
         {
             ("Interact", Interact), ("Jump / Jetpack", Jump), ("Sprint / Boost", Sprint), ("Inventory", Inventory),
-            ("Ping", Ping), ("Brake", Brake), ("Fire", Fire), ("Alt Fire", AltFire)
+            ("Ping", Ping), ("Brake", Brake), ("Flashlight", Flashlight), ("Fire", Fire), ("Alt Fire", AltFire)
         };
 
         public static void SaveOverrides()

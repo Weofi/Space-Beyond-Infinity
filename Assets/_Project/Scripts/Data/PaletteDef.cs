@@ -28,5 +28,18 @@ namespace Voidward.Data
         [Header("UI accents")]
         public Color UiPrimary = new Color(0.2f, 0.85f, 0.9f);
         public Color UiAccent = new Color(1f, 0.65f, 0.3f);
+
+        /// <summary>Writes ambient light and fog to RenderSettings (used by the scene builder and the runtime sector dressing).</summary>
+        public void ApplyEnvironment()
+        {
+            RenderSettings.fog = FogDensity > 0f;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogColor = FogColor;
+            RenderSettings.fogDensity = FogDensity;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = AmbientColor;
+            RenderSettings.ambientEquatorColor = Color.Lerp(AmbientColor, NebulaA, 0.25f) * 0.7f;
+            RenderSettings.ambientGroundColor = AmbientColor * 0.35f;
+        }
     }
 }

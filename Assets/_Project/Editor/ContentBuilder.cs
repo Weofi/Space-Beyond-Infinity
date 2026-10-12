@@ -88,7 +88,7 @@ namespace Voidward.EditorTools
 
         // ================================================================ materials
 
-        public static Material MatToon, MatSkybox, MatCollapse, MatAtmosphere, MatUnlit, MatParticle, MatGlass, MatGlow;
+        public static Material MatToon, MatTerrain, MatSkybox, MatCollapse, MatAtmosphere, MatUnlit, MatParticle, MatGlass, MatGlow;
 
         static Material Mat(string name, string shader)
         {
@@ -115,18 +115,33 @@ namespace Voidward.EditorTools
             MatToon.EnableKeyword("_FLATSHADING_ON");
             MatToon.SetFloat("_Steps", 3f);
             MatToon.SetFloat("_Softness", 0.65f);
-            MatToon.SetFloat("_AmbientBoost", 0.38f);
-            MatToon.SetFloat("_RimStrength", 0.16f);
-            MatToon.SetFloat("_RimPower", 3.5f);
-            MatToon.SetColor("_RimColor", new Color(0.6f, 0.75f, 1f));
+            MatToon.SetFloat("_AmbientBoost", 0.55f);
+            // Direct-light floor stays tiny: in linear space even 0.03 reads as ~20% grey after sRGB conversion.
+            MatToon.SetFloat("_ShadowFloor", 0.008f);
+            MatToon.SetFloat("_ShadowStrength", 0.95f);
+            MatToon.SetFloat("_LocalLightStrength", 1f);
+            MatToon.SetFloat("_TerminatorWrap", 0.05f);
+            MatToon.SetFloat("_RimStrength", 0.3f);
+            MatToon.SetFloat("_RimPower", 3f);
+            MatToon.SetColor("_RimColor", new Color(0.35f, 0.55f, 1f));
             MatToon.SetFloat("_SpecStrength", 0.9f);
             MatToon.SetFloat("_ReflStrength", 0.9f);
             MatToon.SetFloat("_GlowIntensity", 3f);
             MatToon.enableInstancing = true;
 
+            // Planet surfaces: same look, but almost no rim (grazing ground would otherwise glow on the night side).
+            MatTerrain = Mat("VW_Terrain", "VOIDWARD/ToonFlat");
+            MatTerrain.CopyPropertiesFromMaterial(MatToon);
+            MatTerrain.shaderKeywords = MatToon.shaderKeywords;
+            MatTerrain.SetFloat("_RimStrength", 0.05f);
+            MatTerrain.SetFloat("_ShadowFloor", 0f);
+            MatTerrain.enableInstancing = true;
+
             MatSkybox = Mat("VW_Skybox", "VOIDWARD/NebulaSkybox");
-            MatSkybox.SetFloat("_NebulaStrength", 0.55f);
+            MatSkybox.SetFloat("_NebulaStrength", 0.3f);
             MatSkybox.SetFloat("_StarDensity", 220f);
+            MatSkybox.SetFloat("_GalaxyStrength", 1f);
+            MatSkybox.SetFloat("_SunDiscStrength", 1f);
             MatCollapse = Mat("VW_Collapse", "VOIDWARD/Collapse");
             MatAtmosphere = Mat("VW_Atmosphere", "VOIDWARD/Atmosphere");
             MatAtmosphere.SetFloat("_Power", 3.5f);
@@ -168,6 +183,7 @@ namespace Voidward.EditorTools
             catalog.Ships = ships;
             catalog.LootTables = new[] { loot["loot_t1"], loot["loot_t2"], loot["loot_t3"], loot["loot_pirate"], loot["loot_drone"], loot["loot_alien"], loot["loot_guardian"], loot["loot_gunship"] };
             catalog.ToonMaterial = MatToon;
+            catalog.TerrainMaterial = MatTerrain;
             catalog.SkyboxMaterial = MatSkybox;
             catalog.CollapseMaterial = MatCollapse;
             catalog.AtmosphereMaterial = MatAtmosphere;
@@ -189,13 +205,13 @@ namespace Voidward.EditorTools
             }
             return new[]
             {
-                // Navy/blue space with cyan nebulae; later sectors shift towards teal and ember accents.
-                P("Pastel Drift", new Color(0.015f, 0.03f, 0.1f), new Color(0.07f, 0.15f, 0.34f), new Color(0.2f, 0.45f, 1f), new Color(0.35f, 0.85f, 1f),
-                  new Color(1f, 0.96f, 0.9f), new Color(0.5f, 0.58f, 0.8f), new Color(0.06f, 0.11f, 0.26f), 0.00016f, new Color(0.4f, 0.75f, 1f)),
-                P("Verdigris Expanse", new Color(0.015f, 0.06f, 0.1f), new Color(0.05f, 0.2f, 0.28f), new Color(0.2f, 0.85f, 0.8f), new Color(0.3f, 0.5f, 1f),
-                  new Color(0.95f, 1f, 0.96f), new Color(0.45f, 0.62f, 0.7f), new Color(0.05f, 0.15f, 0.2f), 0.00018f, new Color(0.45f, 1f, 0.85f)),
-                P("Ember Maw", new Color(0.05f, 0.025f, 0.09f), new Color(0.2f, 0.09f, 0.2f), new Color(1f, 0.45f, 0.25f), new Color(0.45f, 0.3f, 1f),
-                  new Color(1f, 0.86f, 0.72f), new Color(0.6f, 0.5f, 0.62f), new Color(0.15f, 0.06f, 0.12f), 0.0002f, new Color(1f, 0.6f, 0.4f)),
+                // Deep black space: barely-there sky gradient, faint tinted nebulae, very low ambient so the sun carves hard light/shadow.
+                P("Pastel Drift", new Color(0.002f, 0.003f, 0.008f), new Color(0.006f, 0.009f, 0.02f), new Color(0.15f, 0.3f, 0.75f), new Color(0.25f, 0.6f, 0.8f),
+                  new Color(1f, 0.96f, 0.9f), new Color(0.09f, 0.11f, 0.17f), new Color(0.004f, 0.006f, 0.014f), 0.00005f, new Color(0.4f, 0.75f, 1f)),
+                P("Verdigris Expanse", new Color(0.002f, 0.004f, 0.006f), new Color(0.004f, 0.012f, 0.016f), new Color(0.15f, 0.6f, 0.55f), new Color(0.2f, 0.35f, 0.75f),
+                  new Color(0.95f, 1f, 0.96f), new Color(0.08f, 0.12f, 0.14f), new Color(0.003f, 0.01f, 0.012f), 0.00005f, new Color(0.45f, 1f, 0.85f)),
+                P("Ember Maw", new Color(0.004f, 0.002f, 0.006f), new Color(0.016f, 0.006f, 0.014f), new Color(0.8f, 0.32f, 0.18f), new Color(0.35f, 0.22f, 0.75f),
+                  new Color(1f, 0.86f, 0.72f), new Color(0.12f, 0.09f, 0.12f), new Color(0.012f, 0.004f, 0.008f), 0.00006f, new Color(1f, 0.6f, 0.4f)),
             };
         }
 

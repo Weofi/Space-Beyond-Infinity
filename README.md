@@ -115,6 +115,7 @@ upgrade/craft → stay ahead of the Collapse → insert Energy Cells into the Ju
 | Tools | 1 Drill · 2 Blaster · 3 Rifle · 4 Medkit | – |
 | Inventory / ship / crafting | Tab | Tab |
 | Ping (enemy / loot / look) | T or MMB | T |
+| Helmet flashlight on/off | L | – (ship headlights turn on automatically) |
 | Pause | Esc | Esc |
 | Debug cheats | F1 | F1 |
 
