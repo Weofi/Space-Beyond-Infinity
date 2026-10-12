@@ -9,7 +9,8 @@ Power the Jump Gates, cross three sectors and defeat **The Warden** to escape.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
 the Input System, Cinemachine 3 and TextMeshPro. All art, audio and music are procedural
-(no external assets required), in a pastel, flat-shaded low-poly style.
+(no external assets required), in a polished, high-end stylized sci-fi look: clean chunky
+shapes in the spirit of Astroneer, but with real surface detail, lighting and VFX - not abstract placeholder art.
 
 ---
 
