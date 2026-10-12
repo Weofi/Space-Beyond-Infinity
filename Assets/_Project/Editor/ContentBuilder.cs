@@ -90,7 +90,7 @@ namespace Voidward.EditorTools
 
         // ================================================================ materials
 
-        public static Material MatToon, MatTerrain, MatSkybox, MatCollapse, MatAtmosphere, MatUnlit, MatParticle, MatGlass, MatGlow;
+        public static Material MatToon, MatTerrain, MatSkybox, MatCollapse, MatAtmosphere, MatUnlit, MatParticle, MatGlass, MatGlow, MatPlume;
 
         static Material Mat(string name, string shader)
         {
@@ -154,8 +154,13 @@ namespace Voidward.EditorTools
             MatGlow = Mat("VW_Glow", "VOIDWARD/Unlit");
             MatGlow.SetColor("_BaseColor", new Color(0.7f, 1.8f, 3.4f));
             MatParticle = Mat("VW_Particle", "VOIDWARD/AdditiveParticle");
+            MatPlume = Mat("VW_Plume", "VOIDWARD/Plume");
+            MatPlume.SetColor("_BaseColor", new Color(1.6f, 1.9f, 2.6f, 1f));
+            MatPlume.SetFloat("_EdgeSoftness", 1.4f);
+            MatPlume.enableInstancing = true;
             MatGlass = Mat("VW_Glass", "VOIDWARD/Glass");
             BuildPlanetMaterials();
+            BuildHullMaterial();
         }
 
         // ================================================================ data

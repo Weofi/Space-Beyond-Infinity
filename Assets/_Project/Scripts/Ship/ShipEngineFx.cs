@@ -33,6 +33,9 @@ namespace Voidward.Ship
                 if (!Thrusters[i]) continue;
                 var b = baseScales[i];
                 Thrusters[i].localScale = new Vector3(b.x, b.y, b.z * Mathf.Max(0.05f, smoothed * 1.6f));
+                // A collapsed plume reads as a flat disc in the nozzle; hide it when the engine is cold.
+                bool lit = smoothed > 0.03f;
+                if (Thrusters[i].gameObject.activeSelf != lit) Thrusters[i].gameObject.SetActive(lit);
             }
 
             var nm = NetworkManager.Singleton;

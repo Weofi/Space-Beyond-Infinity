@@ -234,7 +234,7 @@ namespace Voidward.EditorTools
 
             // Landed Dart on struts
             var ship = Child(root.transform, "Ship", new Vector3(10f, H(10f, 26f) + 1.65f, 26f), Quaternion.Euler(-2f, -140f, 3f));
-            Visual(ship.transform, "Hull", AssetDatabase.LoadAssetAtPath<Mesh>(MeshDir + "/Ship_Dart.asset"));
+            Visual(ship.transform, "Hull", AssetDatabase.LoadAssetAtPath<Mesh>(MeshDir + "/Ship_Dart.asset"), MatHull);
             Visual(ship.transform, "Canopy", AssetDatabase.LoadAssetAtPath<Mesh>(MeshDir + "/Ship_Dart_Canopy.asset"), MatGlass);
             var struts = MB(0.2f);
             Shiny(struts, Matte, () =>
@@ -254,7 +254,7 @@ namespace Voidward.EditorTools
             (Mesh mesh, float x, float z, float yaw)[] crew = { (blue, 2.2f, 12f, 195f), (orange, 4f, 13.6f, 165f), (white, 5.7f, 12.4f, 30f) };
             foreach (var (mesh, x, z, yaw) in crew)
             {
-                var a = Visual(root.transform, "Astronaut", mesh);
+                var a = Visual(root.transform, "Astronaut", mesh, MatHull);
                 a.transform.localPosition = new Vector3(x, H(x, z) - 0.03f, z);
                 a.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
             }
