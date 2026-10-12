@@ -23,8 +23,7 @@ jobs:
           - StandaloneWindows64
           - StandaloneOSX
     steps:
-      # Keep swap: a full Library reimport (cache miss) can exceed the runner's RAM
-      # and gets OOM-killed (exit 137) without it.
+      # Extra swap as headroom for a full Library reimport (cache miss).
       - name: Free disk space
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
@@ -51,11 +50,9 @@ jobs:
           restore-keys: |
             Library-${{ matrix.targetPlatform }}-
 
-      # Diagnostics for exit 137: log memory every 5 s while Unity runs.
-      - name: Start memory monitor
-        run: nohup sh -c 'while true; do echo "$(date +%T) $(free -m | awk "/Mem:/{print \"mem used=\"\$3\" avail=\"\$7} /Swap:/{print \"swap used=\"\$3}" | tr "\n" " ")"; sleep 5; done' > "$RUNNER_TEMP/mem.log" 2>&1 &
-
       - name: Build project
+        id: build1
+        continue-on-error: true
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -65,11 +62,32 @@ jobs:
           targetPlatform: ${{ matrix.targetPlatform }}
           buildName: Voidward
 
-      - name: Memory diagnostics
-        if: always()
-        run: |
-          tail -n 60 "$RUNNER_TEMP/mem.log" || true
-          sudo dmesg -T | grep -iE "oom|killed process|out of memory" || echo "no OOM entries in dmesg"
+      # Unity 6000.6 inside the game-ci container sporadically gets SIGKILLed (exit 137)
+      # at random points (seconds after start, or mid shader compile). Not an OOM: memory
+      # peaks at ~7 GB of 16 GB, swap stays unused, dmesg has no OOM entry. Just retry.
+      - name: Build project (retry 1)
+        id: build2
+        if: steps.build1.outcome == 'failure'
+        continue-on-error: true
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: Voidward
+
+      - name: Build project (retry 2)
+        if: steps.build2.outcome == 'failure'
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: Voidward
 
       - name: Fix macOS executable bit
         if: matrix.targetPlatform == 'StandaloneOSX'
