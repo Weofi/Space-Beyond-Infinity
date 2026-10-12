@@ -23,8 +23,7 @@ jobs:
           - StandaloneWindows64
           - StandaloneOSX
     steps:
-      # Keep swap: a full Library reimport (cache miss) can exceed the runner's RAM
-      # and gets OOM-killed (exit 137) without it.
+      # Extra swap as headroom for a full Library reimport (cache miss).
       - name: Free disk space
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
@@ -52,6 +51,44 @@ jobs:
             Library-${{ matrix.targetPlatform }}-
 
       - name: Build project
+        id: build1
+        continue-on-error: true
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: Voidward
+
+      # Unity 6000.6 inside the game-ci container sporadically gets SIGKILLed (exit 137)
+      # at random points (seconds after start, or mid shader compile). Not an OOM: memory
+      # peaks at ~7 GB of 16 GB, swap stays unused, dmesg has no OOM entry. Just retry.
+      # game-ci leaves its builder scripts in Assets/Editor; a retry refuses a dirty tree.
+      - name: Clean up failed attempt
+        if: steps.build1.outcome == 'failure'
+        run: sudo rm -rf Assets/Editor build && git status --porcelain
+
+      - name: Build project (retry 1)
+        id: build2
+        if: steps.build1.outcome == 'failure'
+        continue-on-error: true
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: Voidward
+
+      - name: Clean up failed retry
+        if: steps.build2.outcome == 'failure'
+        run: sudo rm -rf Assets/Editor build && git status --porcelain
+
+      - name: Build project (retry 2)
+        if: steps.build2.outcome == 'failure'
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
