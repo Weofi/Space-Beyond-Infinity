@@ -51,6 +51,10 @@ jobs:
           restore-keys: |
             Library-${{ matrix.targetPlatform }}-
 
+      # Diagnostics for exit 137: log memory every 5 s while Unity runs.
+      - name: Start memory monitor
+        run: nohup sh -c 'while true; do echo "$(date +%T) $(free -m | awk "/Mem:/{print \"mem used=\"\$3\" avail=\"\$7} /Swap:/{print \"swap used=\"\$3}" | tr "\n" " ")"; sleep 5; done' > "$RUNNER_TEMP/mem.log" 2>&1 &
+
       - name: Build project
         uses: game-ci/unity-builder@v4
         env:
@@ -60,6 +64,12 @@ jobs:
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
           buildName: Voidward
+
+      - name: Memory diagnostics
+        if: always()
+        run: |
+          tail -n 60 "$RUNNER_TEMP/mem.log" || true
+          sudo dmesg -T | grep -iE "oom|killed process|out of memory" || echo "no OOM entries in dmesg"
 
       - name: Fix macOS executable bit
         if: matrix.targetPlatform == 'StandaloneOSX'
