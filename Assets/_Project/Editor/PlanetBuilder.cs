@@ -370,7 +370,7 @@ namespace Voidward.EditorTools
                 s.RegionStrength = 0.45f;
                 s.Cliff = Grad((0f, "#3f5f90"), (0.6f, "#5a7fb5"), (1f, "#8fb0db"));
                 s.CliffSlope = new Vector2(0.12f, 0.26f);
-                s.Gloss = 0.25f;
+                s.Gloss = 0.15f;
                 Atmosphere(s, "#8ac6ff", "#e59ad9", "#a9cff2", 0.22f, 1.8f, 4f);
                 Clouds(s, 0.35f, "#ffffff", "#9fb0d0", 4f, 1f);
                 Environment(s, PlanetDecorStyle.Ice, 1f, "#4f5f78", "#9fd6ff", "#6fb5f0", "#9be7ff",
@@ -436,7 +436,7 @@ namespace Voidward.EditorTools
                 s.Region = Grad((0f, "#4a2f78"), (0.5f, "#7a4fa8"), (1f, "#d29ae6"));
                 s.RegionStrength = 0.55f;
                 s.Cliff = Grad((0f, "#1a1f45"), (0.6f, "#3a3570"), (1f, "#5a4a9a"));
-                s.Gloss = 0.3f;
+                s.Gloss = 0.12f;
                 Atmosphere(s, "#8a9cff", "#e08aff", "#7f7fd8", 0.2f, 1.2f, 4f);
                 Clouds(s, 0.25f, "#e0e8ff", "#7f80c8", 3.5f, 1.8f);
                 Environment(s, PlanetDecorStyle.Crystal, 1.6f, "#22264a", "#79a8ff", "#e08cff", "#7ff6ff",

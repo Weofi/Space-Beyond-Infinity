@@ -3,7 +3,7 @@
 > *Outrun the Collapse. Together.*
 
 A first-person co-op space roguelite for 1–4 players: fly your own ship along a three-sector route,
-land on small spherical planets, mine, loot and fight, upgrade ship and gear, crew a big co-op ship,
+land on kilometre-scale miniature planets, mine, loot and fight, upgrade ship and gear, crew a big co-op ship,
 and keep ahead of **The Collapse** — an expanding black hole that consumes everything behind you.
 Power the Jump Gates, cross three sectors and defeat **The Warden** to escape.
 
@@ -127,9 +127,14 @@ push the Collapse back, spawn boss (sector 3), trigger an event, refill ship. FP
 ## 4. Content overview
 
 * **Ships:** Dart (agile starter), Mule (hauler, unlock), **Ark** (co-op capital ship, 4 stations).
-* **Planet biomes:** Ice, Desert, Toxic Jungle, Crystal, Volcanic — spherical, procedurally
-  displaced icospheres (radius 150–300 m) with gravity, atmosphere shell, POIs
-  (ore/crystal/scrap/fuel deposits, loot crates, alien nests, ruins, crashed ships).
+* **Planet biomes:** Ice, Desert, Toxic Jungle, Crystal, Volcanic — procedural miniature worlds
+  (radius 1.0–1.9 km) with their own geology (terraced canyon networks, buttes and hoodoos;
+  jagged peaks, glacier domes and frozen chasms; river valleys and karst towers; crystal spire
+  mountains and glowing lakes; calderas, basalt plateaus and lava channels), scattering
+  atmospheres, cloud layers, weather (sandstorms, blizzards, ash fall, spore blooms), biome props
+  and landmark set pieces (arches, giant crystals, elder trees, monolith rings, colossal bones...).
+  Each planet has 6-8 **sites** - flattened landing clearings next to landforms holding ruins,
+  crash sites, hives, resource fields or supply caches. The HUD labels sites on approach.
 * **Enemies (7 + boss):** Pirate Fighter, Swarm Drone, Pirate Gunship (sector 2+), Crawler,
   Spitter, Skyskate (flying critter), Nest Guardian, **The Warden** (3-phase boss with weak points).
 * **Modules (23):** Engine Mk I–III (+Ark drive), Laser Mk I–III, Missile Pod Mk I–II,
@@ -153,7 +158,8 @@ Assets/_Project/
                   SteamTransport (Facepunch P2P), SteamLobbyService, TransportConfig, NetworkPlayer
     Combat/       HealthComponent (server-authoritative), CombatNet (projectile system), TargetTag
     Inventory/    NetInventory (grid, NetworkList), WorldPickup, LootCrate, ResourceNode, PlayerGear/crafting
-    Planet/       PlanetBody (seed-synced generation), PlanetMeshGenerator
+    Planet/       PlanetBody (seed-synced planet, sites), PlanetTerrain (height field), PlanetVisuals
+                  (chunked quadtree LOD + collider streaming), PlanetDecor, PlanetLandmarks, PlanetAmbience
     Ship/         ShipCore (stats/modules/shields/fuel/weapons), ShipFlight, ShipSeat, terminals, dashboard
     Player/       PlayerPawn (FPS controller, EVA, seats, tools, oxygen, interaction, pings)
     AI/           EnemyBrain (state machine), AlienNest, BossBrain, EnemyFactory
@@ -162,7 +168,8 @@ Assets/_Project/
     Progression/  Meta (Stardust, perks, loadout, local save)
     UI/           code-built uGUI/TMP screens (menu, lobby, hangar, settings, HUD, inventory, trade…)
   Editor/         ContentBuilder (data, materials), PrefabBuilder (meshes, prefabs), SceneBuilder
-  Shaders/        ToonFlat (flat/toon), NebulaSkybox, Collapse, Atmosphere, Glass, Unlit, AdditiveParticle
+  Shaders/        ToonFlat (flat/toon), Planet, Ocean, Atmosphere (scattering), Clouds, NebulaSkybox,
+                  Collapse, Glass, Unlit, AdditiveParticle
 ```
 
 Assembly definitions keep the graph acyclic (Core ← Data ← Combat/Inventory/Planet ← Ship ← Player
@@ -179,14 +186,15 @@ Assembly definitions keep the graph acyclic (Core ← Data ← Combat/Inventory/
 * Procedural content is **seeded**: only seeds and a few parameters are synced; planets
   (geometry + colliders), asteroid fields and trader stock are generated identically on every peer.
 * **Floating origin:** every sector is generated around the world origin and all ships/players are
-  re-based on each jump (`NetTeleport`, routed to whoever owns the transform), so coordinates never
-  exceed ~3 km and stay precise in multiplayer.
+  re-based on each jump (`NetTeleport`, routed to whoever owns the transform), so coordinates stay
+  within ~8 km (including the kilometre-scale planets) and precise in multiplayer.
 * Seats do not re-parent network objects: pawns poll the seat registry and follow the seat
   locally; players walking inside the moving Ark are carried by a moving-platform step.
 
-**Performance:** planets use 2 LODs (20k/1.3k tris) and share one collider with LOD0, asteroid
-fields are batched into a few meshes, VFX/projectile visuals/audio sources are pooled, and only
-active sector content exists at any time.
+**Performance:** planets are six quadtrees of terrain chunks built on worker threads (finer near
+the camera, horizon-culled, skirts hide LOD seams); colliders are streamed only around pawns and
+ships; props are generated per chunk. Asteroid fields are batched into a few meshes,
+VFX/projectile visuals/audio sources are pooled, and only active sector content exists at any time.
 
 ---
 
@@ -194,7 +202,7 @@ active sector content exists at any time.
 
 * Windows standalone build not produced on the development Mac (module not installed);
   verified via macOS build and Play Mode.
-* Planet LOD is whole-planet (2 levels) instead of chunked; terrain deformation is not implemented.
+* Terrain deformation is not implemented; LOD chunks switch without geomorphing (skirts hide gaps).
 * No real client-side prediction/reconciliation — owner authority is used instead (cheat-prone
   but responsive; fine for co-op).
 * Players riding inside the moving Ark may see slight jitter of *other* players.
