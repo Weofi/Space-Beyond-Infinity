@@ -21,19 +21,50 @@ namespace Voidward.EditorTools
     /// <summary>Procedural low-poly meshes + every network prefab.</summary>
     public static partial class ContentBuilder
     {
-        // Pastel palette for hard-surface props
-        static readonly Color White = new Color(0.93f, 0.91f, 0.97f);
-        static readonly Color Orange = new Color(1f, 0.62f, 0.42f);
-        static readonly Color Teal = new Color(0.38f, 0.85f, 0.85f);
-        static readonly Color Dark = new Color(0.26f, 0.25f, 0.36f);
-        static readonly Color Mid = new Color(0.55f, 0.55f, 0.68f);
-        static readonly Color Pink = new Color(1f, 0.55f, 0.68f);
-        static readonly Color PirateRed = new Color(0.95f, 0.38f, 0.45f);
-        static readonly Color PirateDark = new Color(0.3f, 0.26f, 0.36f);
-        static readonly Color AlienGreen = new Color(0.55f, 0.9f, 0.45f);
-        static readonly Color AlienPurple = new Color(0.65f, 0.45f, 0.9f);
+        // Stylized low-poly palette (matches the UI: white/blue hard surfaces, navy, gold accents, cyan glow)
+        static readonly Color White = new Color(0.94f, 0.95f, 0.97f);
+        static readonly Color Blue = new Color(0.1f, 0.42f, 0.95f);
+        static readonly Color Navy = new Color(0.12f, 0.17f, 0.32f);
+        static readonly Color Gold = new Color(1f, 0.72f, 0.1f);
+        static readonly Color Cyan = new Color(0.35f, 0.85f, 1f);
+        static readonly Color Dark = new Color(0.15f, 0.16f, 0.2f);
+        static readonly Color Mid = new Color(0.6f, 0.63f, 0.7f);
+        static readonly Color Red = new Color(0.95f, 0.2f, 0.18f);
+        static readonly Color Green = new Color(0.25f, 0.95f, 0.4f);
+        static readonly Color Pink = new Color(1f, 0.42f, 0.6f);
+        static readonly Color PirateRed = new Color(0.88f, 0.22f, 0.22f);
+        static readonly Color PirateDark = new Color(0.2f, 0.2f, 0.25f);
+        static readonly Color AlienGreen = new Color(0.45f, 0.88f, 0.3f);
+        static readonly Color AlienPurple = new Color(0.55f, 0.3f, 0.9f);
+
+        const float Matte = 0.05f, Glossy = 0.65f, Mirror = 1f;
 
         static readonly List<GameObject> networkPrefabs = new List<GameObject>();
+
+        /// <summary>MeshBuilder with chamfered box edges for the chunky toy look.</summary>
+        static MeshBuilder MB(float bevel = 0.2f) => new MeshBuilder { Bevel = bevel };
+
+        static void Glow(MeshBuilder mb, System.Action add, float glow = 1f)
+        {
+            mb.Surface(MeshBuilder.DefaultGloss, glow);
+            add();
+            mb.Surface();
+        }
+
+        static void Shiny(MeshBuilder mb, float gloss, System.Action add)
+        {
+            mb.Surface(gloss);
+            add();
+            mb.Surface();
+        }
+
+        /// <summary>Engine nozzle pointing -Z: body cone, glowing inner rim and dark core. rear = centre of the exhaust face.</summary>
+        static void Nozzle(MeshBuilder mb, Vector3 rear, float r, float len, Color body, Color glow)
+        {
+            mb.AddPrism(TR(rear.x, rear.y, rear.z + len * 0.5f, 90, 0, 0), r, r * 0.84f, len, 8, body);
+            Glow(mb, () => mb.AddPrism(TR(rear.x, rear.y, rear.z, 90, 0, 0), r * 0.88f, r * 0.88f, len * 0.05f, 8, glow), 0.8f);
+            Shiny(mb, Matte, () => mb.AddPrism(TR(rear.x, rear.y, rear.z - len * 0.05f, 90, 0, 0), r * 0.74f, r * 0.74f, len * 0.06f, 8, Dark));
+        }
 
         static Matrix4x4 T(float x, float y, float z) => Matrix4x4.Translate(new Vector3(x, y, z));
         static Matrix4x4 TR(float x, float y, float z, float rx, float ry, float rz) => Matrix4x4.TRS(new Vector3(x, y, z), Quaternion.Euler(rx, ry, rz), Vector3.one);
@@ -162,21 +193,54 @@ namespace Voidward.EditorTools
 
         // ---------------------------------------------------------------- player
 
-        static Mesh AstronautMesh()
+        static Mesh AstronautMesh() => AstronautMesh(Blue, "Astronaut");
+
+        static Mesh AstronautMesh(Color suit, string meshName)
         {
-            var mb = new MeshBuilder();
-            mb.AddBox(T(0, 1.15f, 0), new Vector3(0.62f, 0.66f, 0.38f), White);          // torso
-            mb.AddBox(T(0, 0.86f, 0), new Vector3(0.56f, 0.12f, 0.36f), Orange);          // belt
-            mb.AddBox(T(-0.16f, 0.42f, 0), new Vector3(0.22f, 0.8f, 0.26f), White);       // legs
-            mb.AddBox(T(0.16f, 0.42f, 0), new Vector3(0.22f, 0.8f, 0.26f), White);
-            mb.AddBox(T(-0.16f, 0.05f, 0.04f), new Vector3(0.24f, 0.12f, 0.34f), Dark);   // boots
-            mb.AddBox(T(0.16f, 0.05f, 0.04f), new Vector3(0.24f, 0.12f, 0.34f), Dark);
-            mb.AddBox(TR(-0.42f, 1.12f, 0, 0, 0, 8), new Vector3(0.18f, 0.62f, 0.2f), White); // arms
-            mb.AddBox(TR(0.42f, 1.12f, 0, 0, 0, -8), new Vector3(0.18f, 0.62f, 0.2f), White);
-            mb.AddBox(T(0, 1.15f, -0.3f), new Vector3(0.5f, 0.6f, 0.24f), Orange);         // backpack
-            mb.AddPrism(T(0, 1.66f, 0), 0.27f, 0.25f, 0.42f, 8, White);                   // helmet
-            mb.AddBox(T(0, 1.66f, 0.2f), new Vector3(0.36f, 0.2f, 0.1f), Teal);            // visor
-            return SaveMesh(mb, "Astronaut");
+            // Chunky toy-figure proportions: big helmet, broad torso, short stout limbs. Feet at y=0, facing +Z.
+            var mb = MB(0.22f);
+            for (int s = -1; s <= 1; s += 2)
+            {
+                float x = s * 0.15f;
+                mb.AddBox(T(x, 0.09f, 0.04f), new Vector3(0.25f, 0.18f, 0.36f), White);       // boot
+                Shiny(mb, Matte, () => mb.AddBox(T(x, 0.015f, 0.04f), new Vector3(0.26f, 0.04f, 0.37f), Dark));
+                mb.AddBox(T(x, 0.33f, 0f), new Vector3(0.23f, 0.32f, 0.25f), suit);           // shin
+                mb.AddBox(T(x, 0.5f, 0.02f), new Vector3(0.26f, 0.13f, 0.28f), White);        // knee pad
+                mb.AddBox(T(x, 0.68f, 0f), new Vector3(0.26f, 0.3f, 0.29f), suit);            // thigh
+
+                mb.AddBox(TR(s * 0.42f, 1.34f, 0f, 0, 0, s * -10f), new Vector3(0.26f, 0.2f, 0.32f), White); // shoulder pad
+                mb.AddBox(TR(s * 0.45f, 1.13f, 0.01f, 0, 0, s * 6f), new Vector3(0.19f, 0.3f, 0.21f), suit);  // upper arm
+                mb.AddBox(T(s * 0.47f, 0.95f, 0.02f), new Vector3(0.21f, 0.13f, 0.23f), White);               // cuff
+                Shiny(mb, Matte, () => mb.AddBox(T(s * 0.47f, 0.81f, 0.03f), new Vector3(0.17f, 0.17f, 0.19f), Dark)); // glove
+                mb.AddPrism(TR(s * 0.355f, 1.6f, -0.01f, 0, 0, 90), 0.09f, 0.09f, 0.06f, 8, suit); // helmet ear
+            }
+            Shiny(mb, Matte, () => mb.AddBox(T(0, 0.86f, 0), new Vector3(0.6f, 0.14f, 0.36f), Mid));  // belt
+            mb.AddBox(T(0, 0.83f, 0.17f), new Vector3(0.3f, 0.18f, 0.06f), White);                     // belt buckle plate
+            mb.AddBox(T(0, 1.12f, 0f), new Vector3(0.66f, 0.46f, 0.42f), suit);                        // torso
+            mb.AddBox(T(0, 1.19f, 0.19f), new Vector3(0.48f, 0.34f, 0.1f), White);                     // chest plate
+            mb.AddBox(T(0, 0.98f, 0.2f), new Vector3(0.38f, 0.14f, 0.08f), White);                     // waist plate
+            Glow(mb, () => mb.AddBox(T(0, 1.26f, 0.245f), new Vector3(0.16f, 0.05f, 0.02f), Cyan));     // chest light
+            Shiny(mb, Matte, () => mb.AddBox(T(-0.11f, 1.12f, 0.245f), new Vector3(0.07f, 0.07f, 0.02f), Dark));
+            Shiny(mb, Glossy, () =>                                                                     // yellow suit hose
+            {
+                mb.AddPrism(TR(0.22f, 0.98f, 0.23f, 0, 0, 90), 0.035f, 0.035f, 0.14f, 6, Gold);
+                mb.AddPrism(TR(0.33f, 0.92f, 0.17f, 30, 0, 30), 0.035f, 0.035f, 0.16f, 6, Gold);
+            });
+            Shiny(mb, Matte, () => mb.AddPrism(T(0, 1.38f, 0), 0.22f, 0.2f, 0.08f, 10, Dark));        // neck ring
+
+            // Backpack with oxygen tank and status lights
+            mb.AddBox(T(0, 1.16f, -0.33f), new Vector3(0.56f, 0.6f, 0.26f), Mid);
+            mb.AddBox(T(0, 1.16f, -0.47f), new Vector3(0.42f, 0.44f, 0.06f), White);
+            Glow(mb, () => mb.AddPrism(TR(0, 1.5f, -0.33f, 0, 0, 90), 0.07f, 0.07f, 0.62f, 8, Cyan), 0.8f);
+            Glow(mb, () => mb.AddBox(T(-0.29f, 1.02f, -0.36f), new Vector3(0.02f, 0.05f, 0.05f), Red));
+            Glow(mb, () => mb.AddBox(T(0.29f, 1.02f, -0.36f), new Vector3(0.02f, 0.05f, 0.05f), Green));
+
+            // Helmet: white shell, dark rim, mirror-gold visor, antenna
+            mb.AddSphere(T(0, 1.6f, -0.01f), 0.34f, 2, White);
+            Shiny(mb, Matte, () => mb.AddSphere(Matrix4x4.TRS(new Vector3(0, 1.6f, 0.19f), Quaternion.identity, new Vector3(1f, 0.82f, 0.55f)), 0.27f, 2, Dark));
+            Shiny(mb, Mirror, () => mb.AddSphere(Matrix4x4.TRS(new Vector3(0, 1.6f, 0.2f), Quaternion.identity, new Vector3(1f, 0.8f, 0.6f)), 0.25f, 2, Gold));
+            Shiny(mb, Matte, () => mb.AddPrism(TR(0.17f, 1.98f, -0.1f, 0, 0, -8), 0.012f, 0.008f, 0.32f, 4, Dark));
+            return SaveMesh(mb, meshName);
         }
 
         static GameObject BuildPawn()
@@ -217,22 +281,27 @@ namespace Voidward.EditorTools
 
             // First-person tool viewmodels
             var tools = new Transform[4];
-            var drill = new MeshBuilder();
-            drill.AddBox(T(0, 0, 0), new Vector3(0.12f, 0.14f, 0.36f), Orange);
-            drill.AddBox(T(0, -0.12f, -0.08f), new Vector3(0.08f, 0.18f, 0.1f), Dark);
-            drill.AddPrism(TR(0, 0, 0.26f, 90, 0, 0), 0.06f, 0.015f, 0.2f, 6, Teal);
-            var blaster = new MeshBuilder();
-            blaster.AddBox(T(0, 0, 0), new Vector3(0.1f, 0.12f, 0.3f), Teal);
-            blaster.AddBox(T(0, -0.11f, -0.06f), new Vector3(0.07f, 0.16f, 0.09f), Dark);
+            var drill = MB();
+            drill.AddBox(T(0, 0, 0), new Vector3(0.13f, 0.15f, 0.36f), Gold);
+            drill.AddBox(T(0, 0.02f, 0.02f), new Vector3(0.14f, 0.06f, 0.26f), White);
+            Shiny(drill, Matte, () => drill.AddBox(T(0, -0.12f, -0.08f), new Vector3(0.08f, 0.18f, 0.1f), Dark));
+            Glow(drill, () => drill.AddPrism(TR(0, 0, 0.26f, 90, 0, 0), 0.06f, 0.015f, 0.2f, 6, Cyan), 0.6f);
+            var blaster = MB();
+            blaster.AddBox(T(0, 0, 0), new Vector3(0.11f, 0.13f, 0.3f), Blue);
+            blaster.AddBox(T(0, 0.05f, -0.02f), new Vector3(0.12f, 0.05f, 0.2f), White);
+            Shiny(blaster, Matte, () => blaster.AddBox(T(0, -0.11f, -0.06f), new Vector3(0.07f, 0.16f, 0.09f), Dark));
             blaster.AddPrism(TR(0, 0.02f, 0.2f, 90, 0, 0), 0.035f, 0.035f, 0.14f, 6, White);
-            var rifle = new MeshBuilder();
-            rifle.AddBox(T(0, 0, 0.05f), new Vector3(0.1f, 0.12f, 0.55f), Mid);
-            rifle.AddBox(T(0, -0.11f, -0.1f), new Vector3(0.07f, 0.16f, 0.09f), Dark);
-            rifle.AddBox(T(0, 0.09f, 0.05f), new Vector3(0.05f, 0.05f, 0.2f), Orange);
-            var medkit = new MeshBuilder();
+            Glow(blaster, () => blaster.AddBox(T(0, 0.08f, -0.02f), new Vector3(0.04f, 0.01f, 0.14f), Cyan));
+            var rifle = MB();
+            rifle.AddBox(T(0, 0, 0.05f), new Vector3(0.11f, 0.13f, 0.55f), Navy);
+            rifle.AddBox(T(0, 0.02f, 0.18f), new Vector3(0.12f, 0.1f, 0.22f), White);
+            Shiny(rifle, Matte, () => rifle.AddBox(T(0, -0.11f, -0.1f), new Vector3(0.07f, 0.16f, 0.09f), Dark));
+            rifle.AddBox(T(0, 0.09f, 0.05f), new Vector3(0.05f, 0.05f, 0.2f), Gold);
+            Glow(rifle, () => rifle.AddBox(T(0.057f, 0f, 0.05f), new Vector3(0.01f, 0.03f, 0.3f), Cyan));
+            var medkit = MB();
             medkit.AddBox(T(0, 0, 0), new Vector3(0.22f, 0.16f, 0.14f), White);
-            medkit.AddBox(T(0, 0, 0.075f), new Vector3(0.12f, 0.035f, 0.01f), Pink);
-            medkit.AddBox(T(0, 0, 0.075f), new Vector3(0.035f, 0.12f, 0.01f), Pink);
+            medkit.AddBox(T(0, 0, 0.075f), new Vector3(0.12f, 0.035f, 0.01f), Red);
+            medkit.AddBox(T(0, 0, 0.075f), new Vector3(0.035f, 0.12f, 0.01f), Red);
             var meshes = new[] { SaveMesh(drill, "Tool_Drill"), SaveMesh(blaster, "Tool_Blaster"), SaveMesh(rifle, "Tool_Rifle"), SaveMesh(medkit, "Tool_Medkit") };
             string[] names = { "Drill", "Blaster", "Rifle", "Medkit" };
             for (int i = 0; i < 4; i++)
@@ -360,19 +429,39 @@ namespace Voidward.EditorTools
         {
             var go = ShipRoot("Ship_Dart", ShipClass.Dart, 2000f, 4, 2);
             var core = go.GetComponent<ShipCore>();
-            var mb = new MeshBuilder();
+            var mb = MB(0.22f);
             mb.AddBox(T(0, 0, -0.5f), new Vector3(2.2f, 1.3f, 6f), White);
             mb.AddWedge(Matrix4x4.TRS(new Vector3(0, 0, 3.5f), Quaternion.Euler(0, 180, 0), Vector3.one), new Vector3(2.2f, 1.3f, 2f), White);
-            mb.AddBox(T(0, -0.55f, 0.5f), new Vector3(1.6f, 0.3f, 6.5f), Orange);
+            mb.AddBox(T(0, 0.05f, -0.9f), new Vector3(2.28f, 0.26f, 4.6f), Blue);             // side stripe
+            mb.AddBox(T(0, -0.55f, 0.5f), new Vector3(1.6f, 0.3f, 6.5f), Navy);              // keel
             mb.AddBox(TR(-2.6f, -0.2f, -1.2f, 0, 0, -6), new Vector3(3.6f, 0.22f, 2.6f), White);
             mb.AddBox(TR(2.6f, -0.2f, -1.2f, 0, 0, 6), new Vector3(3.6f, 0.22f, 2.6f), White);
-            mb.AddBox(T(-4.3f, -0.4f, -1.4f), new Vector3(0.3f, 0.5f, 2.2f), Orange);
-            mb.AddBox(T(4.3f, -0.4f, -1.4f), new Vector3(0.3f, 0.5f, 2.2f), Orange);
-            mb.AddPrism(TR(-0.75f, 0, -3.8f, 90, 0, 0), 0.5f, 0.42f, 1.2f, 8, Dark);
-            mb.AddPrism(TR(0.75f, 0, -3.8f, 90, 0, 0), 0.5f, 0.42f, 1.2f, 8, Dark);
-            mb.AddBox(T(0, 0.9f, -2.8f), new Vector3(0.2f, 1.2f, 1.4f), Teal);
-            mb.AddBox(T(-1.2f, -0.35f, 2.2f), new Vector3(0.25f, 0.25f, 1.4f), Dark);
-            mb.AddBox(T(1.2f, -0.35f, 2.2f), new Vector3(0.25f, 0.25f, 1.4f), Dark);
+            mb.AddBox(TR(-2.4f, -0.18f, -0.4f, 0, 0, -6), new Vector3(3.0f, 0.26f, 0.5f), Blue); // wing stripes
+            mb.AddBox(TR(2.4f, -0.18f, -0.4f, 0, 0, 6), new Vector3(3.0f, 0.26f, 0.5f), Blue);
+            Shiny(mb, Glossy, () =>
+            {
+                mb.AddBox(T(-4.3f, -0.4f, -1.4f), new Vector3(0.3f, 0.5f, 2.2f), Gold);       // wing tips
+                mb.AddBox(T(4.3f, -0.4f, -1.4f), new Vector3(0.3f, 0.5f, 2.2f), Gold);
+            });
+            mb.AddPrism(TR(-0.75f, 0, -3.8f, 90, 0, 0), 0.5f, 0.42f, 1.2f, 8, Mid);
+            mb.AddPrism(TR(0.75f, 0, -3.8f, 90, 0, 0), 0.5f, 0.42f, 1.2f, 8, Mid);
+            Shiny(mb, Matte, () =>
+            {
+                mb.AddPrism(TR(-0.75f, 0, -4.45f, 90, 0, 0), 0.38f, 0.38f, 0.06f, 8, Dark);
+                mb.AddPrism(TR(0.75f, 0, -4.45f, 90, 0, 0), 0.38f, 0.38f, 0.06f, 8, Dark);
+            });
+            Glow(mb, () =>
+            {
+                mb.AddPrism(TR(-0.75f, 0, -4.4f, 90, 0, 0), 0.43f, 0.43f, 0.05f, 8, Cyan);    // engine rims
+                mb.AddPrism(TR(0.75f, 0, -4.4f, 90, 0, 0), 0.43f, 0.43f, 0.05f, 8, Cyan);
+                mb.AddBox(T(0, 0.67f, -1.6f), new Vector3(0.12f, 0.03f, 2.2f), Cyan);       // spine light
+            }, 0.8f);
+            mb.AddBox(T(0, 0.9f, -2.8f), new Vector3(0.2f, 1.2f, 1.4f), Blue);               // tail fin
+            Shiny(mb, Matte, () =>
+            {
+                mb.AddBox(T(-1.2f, -0.35f, 2.2f), new Vector3(0.25f, 0.25f, 1.4f), Dark);
+                mb.AddBox(T(1.2f, -0.35f, 2.2f), new Vector3(0.25f, 0.25f, 1.4f), Dark);
+            });
             Visual(go.transform, "Hull", SaveMesh(mb, "Ship_Dart"));
             var glass = new MeshBuilder();
             glass.AddWedge(Matrix4x4.TRS(new Vector3(0, 0.95f, 1.2f), Quaternion.Euler(0, 180, 0), Vector3.one), new Vector3(1.4f, 0.7f, 2.2f), Color.white);
@@ -401,17 +490,29 @@ namespace Voidward.EditorTools
         {
             var go = ShipRoot("Ship_Mule", ShipClass.Mule, 3500f, 6, 3);
             var core = go.GetComponent<ShipCore>();
-            var mb = new MeshBuilder();
+            var mb = MB(0.2f);
             mb.AddBox(T(0, 0, -1f), new Vector3(3.4f, 2.4f, 8f), White);
             mb.AddWedge(Matrix4x4.TRS(new Vector3(0, -0.2f, 3.9f), Quaternion.Euler(0, 180, 0), Vector3.one), new Vector3(3.4f, 2f, 1.8f), White);
-            mb.AddBox(T(-2.4f, -0.4f, -1.5f), new Vector3(1.4f, 1.6f, 6f), Orange);
-            mb.AddBox(T(2.4f, -0.4f, -1.5f), new Vector3(1.4f, 1.6f, 6f), Orange);
-            mb.AddBox(T(0, -1.3f, -1f), new Vector3(3f, 0.3f, 7f), Dark);
+            mb.AddBox(T(0, 0.2f, -1f), new Vector3(3.48f, 0.4f, 6.4f), Blue);                // side stripe
+            mb.AddBox(T(-2.4f, -0.4f, -1.5f), new Vector3(1.4f, 1.6f, 6f), Blue);           // cargo pods
+            mb.AddBox(T(2.4f, -0.4f, -1.5f), new Vector3(1.4f, 1.6f, 6f), Blue);
+            mb.AddBox(T(-2.4f, -0.4f, 1.2f), new Vector3(1.5f, 1.2f, 0.5f), White);
+            mb.AddBox(T(2.4f, -0.4f, 1.2f), new Vector3(1.5f, 1.2f, 0.5f), White);
+            Shiny(mb, Glossy, () =>
+            {
+                mb.AddBox(T(-3.12f, -0.4f, -1.5f), new Vector3(0.1f, 0.3f, 4f), Gold);
+                mb.AddBox(T(3.12f, -0.4f, -1.5f), new Vector3(0.1f, 0.3f, 4f), Gold);
+            });
+            mb.AddBox(T(0, -1.3f, -1f), new Vector3(3f, 0.3f, 7f), Navy);
             for (int i = 0; i < 4; i++)
-                mb.AddPrism(TR(i < 2 ? -1.0f : 1.0f, i % 2 == 0 ? 0.55f : -0.55f, -5.5f, 90, 0, 0), 0.5f, 0.42f, 1.2f, 8, Dark);
-            mb.AddBox(T(0, 1.35f, -2f), new Vector3(1.2f, 0.3f, 3f), Teal);
-            mb.AddBox(T(-1.6f, -0.9f, 2.2f), new Vector3(0.3f, 0.3f, 1.6f), Dark);
-            mb.AddBox(T(1.6f, -0.9f, 2.2f), new Vector3(0.3f, 0.3f, 1.6f), Dark);
+                Nozzle(mb, new Vector3(i < 2 ? -1.0f : 1.0f, i % 2 == 0 ? 0.55f : -0.55f, -6.1f), 0.5f, 1.2f, Mid, Cyan);
+            mb.AddBox(T(0, 1.35f, -2f), new Vector3(1.2f, 0.3f, 3f), Navy);
+            Glow(mb, () => mb.AddBox(T(0, 1.52f, -2f), new Vector3(0.5f, 0.05f, 2.4f), Cyan), 0.8f);
+            Shiny(mb, Matte, () =>
+            {
+                mb.AddBox(T(-1.6f, -0.9f, 2.2f), new Vector3(0.3f, 0.3f, 1.6f), Dark);
+                mb.AddBox(T(1.6f, -0.9f, 2.2f), new Vector3(0.3f, 0.3f, 1.6f), Dark);
+            });
             Visual(go.transform, "Hull", SaveMesh(mb, "Ship_Mule"));
             var glass = new MeshBuilder();
             glass.AddWedge(Matrix4x4.TRS(new Vector3(0, 1.1f, 2.4f), Quaternion.Euler(0, 180, 0), Vector3.one), new Vector3(2f, 0.8f, 1.8f), Color.white);
@@ -442,9 +543,10 @@ namespace Voidward.EditorTools
             hc.MaxHealth = 600f;
 
             // Interior: floor y=0, 8 wide (x), 26 long (z), 4 high. Open doorway at the rear.
-            var mb = new MeshBuilder();
+            var mb = MB(0.12f);
             mb.AddBox(T(0, -0.2f, 0), new Vector3(8f, 0.4f, 26f), Mid);                     // floor
-            mb.AddBox(T(0, -0.01f, 0), new Vector3(2f, 0.02f, 24f), Teal);                  // floor stripe
+            Glow(mb, () => mb.AddBox(T(0, 0f, 0), new Vector3(0.3f, 0.02f, 24f), Cyan), 0.6f); // floor light strip
+            mb.AddBox(T(0, -0.01f, 0), new Vector3(2f, 0.02f, 24f), Navy);                   // floor runner
             mb.AddBox(T(-4.2f, 2f, 0), new Vector3(0.4f, 4.4f, 26f), White);                // walls
             mb.AddBox(T(4.2f, 2f, 0), new Vector3(0.4f, 4.4f, 26f), White);
             mb.AddBox(T(0, 4.2f, 0), new Vector3(8.8f, 0.4f, 26f), White);                  // ceiling
@@ -452,36 +554,64 @@ namespace Voidward.EditorTools
             mb.AddBox(T(-2.75f, 2f, -13.2f), new Vector3(3.3f, 4.4f, 0.4f), White);         // rear wall L
             mb.AddBox(T(2.75f, 2f, -13.2f), new Vector3(3.3f, 4.4f, 0.4f), White);          // rear wall R
             mb.AddBox(T(0, 3.7f, -13.2f), new Vector3(2.2f, 1.4f, 0.4f), White);            // lintel
+            Shiny(mb, Glossy, () => mb.AddBox(T(0, 3.05f, -13.45f), new Vector3(2.4f, 0.12f, 0.12f), Gold)); // door frame
             // exterior shell
-            mb.AddBox(T(0, -1.2f, 0), new Vector3(10f, 1.6f, 30f), Orange);
+            mb.Bevel = 0.2f;
+            mb.AddBox(T(0, -1.2f, 0), new Vector3(10f, 1.6f, 30f), Blue);
+            mb.AddBox(T(0, -1.95f, 0), new Vector3(8f, 0.3f, 26f), Navy);
             mb.AddBox(T(-5.4f, 1.6f, 0), new Vector3(2f, 3f, 24f), White);
             mb.AddBox(T(5.4f, 1.6f, 0), new Vector3(2f, 3f, 24f), White);
+            mb.AddBox(T(-6.45f, 1.6f, 0), new Vector3(0.2f, 0.5f, 20f), Blue);              // hull stripes
+            mb.AddBox(T(6.45f, 1.6f, 0), new Vector3(0.2f, 0.5f, 20f), Blue);
             mb.AddWedge(Matrix4x4.TRS(new Vector3(0, 1.6f, 16.5f), Quaternion.Euler(0, 180, 0), Vector3.one), new Vector3(9f, 5.2f, 6f), White);
-            mb.AddBox(T(0, 5f, -2f), new Vector3(5f, 1.2f, 16f), Teal);
+            mb.AddBox(T(0, 5f, -2f), new Vector3(5f, 1.2f, 16f), Navy);
+            Glow(mb, () => mb.AddBox(T(0, 5.65f, -2f), new Vector3(1.2f, 0.1f, 14f), Cyan), 0.7f);
             mb.AddBox(T(-8f, 0f, -4f), new Vector3(6f, 0.6f, 8f), White);                   // wings
             mb.AddBox(T(8f, 0f, -4f), new Vector3(6f, 0.6f, 8f), White);
+            mb.AddBox(T(-8f, 0f, -1.2f), new Vector3(6.1f, 0.66f, 1.2f), Blue);
+            mb.AddBox(T(8f, 0f, -1.2f), new Vector3(6.1f, 0.66f, 1.2f), Blue);
+            Shiny(mb, Glossy, () =>
+            {
+                mb.AddBox(T(-11.1f, 0f, -4f), new Vector3(0.4f, 1f, 7f), Gold);
+                mb.AddBox(T(11.1f, 0f, -4f), new Vector3(0.4f, 1f, 7f), Gold);
+            });
             for (int i = 0; i < 4; i++)
-                mb.AddPrism(TR(i < 2 ? -3.6f : 3.6f, i % 2 == 0 ? 2.8f : 0.2f, -15.5f, 90, 0, 0), 1.1f, 0.9f, 3f, 10, Dark);
+                Nozzle(mb, new Vector3(i < 2 ? -3.6f : 3.6f, i % 2 == 0 ? 2.8f : 0.2f, -17f), 1.1f, 3f, Mid, Cyan);
             // interior furniture
-            mb.AddBox(T(0, 0.5f, 11.4f), new Vector3(0.9f, 1f, 0.9f), Dark);                // pilot chair
-            mb.AddBox(T(-3f, 0.5f, 3f), new Vector3(0.9f, 1f, 0.9f), Dark);                 // turret chairs
-            mb.AddBox(T(3f, 0.5f, 3f), new Vector3(0.9f, 1f, 0.9f), Dark);
-            mb.AddBox(T(-3.5f, 0.6f, -4f), new Vector3(0.8f, 1.2f, 2.2f), Teal);            // engineer console
-            mb.AddBox(T(3.5f, 0.6f, -4f), new Vector3(0.8f, 1.2f, 2.2f), Orange);           // fabricator
-            mb.AddBox(T(3.5f, 0.6f, -8f), new Vector3(0.8f, 1.2f, 2.2f), Pink);             // cargo terminal
-            for (int i = 0; i < 6; i++) mb.AddBox(T(-3.6f, 1.6f, -10f + i * 4f), new Vector3(0.1f, 0.25f, 1.5f), Teal); // wall lights
+            mb.Bevel = 0.15f;
+            Shiny(mb, Matte, () =>
+            {
+                mb.AddBox(T(0, 0.5f, 11.4f), new Vector3(0.9f, 1f, 0.9f), Dark);                // pilot chair
+                mb.AddBox(T(-3f, 0.5f, 3f), new Vector3(0.9f, 1f, 0.9f), Dark);                 // turret chairs
+                mb.AddBox(T(3f, 0.5f, 3f), new Vector3(0.9f, 1f, 0.9f), Dark);
+            });
+            mb.AddBox(T(-3.5f, 0.6f, -4f), new Vector3(0.8f, 1.2f, 2.2f), Navy);            // engineer console
+            mb.AddBox(T(3.5f, 0.6f, -4f), new Vector3(0.8f, 1.2f, 2.2f), Blue);             // fabricator
+            mb.AddBox(T(3.5f, 0.6f, -8f), new Vector3(0.8f, 1.2f, 2.2f), Gold);             // cargo terminal
+            Glow(mb, () =>
+            {
+                mb.AddBox(T(-3.08f, 1.0f, -4f), new Vector3(0.04f, 0.3f, 1.6f), Cyan);
+                mb.AddBox(T(3.08f, 1.0f, -4f), new Vector3(0.04f, 0.3f, 1.6f), Cyan);
+                mb.AddBox(T(3.08f, 1.0f, -8f), new Vector3(0.04f, 0.3f, 1.6f), Cyan);
+                for (int i = 0; i < 6; i++) mb.AddBox(T(-3.96f, 1.6f, -10f + i * 4f), new Vector3(0.1f, 0.25f, 1.5f), Cyan); // wall lights
+            }, 0.9f);
             Visual(go.transform, "Hull", SaveMesh(mb, "Ship_Ark"));
             var glass = new MeshBuilder();
             glass.AddBox(T(0, 2.6f, 13.45f), new Vector3(6f, 1.6f, 0.1f), Color.white);
             Visual(go.transform, "Windshield", SaveMesh(glass, "Ship_Ark_Glass"), MatGlass);
 
             // Turret heads
-            var turretMesh = new MeshBuilder();
-            turretMesh.AddPrism(T(0, 0.3f, 0), 1f, 0.9f, 0.6f, 8, Mid);
-            var head = new MeshBuilder();
-            head.AddBox(T(0, 0, 0), new Vector3(1.2f, 0.8f, 1.2f), Orange);
-            head.AddBox(T(-0.3f, 0, 1f), new Vector3(0.2f, 0.2f, 1.4f), Dark);
-            head.AddBox(T(0.3f, 0, 1f), new Vector3(0.2f, 0.2f, 1.4f), Dark);
+            var turretMesh = MB();
+            turretMesh.AddPrism(T(0, 0.3f, 0), 1f, 0.9f, 0.6f, 8, Navy);
+            var head = MB();
+            head.AddBox(T(0, 0, 0), new Vector3(1.2f, 0.8f, 1.2f), White);
+            head.AddBox(T(0, 0.1f, 0), new Vector3(1.26f, 0.2f, 1.26f), Blue);
+            Shiny(head, Matte, () =>
+            {
+                head.AddBox(T(-0.3f, 0, 1f), new Vector3(0.2f, 0.2f, 1.4f), Dark);
+                head.AddBox(T(0.3f, 0, 1f), new Vector3(0.2f, 0.2f, 1.4f), Dark);
+            });
+            Glow(head, () => head.AddBox(T(0, 0.2f, 0.61f), new Vector3(0.5f, 0.08f, 0.02f), Cyan));
             var baseMesh = SaveMesh(turretMesh, "Turret_Base");
             var headMesh = SaveMesh(head, "Turret_Head");
 
@@ -577,7 +707,7 @@ namespace Voidward.EditorTools
 
         static GameObject BuildEnemy(EnemyKind k)
         {
-            var mb = new MeshBuilder();
+            var mb = MB(0.18f);
             GameObject go;
             Vector3 muzzle = new Vector3(0, 0, 2f);
             switch (k)
@@ -587,16 +717,20 @@ namespace Voidward.EditorTools
                     mb.AddWedge(Matrix4x4.TRS(new Vector3(0, 0, 0.5f), Quaternion.Euler(0, 180, 0), Vector3.one), new Vector3(1.6f, 1f, 4.5f), PirateDark);
                     mb.AddBox(TR(-1.8f, 0, -0.6f, 0, 0, 25), new Vector3(2.4f, 0.2f, 2f), PirateRed);
                     mb.AddBox(TR(1.8f, 0, -0.6f, 0, 0, -25), new Vector3(2.4f, 0.2f, 2f), PirateRed);
-                    mb.AddBox(T(0, 0.55f, -0.8f), new Vector3(0.6f, 0.4f, 1.2f), Orange);
-                    mb.AddPrism(TR(0, 0, -2f, 90, 0, 0), 0.45f, 0.3f, 0.8f, 6, Dark);
+                    mb.AddBox(TR(-2.9f, -0.5f, -0.6f, 0, 0, 25), new Vector3(0.2f, 0.6f, 1.6f), PirateDark);
+                    mb.AddBox(TR(2.9f, -0.5f, -0.6f, 0, 0, -25), new Vector3(0.2f, 0.6f, 1.6f), PirateDark);
+                    Shiny(mb, Mirror, () => mb.AddSphere(Matrix4x4.TRS(new Vector3(0, 0.5f, -0.6f), Quaternion.identity, new Vector3(0.8f, 0.6f, 1.4f)), 0.5f, 1, Red));
+                    Nozzle(mb, new Vector3(0, 0, -2.4f), 0.45f, 0.8f, Dark, Red);
                     Box(go, Vector3.zero, new Vector3(5f, 1.6f, 4.6f));
                     muzzle = new Vector3(0, 0, 3f);
                     break;
                 case EnemyKind.DroneSwarm:
                     go = EnemyRoot(k, Team.Pirates, 18);
-                    mb.AddRock(Matrix4x4.identity, 0.8f, 7, Pink);
-                    mb.AddPrism(TR(0, 0, 0, 90, 0, 0), 1.4f, 1.4f, 0.15f, 8, PirateDark);
-                    mb.AddBox(T(0, 0, 0.8f), new Vector3(0.3f, 0.3f, 0.6f), Teal);
+                    mb.AddSphere(Matrix4x4.identity, 0.85f, 1, PirateDark);
+                    mb.AddPrism(TR(0, 0, 0, 90, 0, 0), 1.4f, 1.4f, 0.15f, 8, PirateRed);
+                    for (int i = 0; i < 4; i++)
+                        mb.AddBox(Matrix4x4.TRS(Quaternion.Euler(0, 0, i * 90f + 45f) * new Vector3(0, 1.2f, 0), Quaternion.Euler(0, 0, i * 90f + 45f), Vector3.one), new Vector3(0.25f, 0.6f, 0.25f), PirateDark);
+                    Glow(mb, () => mb.AddSphere(T(0, 0, 0.72f), 0.22f, 1, Red), 1.5f);
                     go.AddComponent<SphereCollider>().radius = 1.3f;
                     muzzle = new Vector3(0, 0, 1.3f);
                     break;
@@ -604,55 +738,71 @@ namespace Voidward.EditorTools
                     go = EnemyRoot(k, Team.Pirates, 260);
                     mb.AddBox(T(0, 0, 0), new Vector3(5f, 3f, 14f), PirateDark);
                     mb.AddWedge(Matrix4x4.TRS(new Vector3(0, 0, 8.5f), Quaternion.Euler(0, 180, 0), Vector3.one), new Vector3(5f, 3f, 3f), PirateDark);
+                    mb.AddBox(T(0, 0.4f, 0), new Vector3(5.1f, 0.6f, 12f), PirateRed);
                     mb.AddBox(T(-3.6f, -0.5f, -1f), new Vector3(2.2f, 2f, 9f), PirateRed);
                     mb.AddBox(T(3.6f, -0.5f, -1f), new Vector3(2.2f, 2f, 9f), PirateRed);
-                    mb.AddPrism(T(0, 2f, 2f), 1.2f, 1f, 0.8f, 8, Orange);
-                    mb.AddBox(T(0, 2.5f, 3.2f), new Vector3(0.4f, 0.4f, 2.4f), Dark);
-                    for (int i = 0; i < 3; i++) mb.AddPrism(TR(-2f + i * 2f, 0, -7.6f, 90, 0, 0), 0.8f, 0.6f, 1.4f, 8, Dark);
+                    mb.AddPrism(T(0, 2f, 2f), 1.2f, 1f, 0.8f, 8, Mid);
+                    Shiny(mb, Matte, () => mb.AddBox(T(0, 2.5f, 3.2f), new Vector3(0.4f, 0.4f, 2.4f), Dark));
+                    Glow(mb, () =>
+                    {
+                        mb.AddBox(T(-2.56f, 0.8f, 3f), new Vector3(0.04f, 0.2f, 4f), Red);
+                        mb.AddBox(T(2.56f, 0.8f, 3f), new Vector3(0.04f, 0.2f, 4f), Red);
+                    });
+                    for (int i = 0; i < 3; i++) Nozzle(mb, new Vector3(-2f + i * 2f, 0, -8.3f), 0.8f, 1.4f, Mid, Red);
                     Box(go, new Vector3(0, 0, 0.5f), new Vector3(9.5f, 3.4f, 17f));
                     muzzle = new Vector3(0, 2.5f, 4.6f);
                     break;
                 case EnemyKind.Crawler:
                     go = EnemyRoot(k, Team.Aliens, 35);
-                    mb.AddRock(Matrix4x4.TRS(new Vector3(0, 0.6f, 0), Quaternion.identity, new Vector3(1f, 0.6f, 1.4f)), 0.6f, 3, AlienGreen);
+                    Shiny(mb, Glossy, () => mb.AddRock(Matrix4x4.TRS(new Vector3(0, 0.6f, 0), Quaternion.identity, new Vector3(1f, 0.6f, 1.4f)), 0.6f, 3, AlienGreen));
                     mb.AddBox(T(0, 0.75f, 0.75f), new Vector3(0.5f, 0.3f, 0.3f), AlienPurple);
+                    Glow(mb, () =>
+                    {
+                        mb.AddSphere(T(-0.14f, 0.82f, 0.92f), 0.07f, 0, Gold);
+                        mb.AddSphere(T(0.14f, 0.82f, 0.92f), 0.07f, 0, Gold);
+                    }, 1.5f);
                     for (int i = 0; i < 6; i++)
                     {
                         float side = i < 3 ? -1f : 1f;
                         float z = -0.4f + (i % 3) * 0.4f;
-                        mb.AddBox(TR(side * 0.6f, 0.3f, z, 0, 0, side * 40f), new Vector3(0.7f, 0.1f, 0.1f), AlienPurple);
+                        mb.AddBox(TR(side * 0.6f, 0.3f, z, 0, 0, side * 40f), new Vector3(0.7f, 0.12f, 0.12f), AlienPurple);
                     }
                     Box(go, new Vector3(0, 0.6f, 0), new Vector3(1.4f, 1f, 1.8f));
                     muzzle = new Vector3(0, 0.7f, 0.9f);
                     break;
                 case EnemyKind.Spitter:
                     go = EnemyRoot(k, Team.Aliens, 30);
-                    mb.AddRock(Matrix4x4.TRS(new Vector3(0, 1.2f, 0), Quaternion.identity, new Vector3(1f, 1.2f, 1f)), 0.7f, 5, new Color(0.85f, 0.95f, 0.4f));
+                    Shiny(mb, Glossy, () => mb.AddRock(Matrix4x4.TRS(new Vector3(0, 1.2f, 0), Quaternion.identity, new Vector3(1f, 1.2f, 1f)), 0.7f, 5, new Color(0.85f, 0.95f, 0.3f)));
                     mb.AddPrism(TR(0, 1.5f, 0.6f, 70, 0, 0), 0.3f, 0.18f, 0.6f, 6, AlienPurple);
+                    Glow(mb, () => mb.AddSphere(T(0, 1.62f, 0.86f), 0.12f, 0, AlienGreen), 1.5f);
                     for (int i = 0; i < 4; i++)
-                        mb.AddBox(TR(Mathf.Cos(i * 1.57f) * 0.5f, 0.35f, Mathf.Sin(i * 1.57f) * 0.5f, 0, i * 90f, 20), new Vector3(0.12f, 0.8f, 0.12f), AlienGreen);
+                        mb.AddBox(TR(Mathf.Cos(i * 1.57f) * 0.5f, 0.35f, Mathf.Sin(i * 1.57f) * 0.5f, 0, i * 90f, 20), new Vector3(0.14f, 0.8f, 0.14f), AlienGreen);
                     Box(go, new Vector3(0, 1.1f, 0), new Vector3(1.4f, 2.2f, 1.4f));
                     muzzle = new Vector3(0, 1.6f, 0.9f);
                     break;
                 case EnemyKind.FlyingCritter:
                     go = EnemyRoot(k, Team.Aliens, 22);
-                    mb.AddRock(Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(0.8f, 0.5f, 1.3f)), 0.5f, 9, Pink);
-                    mb.AddBox(TR(-1f, 0.1f, 0, 0, 0, 15), new Vector3(1.6f, 0.06f, 0.9f), AlienPurple);
-                    mb.AddBox(TR(1f, 0.1f, 0, 0, 0, -15), new Vector3(1.6f, 0.06f, 0.9f), AlienPurple);
-                    mb.AddBox(T(0, 0, -0.9f), new Vector3(0.1f, 0.1f, 0.8f), Pink);
+                    Shiny(mb, Glossy, () => mb.AddRock(Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(0.8f, 0.5f, 1.3f)), 0.5f, 9, Pink));
+                    mb.AddBox(TR(-1f, 0.1f, 0, 0, 0, 15), new Vector3(1.6f, 0.08f, 0.9f), AlienPurple);
+                    mb.AddBox(TR(1f, 0.1f, 0, 0, 0, -15), new Vector3(1.6f, 0.08f, 0.9f), AlienPurple);
+                    mb.AddBox(T(0, 0, -0.9f), new Vector3(0.12f, 0.12f, 0.8f), Pink);
+                    Glow(mb, () => mb.AddSphere(T(0, 0.1f, 0.6f), 0.1f, 0, Gold), 1.5f);
                     go.AddComponent<SphereCollider>().radius = 0.9f;
                     go.GetComponent<EnemyBrain>().HoverHeight = 5f;
                     muzzle = new Vector3(0, 0, 0.8f);
                     break;
                 default: // NestGuardian
                     go = EnemyRoot(k, Team.Aliens, 220);
-                    mb.AddRock(Matrix4x4.TRS(new Vector3(0, 2f, 0), Quaternion.identity, new Vector3(1.3f, 1.1f, 1f)), 1.3f, 11, AlienPurple);
-                    mb.AddRock(Matrix4x4.TRS(new Vector3(0, 3.3f, 0.6f), Quaternion.identity, Vector3.one), 0.6f, 12, AlienGreen);
+                    Shiny(mb, Glossy, () =>
+                    {
+                        mb.AddRock(Matrix4x4.TRS(new Vector3(0, 2f, 0), Quaternion.identity, new Vector3(1.3f, 1.1f, 1f)), 1.3f, 11, AlienPurple);
+                        mb.AddRock(Matrix4x4.TRS(new Vector3(0, 3.3f, 0.6f), Quaternion.identity, Vector3.one), 0.6f, 12, AlienGreen);
+                    });
                     mb.AddBox(TR(-1.6f, 1.6f, 0.5f, 20, 0, 20), new Vector3(0.5f, 2f, 0.5f), AlienGreen);
                     mb.AddBox(TR(1.6f, 1.6f, 0.5f, 20, 0, -20), new Vector3(0.5f, 2f, 0.5f), AlienGreen);
                     mb.AddBox(T(-0.6f, 0.5f, 0), new Vector3(0.6f, 1f, 0.6f), AlienPurple);
                     mb.AddBox(T(0.6f, 0.5f, 0), new Vector3(0.6f, 1f, 0.6f), AlienPurple);
-                    mb.AddBox(T(0, 3.4f, 1.15f), new Vector3(0.6f, 0.15f, 0.1f), new Color(1f, 0.95f, 0.5f));
+                    Glow(mb, () => mb.AddBox(T(0, 3.4f, 1.15f), new Vector3(0.6f, 0.15f, 0.1f), Gold), 1.5f);
                     Box(go, new Vector3(0, 2f, 0), new Vector3(3.4f, 4f, 2.6f));
                     muzzle = new Vector3(0, 2f, 1.6f);
                     break;
@@ -676,15 +826,24 @@ namespace Voidward.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
             var boss = go.AddComponent<BossBrain>();
 
-            var mb = new MeshBuilder();
+            var mb = MB(0.15f);
             mb.AddBox(T(0, 0, 0), new Vector3(26f, 14f, 70f), PirateDark);
             mb.AddWedge(Matrix4x4.TRS(new Vector3(0, 0, 45f), Quaternion.Euler(0, 180, 0), Vector3.one), new Vector3(26f, 14f, 20f), PirateDark);
+            mb.AddBox(T(0, 2f, 0), new Vector3(26.4f, 3f, 60f), PirateRed);
             mb.AddBox(T(0, 10f, -5f), new Vector3(8f, 6f, 50f), PirateRed);
             mb.AddBox(T(-20f, -2f, -10f), new Vector3(14f, 4f, 30f), PirateRed);
             mb.AddBox(T(20f, -2f, -10f), new Vector3(14f, 4f, 30f), PirateRed);
-            for (int i = 0; i < 7; i++) mb.AddWedge(Matrix4x4.TRS(new Vector3(0, 13.5f, -25f + i * 8f), Quaternion.identity, Vector3.one), new Vector3(2f, 4f, 5f), Orange);
-            for (int i = 0; i < 4; i++) mb.AddPrism(TR(-9f + i * 6f, 0, -37f, 90, 0, 0), 3f, 2.4f, 5f, 10, Dark);
-            mb.AddRock(Matrix4x4.TRS(new Vector3(0, -8f, 10f), Quaternion.identity, new Vector3(1.6f, 0.8f, 2.4f)), 6f, 21, AlienPurple);
+            Shiny(mb, Matte, () =>
+            {
+                for (int i = 0; i < 7; i++) mb.AddWedge(Matrix4x4.TRS(new Vector3(0, 13.5f, -25f + i * 8f), Quaternion.identity, Vector3.one), new Vector3(2f, 4f, 5f), Dark);
+            });
+            Glow(mb, () =>
+            {
+                mb.AddBox(T(-13.25f, 5f, 10f), new Vector3(0.3f, 1f, 40f), Red);
+                mb.AddBox(T(13.25f, 5f, 10f), new Vector3(0.3f, 1f, 40f), Red);
+            });
+            for (int i = 0; i < 4; i++) Nozzle(mb, new Vector3(-9f + i * 6f, 0, -39.5f), 3f, 5f, Mid, Red);
+            Shiny(mb, Glossy, () => mb.AddRock(Matrix4x4.TRS(new Vector3(0, -8f, 10f), Quaternion.identity, new Vector3(1.6f, 0.8f, 2.4f)), 6f, 21, AlienPurple));
             Visual(go.transform, "Hull", SaveMesh(mb, "Boss_Warden"));
             Box(go, new Vector3(0, 0, 5f), new Vector3(26f, 14f, 90f));
             Box(go, new Vector3(0, -2f, -10f), new Vector3(54f, 4f, 30f));
@@ -743,15 +902,18 @@ namespace Voidward.EditorTools
         {
             var go = NetRoot("LootCrate", false);
             var c = go.AddComponent<LootCrate>();
-            var mb = new MeshBuilder();
-            mb.AddBox(T(0, 0.35f, 0), new Vector3(1.4f, 0.7f, 0.9f), Teal);
-            mb.AddBox(T(0, 0.35f, 0), new Vector3(1.46f, 0.12f, 0.96f), Orange);
-            mb.AddBox(T(-0.5f, 0.35f, 0), new Vector3(0.1f, 0.74f, 0.94f), White);
-            mb.AddBox(T(0.5f, 0.35f, 0), new Vector3(0.1f, 0.74f, 0.94f), White);
+            var mb = MB();
+            mb.AddBox(T(0, 0.35f, 0), new Vector3(1.4f, 0.7f, 0.9f), Blue);
+            Shiny(mb, Glossy, () => mb.AddBox(T(0, 0.35f, 0), new Vector3(1.46f, 0.12f, 0.96f), Gold));
+            mb.AddBox(T(-0.5f, 0.35f, 0), new Vector3(0.12f, 0.74f, 0.96f), White);
+            mb.AddBox(T(0.5f, 0.35f, 0), new Vector3(0.12f, 0.74f, 0.96f), White);
+            Shiny(mb, Matte, () => mb.AddBox(T(0, 0.04f, 0), new Vector3(1.42f, 0.08f, 0.92f), Dark));
+            Glow(mb, () => mb.AddBox(T(0, 0.5f, 0.455f), new Vector3(0.3f, 0.06f, 0.02f), Cyan));
             Visual(go.transform, "Body", SaveMesh(mb, "Crate_Body"));
             var lid = Child(go.transform, "LidPivot", new Vector3(0, 0.7f, -0.45f));
-            var lm = new MeshBuilder();
+            var lm = MB();
             lm.AddBox(T(0, 0.08f, 0.45f), new Vector3(1.44f, 0.16f, 0.94f), White);
+            lm.AddBox(T(0, 0.17f, 0.45f), new Vector3(0.9f, 0.04f, 0.6f), Blue);
             Visual(lid.transform, "Lid", SaveMesh(lm, "Crate_Lid"));
             Box(go, new Vector3(0, 0.45f, 0), new Vector3(1.5f, 0.9f, 1f));
             Set(c, "lid", lid.transform);
@@ -762,26 +924,38 @@ namespace Voidward.EditorTools
         {
             var go = NetRoot("ResourceNode", false);
             var n = go.AddComponent<ResourceNode>();
-            var ore = new MeshBuilder();
-            ore.AddRock(Matrix4x4.TRS(new Vector3(0, 0.6f, 0), Quaternion.identity, new Vector3(1.2f, 0.9f, 1f)), 1f, 41, new Color(0.62f, 0.5f, 0.5f));
-            ore.AddRock(Matrix4x4.TRS(new Vector3(0.7f, 0.4f, 0.4f), Quaternion.identity, Vector3.one), 0.35f, 42, new Color(1f, 0.6f, 0.4f));
-            ore.AddRock(Matrix4x4.TRS(new Vector3(-0.6f, 0.7f, -0.3f), Quaternion.identity, Vector3.one), 0.3f, 43, new Color(1f, 0.6f, 0.4f));
-            var crystal = new MeshBuilder();
+            var ore = MB();
+            Color stone = new Color(0.42f, 0.44f, 0.52f), oreCol = new Color(1f, 0.6f, 0.25f);
+            Shiny(ore, Matte, () => ore.AddRock(Matrix4x4.TRS(new Vector3(0, 0.6f, 0), Quaternion.identity, new Vector3(1.2f, 0.9f, 1f)), 1f, 41, stone));
+            Shiny(ore, Glossy, () =>
+            {
+                ore.AddRock(Matrix4x4.TRS(new Vector3(0.7f, 0.4f, 0.4f), Quaternion.identity, Vector3.one), 0.38f, 42, oreCol);
+                ore.AddRock(Matrix4x4.TRS(new Vector3(-0.6f, 0.7f, -0.3f), Quaternion.identity, Vector3.one), 0.32f, 43, oreCol);
+                ore.AddRock(Matrix4x4.TRS(new Vector3(0.1f, 1.25f, 0.2f), Quaternion.identity, Vector3.one), 0.26f, 44, oreCol);
+            });
+            var crystal = MB();
+            crystal.Surface(0.9f, 0.35f);
             for (int i = 0; i < 5; i++)
             {
                 float a = i * 72f;
                 crystal.AddPrism(TR(Mathf.Cos(a * Mathf.Deg2Rad) * 0.35f, 0.6f, Mathf.Sin(a * Mathf.Deg2Rad) * 0.35f, Mathf.Sin(a) * 18f, a, 18f), 0.22f, 0.02f, 1.4f + (i % 3) * 0.4f, 5,
-                    i % 2 == 0 ? new Color(0.55f, 0.9f, 1f) : new Color(0.85f, 0.6f, 1f));
+                    i % 2 == 0 ? Cyan : new Color(0.55f, 0.45f, 1f));
             }
-            crystal.AddPrism(T(0, 0.9f, 0), 0.3f, 0.02f, 1.9f, 6, new Color(0.7f, 0.95f, 1f));
-            var scrap = new MeshBuilder();
+            crystal.AddPrism(T(0, 0.9f, 0), 0.3f, 0.02f, 1.9f, 6, new Color(0.6f, 0.95f, 1f));
+            crystal.Surface(Matte);
+            crystal.AddRock(Matrix4x4.TRS(new Vector3(0, 0.1f, 0), Quaternion.identity, new Vector3(1.2f, 0.4f, 1.2f)), 0.55f, 45, stone);
+            crystal.Surface();
+            var scrap = MB();
             scrap.AddBox(TR(0, 0.3f, 0, 0, 20, 10), new Vector3(1.4f, 0.5f, 0.9f), Mid);
-            scrap.AddBox(TR(0.4f, 0.7f, 0.1f, 15, -10, 30), new Vector3(0.8f, 0.3f, 0.6f), Orange);
-            scrap.AddBox(TR(-0.4f, 0.6f, -0.2f, -20, 40, 0), new Vector3(0.3f, 0.9f, 0.3f), Dark);
-            var fuel = new MeshBuilder();
-            fuel.AddPrism(T(0, 0.6f, 0), 0.45f, 0.45f, 1.2f, 8, new Color(1f, 0.85f, 0.35f));
-            fuel.AddPrism(T(0, 1.3f, 0), 0.2f, 0.15f, 0.2f, 8, Dark);
-            fuel.AddBox(T(0, 0.6f, 0.46f), new Vector3(0.5f, 0.3f, 0.02f), Dark);
+            scrap.AddBox(TR(0.4f, 0.7f, 0.1f, 15, -10, 30), new Vector3(0.8f, 0.3f, 0.6f), Blue);
+            scrap.AddBox(TR(-0.35f, 0.62f, 0.3f, -10, 60, 20), new Vector3(0.5f, 0.2f, 0.5f), White);
+            Shiny(scrap, Matte, () => scrap.AddBox(TR(-0.4f, 0.6f, -0.2f, -20, 40, 0), new Vector3(0.3f, 0.9f, 0.3f), Dark));
+            var fuel = MB();
+            Shiny(fuel, Glossy, () => fuel.AddPrism(T(0, 0.6f, 0), 0.45f, 0.45f, 1.2f, 8, Gold));
+            fuel.AddPrism(T(0, 0.3f, 0), 0.47f, 0.47f, 0.12f, 8, White);
+            fuel.AddPrism(T(0, 0.9f, 0), 0.47f, 0.47f, 0.12f, 8, White);
+            Shiny(fuel, Matte, () => fuel.AddPrism(T(0, 1.3f, 0), 0.2f, 0.15f, 0.2f, 8, Dark));
+            Glow(fuel, () => fuel.AddBox(T(0, 0.6f, 0.44f), new Vector3(0.12f, 0.3f, 0.04f), Cyan));
             var variants = new List<Transform>();
             foreach (var (name, mb) in new[] { ("Ore", ore), ("Crystal", crystal), ("Scrap", scrap), ("Fuel", fuel) })
             {
@@ -804,14 +978,14 @@ namespace Voidward.EditorTools
             so.FindProperty("team").enumValueIndex = (int)Team.Aliens;
             so.ApplyModifiedPropertiesWithoutUndo();
             go.AddComponent<AlienNest>();
-            var mb = new MeshBuilder();
-            mb.AddRock(Matrix4x4.TRS(new Vector3(0, 0.8f, 0), Quaternion.identity, new Vector3(1.6f, 0.9f, 1.6f)), 2f, 51, AlienPurple);
+            var mb = MB();
+            Shiny(mb, Glossy, () => mb.AddRock(Matrix4x4.TRS(new Vector3(0, 0.8f, 0), Quaternion.identity, new Vector3(1.6f, 0.9f, 1.6f)), 2f, 51, AlienPurple));
             for (int i = 0; i < 6; i++)
             {
                 float a = i * 60f * Mathf.Deg2Rad;
-                mb.AddRock(Matrix4x4.TRS(new Vector3(Mathf.Cos(a) * 2.6f, 0.5f, Mathf.Sin(a) * 2.6f), Quaternion.identity, Vector3.one), 0.6f, 52 + i, new Color(0.7f, 1f, 0.45f));
+                mb.AddRock(Matrix4x4.TRS(new Vector3(Mathf.Cos(a) * 2.6f, 0.5f, Mathf.Sin(a) * 2.6f), Quaternion.identity, Vector3.one), 0.6f, 52 + i, AlienGreen);
             }
-            mb.AddPrism(T(0, 2.4f, 0), 0.6f, 0.1f, 1.4f, 6, Pink);
+            Glow(mb, () => mb.AddPrism(T(0, 2.4f, 0), 0.6f, 0.1f, 1.4f, 6, Pink), 0.8f);
             Visual(go.transform, "Mound", SaveMesh(mb, "Nest"));
             var sc = go.AddComponent<SphereCollider>();
             sc.radius = 2.6f; sc.center = new Vector3(0, 1f, 0);
@@ -821,8 +995,9 @@ namespace Voidward.EditorTools
         static GameObject BuildRuin()
         {
             var go = NetRoot("Ruin", false);
-            var mb = new MeshBuilder();
-            Color stone = new Color(0.8f, 0.76f, 0.86f), glow = new Color(0.5f, 1f, 0.95f);
+            var mb = MB(0.15f);
+            Color stone = new Color(0.78f, 0.8f, 0.88f);
+            mb.Surface(Matte);
             for (int i = 0; i < 6; i++)
             {
                 float a = i * 60f * Mathf.Deg2Rad;
@@ -832,7 +1007,16 @@ namespace Voidward.EditorTools
             }
             mb.AddBox(T(0, 0.15f, 0), new Vector3(8f, 0.3f, 8f), stone * 0.85f);
             mb.AddBox(TR(3f, 4.2f, 3f, 0, 45, 0), new Vector3(7f, 0.6f, 1f), stone);
-            mb.AddPrism(T(0, 1.2f, 0), 0.6f, 0.2f, 2f, 5, glow);
+            mb.Surface();
+            Glow(mb, () =>
+            {
+                mb.AddPrism(T(0, 1.2f, 0), 0.6f, 0.2f, 2f, 5, Cyan);
+                for (int i = 0; i < 6; i++)
+                {
+                    float a = i * 60f * Mathf.Deg2Rad;
+                    mb.AddBox(TR(Mathf.Cos(a) * 5.45f, 1.6f, Mathf.Sin(a) * 5.45f, 0, i * 60f, 0), new Vector3(0.1f, 0.6f, 0.3f), Cyan);
+                }
+            }, 0.9f);
             Box(go, new Vector3(0, 0.15f, 0), new Vector3(8f, 0.3f, 8f));
             Visual(go.transform, "Mesh", SaveMesh(mb, "Ruin"));
             return SavePrefab(go);
@@ -841,12 +1025,14 @@ namespace Voidward.EditorTools
         static GameObject BuildCrashed()
         {
             var go = NetRoot("CrashedShip", false);
-            var mb = new MeshBuilder();
-            mb.AddBox(TR(0, 0.8f, 0, 8, 15, 12), new Vector3(3f, 2f, 9f), Mid);
-            mb.AddWedge(Matrix4x4.TRS(new Vector3(1.2f, 0.4f, 5f), Quaternion.Euler(-10, 195, 20), Vector3.one), new Vector3(3f, 2f, 3f), Mid);
-            mb.AddBox(TR(-3.5f, 0.3f, -1f, 0, 30, -25), new Vector3(4f, 0.3f, 2.5f), Orange);
-            mb.AddBox(TR(4f, 0.2f, 2f, 10, -20, 40), new Vector3(3f, 0.3f, 2f), Orange);
-            mb.AddPrism(TR(-1f, 0.6f, -4.5f, 80, 15, 0), 0.8f, 0.6f, 1.6f, 8, Dark);
+            var mb = MB();
+            mb.AddBox(TR(0, 0.8f, 0, 8, 15, 12), new Vector3(3f, 2f, 9f), White);
+            mb.AddBox(TR(0, 0.95f, 0, 8, 15, 12), new Vector3(3.06f, 0.4f, 7f), Blue);
+            mb.AddWedge(Matrix4x4.TRS(new Vector3(1.2f, 0.4f, 5f), Quaternion.Euler(-10, 195, 20), Vector3.one), new Vector3(3f, 2f, 3f), White);
+            mb.AddBox(TR(-3.5f, 0.3f, -1f, 0, 30, -25), new Vector3(4f, 0.3f, 2.5f), Blue);
+            mb.AddBox(TR(4f, 0.2f, 2f, 10, -20, 40), new Vector3(3f, 0.3f, 2f), White);
+            Shiny(mb, Matte, () => mb.AddPrism(TR(-1f, 0.6f, -4.5f, 80, 15, 0), 0.8f, 0.6f, 1.6f, 8, Dark));
+            Glow(mb, () => mb.AddBox(TR(0.6f, 1.9f, 1f, 8, 15, 12), new Vector3(0.6f, 0.06f, 0.6f), Red), 0.8f);
             Visual(go.transform, "Mesh", SaveMesh(mb, "CrashedShip"));
             Box(go, new Vector3(0, 0.8f, 0), new Vector3(3.4f, 2.2f, 9f));
             return SavePrefab(go);
@@ -855,13 +1041,17 @@ namespace Voidward.EditorTools
         static GameObject BuildWreck()
         {
             var go = NetRoot("Wreck", false);
-            var mb = new MeshBuilder();
+            var mb = MB(0.15f);
             mb.AddBox(TR(0, 0, 0, 0, 0, 12), new Vector3(8f, 6f, 22f), Mid);
+            mb.AddBox(TR(0, 0, 0, 0, 0, 12), new Vector3(8.1f, 1.2f, 18f), Navy);
             mb.AddBox(TR(-6f, 2f, -4f, 20, 10, 40), new Vector3(6f, 0.8f, 10f), White);
-            mb.AddBox(TR(7f, -3f, 6f, -30, -20, 10), new Vector3(5f, 0.6f, 8f), Orange);
-            mb.AddPrism(TR(0, 0, -13f, 90, 0, 0), 2.6f, 2f, 4f, 10, Dark);
-            mb.AddBox(TR(2f, 4f, 9f, 0, 30, 60), new Vector3(1f, 6f, 1f), Dark);
-            for (int i = 0; i < 6; i++) mb.AddRock(Matrix4x4.TRS(new Vector3(-8f + i * 3.2f, -6f + (i % 2) * 12f, -8f + i * 3f), Quaternion.Euler(i * 30, i * 50, 0), Vector3.one), 1.2f, 70 + i, Mid);
+            mb.AddBox(TR(7f, -3f, 6f, -30, -20, 10), new Vector3(5f, 0.6f, 8f), Blue);
+            Shiny(mb, Matte, () =>
+            {
+                mb.AddPrism(TR(0, 0, -13f, 90, 0, 0), 2.6f, 2f, 4f, 10, Dark);
+                mb.AddBox(TR(2f, 4f, 9f, 0, 30, 60), new Vector3(1f, 6f, 1f), Dark);
+                for (int i = 0; i < 6; i++) mb.AddRock(Matrix4x4.TRS(new Vector3(-8f + i * 3.2f, -6f + (i % 2) * 12f, -8f + i * 3f), Quaternion.Euler(i * 30, i * 50, 0), Vector3.one), 1.2f, 70 + i, Mid);
+            });
             Visual(go.transform, "Mesh", SaveMesh(mb, "Wreck"));
             Box(go, Vector3.zero, new Vector3(8f, 6f, 22f));
             return SavePrefab(go);
@@ -871,23 +1061,33 @@ namespace Voidward.EditorTools
         {
             var go = NetRoot("TraderStation", false);
             var ts = go.AddComponent<TraderStation>();
-            var mb = new MeshBuilder();
+            var mb = MB(0.15f);
             mb.AddPrism(T(0, 0, 0), 10f, 10f, 26f, 10, White);
-            mb.AddPrism(T(0, 14f, 0), 7f, 2f, 4f, 10, Orange);
-            mb.AddPrism(T(0, -14f, 0), 2f, 7f, 4f, 10, Orange);
+            mb.AddPrism(T(0, 4f, 0), 10.2f, 10.2f, 2f, 10, Blue);
+            mb.AddPrism(T(0, -4f, 0), 10.2f, 10.2f, 2f, 10, Blue);
+            Glow(mb, () => mb.AddPrism(T(0, 0, 0), 10.15f, 10.15f, 0.5f, 10, Cyan), 0.8f);
+            mb.AddPrism(T(0, 14f, 0), 7f, 2f, 4f, 10, Navy);
+            mb.AddPrism(T(0, -14f, 0), 2f, 7f, 4f, 10, Navy);
+            Shiny(mb, Glossy, () => mb.AddPrism(T(0, 16.6f, 0), 1.2f, 0.3f, 1.4f, 6, Gold));
             mb.AddBox(T(0, 0, 18f), new Vector3(3f, 3f, 16f), Mid);                      // pad arm
-            mb.AddBox(T(0, -1.5f, 34f), new Vector3(30f, 1f, 30f), Teal);                // landing pad
+            mb.AddBox(T(0, -1.5f, 34f), new Vector3(30f, 1f, 30f), Navy);                // landing pad
             mb.AddBox(T(0, -0.99f, 34f), new Vector3(26f, 0.02f, 2f), White);
             mb.AddBox(T(0, -0.99f, 34f), new Vector3(2f, 0.02f, 26f), White);
-            mb.AddBox(T(0, 0.5f, 22.5f), new Vector3(3f, 3f, 1.2f), Orange);              // trader console
-            for (int i = 0; i < 4; i++) mb.AddPrism(T(-14f + (i % 2) * 28f, 1f, 20f + (i / 2) * 28f), 0.3f, 0.3f, 4f, 6, Pink);
+            Shiny(mb, Glossy, () => mb.AddBox(T(0, 0.5f, 22.5f), new Vector3(3f, 3f, 1.2f), Gold)); // trader console
+            Glow(mb, () =>
+            {
+                mb.AddBox(T(0, 1.2f, 23.12f), new Vector3(2f, 0.9f, 0.04f), Cyan);
+                for (int i = 0; i < 4; i++) mb.AddPrism(T(-14f + (i % 2) * 28f, 1f, 20f + (i / 2) * 28f), 0.3f, 0.3f, 4f, 6, Cyan);
+            }, 0.9f);
             Visual(go.transform, "Hub", SaveMesh(mb, "Station_Hub"));
-            var ring = new MeshBuilder();
+            var ring = MB(0.15f);
             for (int i = 0; i < 16; i++)
             {
                 float a = i * 22.5f;
-                ring.AddBox(Matrix4x4.TRS(Quaternion.Euler(0, a, 0) * new Vector3(0, 0, 24f), Quaternion.Euler(0, a, 0), Vector3.one), new Vector3(9.6f, 2.4f, 2.4f), i % 2 == 0 ? White : Pink);
+                ring.AddBox(Matrix4x4.TRS(Quaternion.Euler(0, a, 0) * new Vector3(0, 0, 24f), Quaternion.Euler(0, a, 0), Vector3.one), new Vector3(9.6f, 2.4f, 2.4f), i % 2 == 0 ? White : Blue);
                 ring.AddBox(Matrix4x4.TRS(Quaternion.Euler(0, a, 0) * new Vector3(0, 0, 17f), Quaternion.Euler(0, a, 0), Vector3.one), new Vector3(0.6f, 0.6f, 14f), Mid);
+                if (i % 2 == 0)
+                    Glow(ring, () => ring.AddBox(Matrix4x4.TRS(Quaternion.Euler(0, a, 0) * new Vector3(0, 0, 25.22f), Quaternion.Euler(0, a, 0), Vector3.one), new Vector3(5f, 0.5f, 0.04f), Cyan), 0.8f);
             }
             var spinner = Child(go.transform, "Ring", new Vector3(0, 6f, 0));
             Visual(spinner.transform, "RingMesh", SaveMesh(ring, "Station_Ring"));
@@ -910,15 +1110,17 @@ namespace Voidward.EditorTools
         {
             var go = NetRoot("JumpGate", false);
             var gate = go.AddComponent<JumpGate>();
-            var ring = new MeshBuilder();
+            var ring = MB(0.18f);
             const int seg = 28;
             const float R = 55f;
             for (int i = 0; i < seg; i++)
             {
                 float a = i * 360f / seg;
                 var rot = Quaternion.Euler(0, 0, a);
-                ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R, 0), rot, Vector3.one), new Vector3(13f, 6f, 8f), i % 4 == 0 ? Orange : White);
-                if (i % 4 == 0) ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R + 5f, 0), rot, Vector3.one), new Vector3(3f, 5f, 3f), Teal);
+                if (i % 4 == 0) Shiny(ring, Glossy, () => ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R, 0), rot, Vector3.one), new Vector3(13f, 6f, 8f), Gold));
+                else ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R, 0), rot, Vector3.one), new Vector3(13f, 6f, 8f), i % 2 == 0 ? Blue : White);
+                if (i % 4 == 0) ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R + 5f, 0), rot, Vector3.one), new Vector3(3f, 5f, 3f), Navy);
+                Glow(ring, () => ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R - 3.02f, 0), rot, Vector3.one), new Vector3(8f, 0.1f, 2f), Cyan), 0.9f);
             }
             var ringGo = Child(go.transform, "Ring", Vector3.zero);
             Visual(ringGo.transform, "RingMesh", SaveMesh(ring, "Gate_Ring"));
@@ -935,9 +1137,10 @@ namespace Voidward.EditorTools
             var core = Visual(go.transform, "Core", SaveMesh(disc, "Gate_Core"), MatGlass);
             core.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             // Socket platform for manual insertion on foot
-            var plat = new MeshBuilder();
-            plat.AddBox(T(0, -R - 10f, 0), new Vector3(16f, 1f, 16f), Teal);
-            plat.AddBox(T(0, -R - 8.5f, 0), new Vector3(2f, 2f, 2f), Orange);
+            var plat = MB(0.1f);
+            plat.AddBox(T(0, -R - 10f, 0), new Vector3(16f, 1f, 16f), Navy);
+            Shiny(plat, Glossy, () => plat.AddBox(T(0, -R - 8.5f, 0), new Vector3(2f, 2f, 2f), Gold));
+            Glow(plat, () => plat.AddBox(T(0, -R - 9.49f, 0), new Vector3(12f, 0.02f, 0.3f), Cyan), 0.8f);
             Visual(go.transform, "Socket", SaveMesh(plat, "Gate_Socket"));
             Box(go, new Vector3(0, -R - 10f, 0), new Vector3(16f, 1f, 16f));
             var sock = Child(go.transform, "SocketTrigger", new Vector3(0, -R - 8.5f, 0));

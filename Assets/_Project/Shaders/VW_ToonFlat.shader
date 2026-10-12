@@ -6,10 +6,14 @@ Shader "VOIDWARD/ToonFlat"
         [Toggle] _UseVertexColor ("Use Vertex Color", Float) = 1
         [Toggle] _FlatShading ("Geometric Flat Normals", Float) = 0
         _Steps ("Toon Steps", Range(1,6)) = 3
+        _Softness ("Band Softness", Range(0,1)) = 0.6
         _AmbientBoost ("Ambient Boost", Range(0,2)) = 0.6
         _RimColor ("Rim Color", Color) = (0.3,0.4,0.6,1)
         _RimPower ("Rim Power", Range(0.5,8)) = 3
         _RimStrength ("Rim Strength", Range(0,1)) = 0.25
+        _SpecStrength ("Specular Strength (x UV0.x gloss)", Range(0,3)) = 1
+        _ReflStrength ("Env Reflection (x gloss^2)", Range(0,2)) = 0.8
+        _GlowIntensity ("Glow Intensity (x UV0.y)", Range(0,8)) = 3
         [HDR] _EmissionColor ("Emission", Color) = (0,0,0,1)
     }
     SubShader
@@ -29,8 +33,10 @@ Shader "VOIDWARD/ToonFlat"
             #pragma fragment frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile _ _ADDITIONAL_LIGHTS
-            #pragma multi_compile _ _SHADOWS_SOFT
+            #pragma multi_compile _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_fog
+            #pragma multi_compile_instancing
             #pragma shader_feature_local _FLATSHADING_ON
             #pragma shader_feature_local _USEVERTEXCOLOR_ON
 
@@ -42,6 +48,8 @@ Shader "VOIDWARD/ToonFlat"
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
                 float4 color      : COLOR;
+                float2 surface    : TEXCOORD0; // x = gloss, y = glow (MeshBuilder)
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -51,25 +59,32 @@ Shader "VOIDWARD/ToonFlat"
                 float3 normalWS   : TEXCOORD1;
                 float4 color      : COLOR;
                 float  fogCoord   : TEXCOORD2;
+                float2 surface    : TEXCOORD3;
             };
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseColor;
                 float _Steps;
+                float _Softness;
                 float _AmbientBoost;
                 float4 _RimColor;
                 float _RimPower;
                 float _RimStrength;
+                float _SpecStrength;
+                float _ReflStrength;
+                float _GlowIntensity;
                 float4 _EmissionColor;
             CBUFFER_END
 
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
+                UNITY_SETUP_INSTANCE_ID(IN);
                 OUT.positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 OUT.positionCS = TransformWorldToHClip(OUT.positionWS);
                 OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.color = IN.color;
+                OUT.surface = IN.surface;
                 OUT.fogCoord = ComputeFogFactor(OUT.positionCS.z);
                 return OUT;
             }
@@ -85,35 +100,107 @@ Shader "VOIDWARD/ToonFlat"
 
                 float4 baseCol = _BaseColor;
             #ifdef _USEVERTEXCOLOR_ON
-                baseCol *= IN.color;
+                // Vertex colors are authored in sRGB (like the UI palette) but meshes store them raw.
+                #ifndef UNITY_COLORSPACE_GAMMA
+                    baseCol.rgb *= SRGBToLinear(IN.color.rgb);
+                #else
+                    baseCol.rgb *= IN.color.rgb;
+                #endif
             #endif
+                float gloss = saturate(IN.surface.x);
+                float glow = IN.surface.y;
+
+                float2 screenUV = GetNormalizedScreenSpaceUV(IN.positionCS);
+                AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(screenUV);
 
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
-                float atten = lerp(1.0, mainLight.shadowAttenuation, 0.7);
-                float lit = smoothstep(-0.15, 0.45, dot(n, mainLight.direction)) * atten;
-                float stepped = floor(saturate(lit) * _Steps + 0.5) / max(_Steps, 1.0);
-                stepped = lerp(0.22, 1.0, stepped);
+                float atten = lerp(1.0, mainLight.shadowAttenuation, 0.75);
+                float ndl = dot(n, mainLight.direction);
+                // Soft stylized bands: a stepped ramp blended with a wrapped smooth ramp.
+                float smoothLit = smoothstep(-0.25, 0.65, ndl);
+                float stepped = floor(smoothLit * _Steps + 0.5) / max(_Steps, 1.0);
+                float lit = lerp(stepped, smoothLit, _Softness) * atten * ao.directAmbientOcclusion;
+                lit = lerp(0.18, 1.0, lit);
 
-                float3 col = baseCol.rgb * mainLight.color * stepped;
-                col += baseCol.rgb * SampleSH(n) * _AmbientBoost;
+                float3 col = baseCol.rgb * mainLight.color * lit;
+                col += baseCol.rgb * SampleSH(n) * _AmbientBoost * ao.indirectAmbientOcclusion;
 
             #ifdef _ADDITIONAL_LIGHTS
                 uint lightCount = GetAdditionalLightsCount();
                 for (uint i = 0; i < lightCount; i++)
                 {
                     Light l = GetAdditionalLight(i, IN.positionWS);
-                    float atten = saturate(dot(n, l.direction)) * l.distanceAttenuation * l.shadowAttenuation;
-                    col += baseCol.rgb * l.color * atten * 0.8;
+                    float la = saturate(dot(n, l.direction)) * l.distanceAttenuation * l.shadowAttenuation;
+                    col += baseCol.rgb * l.color * la * 0.8;
                 }
             #endif
 
-                float3 viewDir = GetWorldSpaceViewDir(IN.positionWS);
-                float rim = pow(1.0 - saturate(dot(n, normalize(viewDir))), _RimPower) * _RimStrength;
+                float3 viewDir = normalize(GetWorldSpaceViewDir(IN.positionWS));
+                float ndv = saturate(dot(n, viewDir));
+
+                // Glossy plastic: crisp-edged Blinn-Phong highlight + a soft fresnel sky reflection.
+                float3 h = normalize(mainLight.direction + viewDir);
+                float specPow = lerp(24.0, 160.0, gloss);
+                float spec = pow(saturate(dot(n, h)), specPow);
+                spec = smoothstep(0.25, 0.6, spec) * gloss * _SpecStrength * step(0.0, ndl) * atten;
+                col += mainLight.color * spec;
+                float fres = pow(1.0 - ndv, 3.0);
+                float3 refl = SampleSH(reflect(-viewDir, n));
+                col += refl * (gloss * gloss) * _ReflStrength * lerp(0.25, 1.0, fres) * lerp(float3(1, 1, 1), baseCol.rgb, 0.6);
+
+                float rim = pow(1.0 - ndv, _RimPower) * _RimStrength;
                 col += _RimColor.rgb * rim;
+                col += baseCol.rgb * glow * _GlowIntensity;
                 col += _EmissionColor.rgb;
 
-                col = MixFog(col, IN.fogCoord);
+                col = MixFog(col, IN.fogCoord * (1.0 - saturate(glow)));
                 return half4(col, 1);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode"="DepthNormals" }
+            ZWrite On
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma vertex DNVert
+            #pragma fragment DNFrag
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            #pragma multi_compile_instancing
+            #pragma shader_feature_local _FLATSHADING_ON
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; float3 normalWS : TEXCOORD1; };
+
+            Varyings DNVert(Attributes IN)
+            {
+                Varyings OUT;
+                UNITY_SETUP_INSTANCE_ID(IN);
+                OUT.positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.positionCS = TransformWorldToHClip(OUT.positionWS);
+                OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                return OUT;
+            }
+
+            half4 DNFrag(Varyings IN) : SV_Target
+            {
+            #ifdef _FLATSHADING_ON
+                float3 n = normalize(cross(ddy(IN.positionWS), ddx(IN.positionWS)));
+                n *= sign(dot(n, IN.normalWS) + 1e-5);
+            #else
+                float3 n = normalize(IN.normalWS);
+            #endif
+            #if defined(_GBUFFER_NORMALS_OCT)
+                float2 oct = saturate(PackNormalOctQuadEncode(n) * 0.5 + 0.5);
+                return half4(PackFloat2To888(oct), 0.0);
+            #else
+                return half4(NormalizeNormalPerPixel(n), 0.0);
+            #endif
             }
             ENDHLSL
         }

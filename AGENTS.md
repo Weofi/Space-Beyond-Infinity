@@ -34,6 +34,7 @@ User speaks German – answer in German.
 - TMP: ASCII glyphs only (no `…`, arrows, emoji) → otherwise missing-glyph warnings.
 - PrefabBuilder deletes prefabs before re-saving them (keeps `GlobalObjectIdHash` valid). Network prefab list is rebuilt from scratch.
 - Skybox shader must handle reversed-Z (otherwise it draws over everything).
+- Art style (#3): stylized low-poly, white/blue hard surfaces, navy, gold accents, cyan glow. `MeshBuilder.Bevel` chamfers boxes; `Surface(gloss, glow)` writes UV0 (gloss = specular, glow = emission) read by VW_ToonFlat. Vertex colors are authored in sRGB (shader converts to linear). Palette constants live at the top of `PrefabBuilder`.
 - Editor ↔ release build = "NetworkConfig mismatch". Use a Development build (`Voidward/Build/macOS (Development)`) or MPPM.
 - Owning a ship in its spawn frame breaks positioning for remote clients → `RunManager.SeatLater` delays it by 0.6 s.
 

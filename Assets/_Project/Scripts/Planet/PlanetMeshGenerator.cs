@@ -41,7 +41,33 @@ namespace Voidward.Planet
                 ? Mathf.SmoothStep(0f, seaT, t) * 0.35f
                 : 0.35f + Mathf.SmoothStep(seaT, 1f, t) * 0.65f;
 
-            return height01;
+            return Mathf.Clamp01(height01 + CraterOffset(seed, unitDir));
+        }
+
+        const int CraterCount = 12;
+
+        /// <summary>Bowl-shaped craters with raised rims at seed-hashed spots (height01 units).</summary>
+        static float CraterOffset(int seed, Vector3 dir)
+        {
+            float off = 0f;
+            for (int k = 0; k < CraterCount; k++)
+            {
+                var c = new Vector3(
+                    MathUtils.Hash3(seed, k, 11, 0) * 2f - 1f,
+                    MathUtils.Hash3(seed, k, 12, 0) * 2f - 1f,
+                    MathUtils.Hash3(seed, k, 13, 0) * 2f - 1f);
+                if (c.sqrMagnitude < 1e-4f) continue;
+                c.Normalize();
+                float dot = Vector3.Dot(dir, c);
+                if (dot < 0.9f) continue; // beyond the largest crater radius
+                float size = Mathf.Lerp(0.09f, 0.24f, MathUtils.Hash3(seed, k, 14, 0)); // angular radius (rad)
+                float d = Mathf.Acos(Mathf.Min(dot, 1f)) / size;
+                if (d > 1.7f) continue;
+                float bowl = d < 1f ? (d * d - 1f) * 0.22f : 0f;
+                float rim = Mathf.Exp(-(d - 1f) * (d - 1f) * 9f) * 0.1f;
+                off += bowl + rim;
+            }
+            return off;
         }
 
         /// <summary>
@@ -63,11 +89,11 @@ namespace Voidward.Planet
             => GenerateVisualAt(seed, radius, biome, 4);
 
         /// <summary>
-        /// Collider mesh: icosphere subdiv 3 (642 verts), displaced identically to the visual mesh.
+        /// Welded collider mesh, displaced identically to the visual mesh of the same subdivision.
         /// </summary>
-        public static Mesh GenerateCollider(int seed, float radius, BiomeDef biome)
+        public static Mesh GenerateCollider(int seed, float radius, BiomeDef biome, int subdivisions = 3)
         {
-            Mesh mesh = IcoSphere.Create(radius, 3, "PlanetCollider");
+            Mesh mesh = IcoSphere.Create(radius, subdivisions, "PlanetCollider");
 
             Vector3[] verts = mesh.vertices;
             for (int i = 0; i < verts.Length; i++)
@@ -95,7 +121,6 @@ namespace Voidward.Planet
 
             Vector3[] dirs = new Vector3[count];
             float[] heights = new float[count];
-            Vector3[] normals = new Vector3[count];
 
             // Displace vertices and cache heights/directions.
             for (int i = 0; i < count; i++)
@@ -104,61 +129,57 @@ namespace Voidward.Planet
                 dirs[i] = dir;
                 float h = SampleHeight01(seed, biome, dir);
                 heights[i] = h;
-                float r = radius * (1f + biome.Amplitude * h);
-                verts[i] = dir * r;
-                normals[i] = dir; // welded-sphere radial normals
+                verts[i] = dir * (radius * (1f + biome.Amplitude * h));
             }
 
-            // Geometric face normals for slope-based coloring (not stored in the mesh).
-            Vector3[] geoNormals = new Vector3[count];
-            for (int i = 0; i < tris.Length; i += 3)
+            // Unweld so every facet gets one flat color (stylized low-poly look) and a true face normal.
+            int triCount = tris.Length;
+            var fVerts = new Vector3[triCount];
+            var fNormals = new Vector3[triCount];
+            var fColors = new Color[triCount];
+            var fTris = new int[triCount];
+            for (int i = 0; i < triCount; i += 3)
             {
                 int a = tris[i], b = tris[i + 1], c = tris[i + 2];
-                Vector3 faceNormal = Vector3.Cross(verts[b] - verts[a], verts[c] - verts[a]).normalized;
-                geoNormals[a] += faceNormal;
-                geoNormals[b] += faceNormal;
-                geoNormals[c] += faceNormal;
+                Vector3 fn = Vector3.Cross(verts[b] - verts[a], verts[c] - verts[a]).normalized;
+                Color fc = GetBiomeColor(biome, (heights[a] + heights[b] + heights[c]) / 3f);
+                // Steep facets read as darker rock; a small per-facet hash keeps large areas from looking flat.
+                if (Vector3.Dot(fn, (dirs[a] + dirs[b] + dirs[c]).normalized) < 0.8f) fc *= 0.82f;
+                fc *= 1f + (MathUtils.Hash3(seed, i, 0, 0) * 2f - 1f) * 0.1f;
+                fc.a = 1f;
+                for (int j = 0; j < 3; j++)
+                {
+                    fVerts[i + j] = verts[tris[i + j]];
+                    fNormals[i + j] = fn;
+                    fColors[i + j] = fc;
+                    fTris[i + j] = i + j;
+                }
             }
 
-            // Vertex colors by elevation, slope darkening, and per-vertex hash variation.
-            Color[] colors = new Color[count];
-            for (int i = 0; i < count; i++)
-            {
-                Color col = GetBiomeColor(biome, heights[i]);
-
-                // Darken ~15% on steep slopes (geometric normal deviates from radial).
-                Vector3 geoN = geoNormals[i].normalized;
-                float slopeDot = Vector3.Dot(geoN, dirs[i]);
-                if (slopeDot < 0.75f)
-                    col *= 0.85f;
-
-                // Per-vertex hash variation ±10% for a hand-painted, faceted look.
-                float hash = MathUtils.Hash3(seed, i, 0, 0);
-                col *= 1f + (hash * 2f - 1f) * 0.1f;
-                col.a = 1f;
-
-                colors[i] = col;
-            }
-
-            mesh.SetVertices(verts);
-            mesh.SetNormals(normals);
-            mesh.SetColors(colors);
+            mesh.Clear();
+            mesh.indexFormat = triCount > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+            mesh.SetVertices(fVerts);
+            mesh.SetNormals(fNormals);
+            mesh.SetColors(fColors);
+            mesh.SetTriangles(fTris, 0);
             mesh.RecalculateBounds();
             return mesh;
         }
 
         /// <summary>
-        /// Three-band elevation color: LowColor below 0.35, HighColor above 0.75, smooth lerps through MidColor.
+        /// Three-band elevation color: LowColor below 0.22, HighColor only on peaks above 0.85, MidColor dominates between.
         /// </summary>
         static Color GetBiomeColor(BiomeDef biome, float height01)
         {
-            if (height01 <= 0.35f)
+            if (height01 <= 0.22f)
                 return biome.LowColor;
-            if (height01 >= 0.75f)
+            if (height01 >= 0.85f)
                 return biome.HighColor;
-            if (height01 < 0.55f)
-                return Color.Lerp(biome.LowColor, biome.MidColor, Mathf.InverseLerp(0.35f, 0.55f, height01));
-            return Color.Lerp(biome.MidColor, biome.HighColor, Mathf.InverseLerp(0.55f, 0.75f, height01));
+            if (height01 < 0.5f)
+                return Color.Lerp(biome.LowColor, biome.MidColor, Mathf.InverseLerp(0.22f, 0.5f, height01));
+            if (height01 < 0.7f)
+                return biome.MidColor;
+            return Color.Lerp(biome.MidColor, biome.HighColor, Mathf.InverseLerp(0.7f, 0.85f, height01));
         }
     }
 }

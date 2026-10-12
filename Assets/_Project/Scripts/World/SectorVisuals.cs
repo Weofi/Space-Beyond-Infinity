@@ -62,7 +62,7 @@ namespace Voidward.World
             var root = new GameObject("AsteroidField");
             root.transform.position = f.Center;
             spawned.Add(root);
-            Color baseCol = def != null && def.Palette != null ? Color.Lerp(def.Palette.AmbientColor, new Color(0.62f, 0.55f, 0.6f), 0.6f) : new Color(0.6f, 0.55f, 0.6f);
+            Color baseCol = def != null && def.Palette != null ? Color.Lerp(def.Palette.AmbientColor, new Color(0.55f, 0.58f, 0.66f), 0.65f) : new Color(0.55f, 0.58f, 0.66f);
 
             // Batch rocks into chunks of ~20 for few draw calls; each rock gets its own sphere collider.
             const int perChunk = 20;
@@ -87,7 +87,7 @@ namespace Voidward.World
 
                 if (mb == null)
                 {
-                    mb = new MeshBuilder();
+                    mb = new MeshBuilder { Gloss = 0.05f };
                     chunk = new GameObject("Rocks");
                     chunk.transform.SetParent(root.transform, false);
                     inChunk = 0;
@@ -125,7 +125,7 @@ namespace Voidward.World
                 skyInstance.SetColor("_NebulaColorB", pal.NebulaB);
                 skyInstance.SetColor("_StarColor", pal.StarColor);
                 skyInstance.SetFloat("_Seed", (seed % 1000) * 0.37f);
-                skyInstance.SetFloat("_NebulaStrength", 0.85f);
+                skyInstance.SetFloat("_NebulaStrength", 0.55f);
                 RenderSettings.skybox = skyInstance;
             }
             RenderSettings.fog = true;

@@ -114,13 +114,18 @@ namespace Voidward.EditorTools
             MatToon.SetFloat("_FlatShading", 1f);
             MatToon.EnableKeyword("_FLATSHADING_ON");
             MatToon.SetFloat("_Steps", 3f);
-            MatToon.SetFloat("_AmbientBoost", 0.42f);
-            MatToon.SetFloat("_RimStrength", 0.22f);
-            MatToon.SetColor("_RimColor", new Color(0.55f, 0.6f, 0.9f));
+            MatToon.SetFloat("_Softness", 0.65f);
+            MatToon.SetFloat("_AmbientBoost", 0.38f);
+            MatToon.SetFloat("_RimStrength", 0.16f);
+            MatToon.SetFloat("_RimPower", 3.5f);
+            MatToon.SetColor("_RimColor", new Color(0.6f, 0.75f, 1f));
+            MatToon.SetFloat("_SpecStrength", 0.9f);
+            MatToon.SetFloat("_ReflStrength", 0.9f);
+            MatToon.SetFloat("_GlowIntensity", 3f);
             MatToon.enableInstancing = true;
 
             MatSkybox = Mat("VW_Skybox", "VOIDWARD/NebulaSkybox");
-            MatSkybox.SetFloat("_NebulaStrength", 0.85f);
+            MatSkybox.SetFloat("_NebulaStrength", 0.55f);
             MatSkybox.SetFloat("_StarDensity", 220f);
             MatCollapse = Mat("VW_Collapse", "VOIDWARD/Collapse");
             MatAtmosphere = Mat("VW_Atmosphere", "VOIDWARD/Atmosphere");
@@ -129,7 +134,7 @@ namespace Voidward.EditorTools
             MatUnlit = Mat("VW_Unlit", "VOIDWARD/Unlit");
             MatUnlit.SetColor("_BaseColor", new Color(1f, 1f, 1f));
             MatGlow = Mat("VW_Glow", "VOIDWARD/Unlit");
-            MatGlow.SetColor("_BaseColor", new Color(2.6f, 1.3f, 0.6f));
+            MatGlow.SetColor("_BaseColor", new Color(0.7f, 1.8f, 3.4f));
             MatParticle = Mat("VW_Particle", "VOIDWARD/AdditiveParticle");
             MatGlass = Mat("VW_Glass", "VOIDWARD/Glass");
         }
@@ -184,12 +189,13 @@ namespace Voidward.EditorTools
             }
             return new[]
             {
-                P("Pastel Drift", new Color(0.10f, 0.10f, 0.28f), new Color(0.42f, 0.30f, 0.60f), new Color(0.98f, 0.55f, 0.75f), new Color(0.45f, 0.75f, 1f),
-                  new Color(1f, 0.93f, 0.85f), new Color(0.55f, 0.55f, 0.75f), new Color(0.25f, 0.2f, 0.42f), 0.00018f, new Color(0.4f, 0.85f, 0.95f)),
-                P("Verdigris Expanse", new Color(0.05f, 0.14f, 0.2f), new Color(0.2f, 0.45f, 0.45f), new Color(0.4f, 0.95f, 0.7f), new Color(0.95f, 0.85f, 0.4f),
-                  new Color(0.9f, 1f, 0.9f), new Color(0.45f, 0.62f, 0.6f), new Color(0.12f, 0.25f, 0.28f), 0.0002f, new Color(0.5f, 1f, 0.75f)),
-                P("Ember Maw", new Color(0.12f, 0.04f, 0.1f), new Color(0.5f, 0.2f, 0.25f), new Color(1f, 0.45f, 0.35f), new Color(0.75f, 0.35f, 0.95f),
-                  new Color(1f, 0.75f, 0.6f), new Color(0.62f, 0.45f, 0.5f), new Color(0.3f, 0.1f, 0.15f), 0.00022f, new Color(1f, 0.6f, 0.45f)),
+                // Navy/blue space with cyan nebulae; later sectors shift towards teal and ember accents.
+                P("Pastel Drift", new Color(0.015f, 0.03f, 0.1f), new Color(0.07f, 0.15f, 0.34f), new Color(0.2f, 0.45f, 1f), new Color(0.35f, 0.85f, 1f),
+                  new Color(1f, 0.96f, 0.9f), new Color(0.5f, 0.58f, 0.8f), new Color(0.06f, 0.11f, 0.26f), 0.00016f, new Color(0.4f, 0.75f, 1f)),
+                P("Verdigris Expanse", new Color(0.015f, 0.06f, 0.1f), new Color(0.05f, 0.2f, 0.28f), new Color(0.2f, 0.85f, 0.8f), new Color(0.3f, 0.5f, 1f),
+                  new Color(0.95f, 1f, 0.96f), new Color(0.45f, 0.62f, 0.7f), new Color(0.05f, 0.15f, 0.2f), 0.00018f, new Color(0.45f, 1f, 0.85f)),
+                P("Ember Maw", new Color(0.05f, 0.025f, 0.09f), new Color(0.2f, 0.09f, 0.2f), new Color(1f, 0.45f, 0.25f), new Color(0.45f, 0.3f, 1f),
+                  new Color(1f, 0.86f, 0.72f), new Color(0.6f, 0.5f, 0.62f), new Color(0.15f, 0.06f, 0.12f), 0.0002f, new Color(1f, 0.6f, 0.4f)),
             };
         }
 
@@ -347,15 +353,15 @@ namespace Voidward.EditorTools
                 biomes[kind.ToString()] = b;
                 return b;
             }
-            B(Biome.Ice, "Frost World", 2.6f, 0.06f, 4, -0.1f, new Color(0.5f, 0.68f, 0.95f), new Color(0.72f, 0.86f, 1f), new Color(0.96f, 0.98f, 1f), new Color(0.6f, 0.85f, 1f, 0.55f), true,
+            B(Biome.Ice, "Frost World", 2.6f, 0.06f, 4, -0.1f, new Color(0.42f, 0.62f, 0.95f), new Color(0.64f, 0.8f, 0.97f), new Color(0.88f, 0.93f, 1f), new Color(0.6f, 0.85f, 1f, 0.55f), true,
                 (ScatterKind.OreNode, 7), (ScatterKind.CrystalNode, 7), (ScatterKind.FuelNode, 3), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 1), (ScatterKind.Ruin, 1), (ScatterKind.CrashedShip, 1));
-            B(Biome.Desert, "Dune World", 2.2f, 0.055f, 4, -0.2f, new Color(0.95f, 0.72f, 0.5f), new Color(0.99f, 0.84f, 0.62f), new Color(0.88f, 0.58f, 0.48f), new Color(1f, 0.75f, 0.5f, 0.45f), false,
+            B(Biome.Desert, "Dune World", 2.2f, 0.055f, 4, -0.2f, new Color(0.78f, 0.46f, 0.3f), new Color(0.92f, 0.7f, 0.44f), new Color(0.96f, 0.84f, 0.64f), new Color(1f, 0.78f, 0.5f, 0.45f), false,
                 (ScatterKind.OreNode, 9), (ScatterKind.ScrapNode, 4), (ScatterKind.FuelNode, 4), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 1), (ScatterKind.Ruin, 2), (ScatterKind.CrashedShip, 1));
-            B(Biome.ToxicJungle, "Toxic Jungle", 3.2f, 0.07f, 5, -0.05f, new Color(0.3f, 0.7f, 0.45f), new Color(0.5f, 0.88f, 0.5f), new Color(0.8f, 0.98f, 0.55f), new Color(0.6f, 1f, 0.4f, 0.6f), false,
+            B(Biome.ToxicJungle, "Toxic Jungle", 3.2f, 0.07f, 5, -0.05f, new Color(0.12f, 0.46f, 0.42f), new Color(0.33f, 0.8f, 0.42f), new Color(0.78f, 0.96f, 0.4f), new Color(0.55f, 1f, 0.5f, 0.6f), false,
                 (ScatterKind.CrystalNode, 6), (ScatterKind.OreNode, 5), (ScatterKind.FuelNode, 3), (ScatterKind.LootCrate, 6), (ScatterKind.Nest, 3), (ScatterKind.Ruin, 1));
-            B(Biome.Crystal, "Crystal World", 2.8f, 0.065f, 4, -0.1f, new Color(0.62f, 0.52f, 0.95f), new Color(0.85f, 0.65f, 1f), new Color(1f, 0.82f, 0.95f), new Color(0.9f, 0.6f, 1f, 0.55f), true,
+            B(Biome.Crystal, "Crystal World", 2.8f, 0.065f, 4, -0.1f, new Color(0.18f, 0.24f, 0.55f), new Color(0.24f, 0.44f, 0.95f), new Color(0.55f, 0.72f, 1f), new Color(0.45f, 0.7f, 1f, 0.55f), true,
                 (ScatterKind.CrystalNode, 12), (ScatterKind.OreNode, 4), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 2), (ScatterKind.Ruin, 2), (ScatterKind.CrashedShip, 1));
-            B(Biome.Volcanic, "Ember World", 3f, 0.085f, 5, -0.15f, new Color(0.28f, 0.2f, 0.3f), new Color(0.55f, 0.3f, 0.32f), new Color(1f, 0.58f, 0.38f), new Color(1f, 0.45f, 0.35f, 0.55f), false,
+            B(Biome.Volcanic, "Ember World", 3f, 0.085f, 5, -0.15f, new Color(0.13f, 0.13f, 0.17f), new Color(0.32f, 0.24f, 0.3f), new Color(1f, 0.52f, 0.25f), new Color(1f, 0.45f, 0.3f, 0.55f), false,
                 (ScatterKind.OreNode, 9), (ScatterKind.FuelNode, 5), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 2), (ScatterKind.CrashedShip, 2));
         }
 
