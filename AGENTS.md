@@ -7,6 +7,7 @@ User speaks German – answer in German.
 - Unity 6000.6.5f1, URP (`Assets/SourceFiles/Settings/PC_RPAsset`, Forward+), Input System only, TMP (ugui 2.x)
 - Netcode for GameObjects 2.13.3 + Unity Transport; Facepunch.Steamworks (`Assets/Plugins/Steamworks`, define `VOIDWARD_STEAM`, AppID 480)
 - Cinemachine 3 (`Unity.Cinemachine`), Multiplayer Play Mode 3.0
+- Blender 5.2 LTS (optional DCC tool, headless via CLI, no MCP). See "Blender (asset scripts)".
 - Developed on two machines: Mac (macOS + WebGL build modules) and Windows PC (Windows build module). See "Cross-platform (Mac + Windows)".
 
 ## Layout (`Assets/_Project`)
@@ -35,7 +36,8 @@ User speaks German – answer in German.
 - TMP: ASCII glyphs only (no `…`, arrows, emoji) → otherwise missing-glyph warnings.
 - PrefabBuilder deletes prefabs before re-saving them (keeps `GlobalObjectIdHash` valid). Network prefab list is rebuilt from scratch.
 - Skybox shader must handle reversed-Z (otherwise it draws over everything).
-- Art style (#3, refined: see `Assets/Design/DESIGN.md` "Visual Identity"): **polished, high-end stylized sci-fi**, not abstract. "Low-poly" means clean chunky shape language, NOT low detail/finish: assets need secondary detail (bevels, panels, greebles, decals), material definition and good lighting; a screenshot must look like a finished game. Palette: white/blue hard surfaces, navy, gold accents, cyan glow. Current procedural assets are still too abstract (#26). `MeshBuilder.Bevel` chamfers boxes; `Surface(gloss, glow)` writes UV0 (gloss = specular, glow = emission) read by VW_ToonFlat. Vertex colors are authored in sRGB (shader converts to linear). Palette constants live at the top of `PrefabBuilder`.
+- Art style (#3, refined: see `Assets/Design/DESIGN.md` "Visual Identity"): **polished, high-end stylized sci-fi**, not abstract. "Low-poly" means clean chunky shape language, NOT low detail/finish: assets need secondary detail (bevels, panels, greebles, decals), material definition and good lighting; a screenshot must look like a finished game. Palette: white/blue hard surfaces, navy, gold accents, cyan glow. Current procedural assets are still too abstract (#26). `MeshBuilder.Bevel` chamfers boxes; `Surface(gloss, glow, metal)` writes UV0 (gloss, glow, metal, edge) and `Panel` writes UV1.x, all read by VW_ToonFlat. Vertex colors are authored in sRGB (shader converts to linear). Palette constants live at the top of `PrefabBuilder`.
+- Hero hard-surface pipeline (#26, reference: Dart + astronaut): build with `Hero()` (weighted normals via `SmoothAngle`, panel detail) and the parametric parts `AddLoft` (fuselages, limbs), `AddLathe` (nozzles, rings, tanks), `AddSlab` (wings, plates), `AddTube`/`Polyline`, liveries via quad-aware `Paint`. Render with `MatHull` (VW_ToonFlat `_SURFACEDETAIL_ON`: triplanar panel seams/rivets/grime from `SurfaceDetailBuilder`, edge wear on chamfers, GGX + probe reflections). Primitives choose winding from geometry, so mirrored matrices (`Scale(-1,1,1)`) are fine. Iterate with menu `Voidward/Dev/Hero Preview Shots` (renders to `Temp/HeroShots`, no full rebuild needed); after Build All Content, `ContentBuilder.PreviewPrefabs("<name filter>")` / `PreviewShot(...)` (callable from RunCommand) render built prefabs. Ship exhaust and projectiles = `VW_Plume` (additive fresnel). Soot/burns: `MeshBuilder.Weather`; contact shading: `Grade`. Planet decor, landmarks, asteroids and the menu ground use `VW_Terrain` with a rock detail mask (enable via `MeshBuilder.Panel = 1`). Per-sector color grading lives in `PaletteDef` (runtime volume in `SectorVisuals`).
 - Editor ↔ release build = "NetworkConfig mismatch". Use a Development build (`Voidward/Build/macOS (Development)` or `Windows (x64, Development)`) or MPPM.
 - Owning a ship in its spawn frame breaks positioning for remote clients → `RunManager.SeatLater` delays it by 0.6 s.
 
@@ -65,6 +67,13 @@ One issue = one branch = one PR. Don't mix issues.
 - Before switching machines: commit + push. On the other machine: `git pull` first, then open Unity.
 - `.mcp.json` is git-ignored (machine-specific Unity relay path); each machine keeps its own.
 - GitHub: use the GitHub CLI (`gh`, logged in via `gh auth login --web`) for issues, PRs and merges. No GitHub MCP server (its OAuth needs dynamic client registration, which Claude Code can't do with GitHub). On Windows, `gh` lives at `C:\Program Files\GitHub CLI\gh.exe` (call it by full path if PATH isn't refreshed yet).
+- Blender: Windows `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe`; Mac `/Applications/Blender.app/Contents/MacOS/Blender` (install the same 5.2 version there).
+
+## Blender (asset scripts)
+- When to use: procedural C# (`MeshBuilder`/`PrefabBuilder`) stays the default and already reaches the target look for hard-surface assets. Use Blender only where C# gets painful: organic forms (boss, characters, alien stuff), blended surfaces, baked AO/normal maps for close-up detail.
+- Keep it reproducible: Blender content is a Python script in the repo (e.g. `Tools/Blender/<asset>.py`), never a hand-edited `.blend` as the only source. Exported FBX goes to `Assets/_Project/Art/Models/` and is committed (Unity must build without Blender); `PrefabBuilder` references it.
+- Run headless: `blender -b --factory-startup -P script.py -- <args>`. In 5.2, FBX export applies modifiers via `use_mesh_modifiers=True` (not `apply_modifiers`). Unity is Y-up / Blender Z-up: export with `axis_forward='-Z', axis_up='Y'` and check scale (1 unit = 1 m).
+- Shared helpers: `Tools/Blender/vw_blender.py` (skin skeletons, warp, displacement, Cycles AO bake, export). Vertex data contract: colour attribute `Col` (sRGB) = base colour, UV map `surf` = (gloss, glow), UV map `detail` = (metal, baked AO); model faces Blender -Y (becomes Unity +Z; Blender +X becomes Unity -X). `PrefabBuilder.ImportedMesh` converts such an FBX to the MeshBuilder layout (C# meshes stay as fallback). Example: `Tools/Blender/aliens.py`.
 - After a first open/reimport on a machine, check `git status` before committing: reimport noise (package `.meta` files, emptied `m_List` in `UniversalRenderPipelineGlobalSettings.asset`) must not be committed.
 
 ## Status (2026-10-11)

@@ -25,6 +25,14 @@ namespace Voidward.Data
         [Tooltip("Exp2 fog density in space.")]
         public float FogDensity = 0.00035f;
 
+        [Header("Color grading (runtime sector volume)")]
+        public Color GradeFilter = Color.white;
+        [Range(-50f, 50f)] public float GradeSaturation = 10f;
+        [Range(-50f, 50f)] public float GradeContrast = 18f;
+        [Range(-2f, 2f)] public float GradeExposure = 0.1f;
+        [Range(-50f, 50f)] public float GradeTemperature = -4f;
+        public Color BloomTint = new Color(0.85f, 0.93f, 1f);
+
         [Header("UI accents")]
         public Color UiPrimary = new Color(0.2f, 0.85f, 0.9f);
         public Color UiAccent = new Color(1f, 0.65f, 0.3f);
