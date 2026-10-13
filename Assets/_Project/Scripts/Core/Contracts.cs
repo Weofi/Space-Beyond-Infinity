@@ -13,6 +13,7 @@ namespace Voidward.Core
         public ulong SourceClientId;   // 0 = world/AI
         public bool IsWeakPoint;       // damage multipliers may apply
         public bool ByPlayer;          // SourceClientId is only meaningful when true
+        public bool Killed;            // set by the server when this hit was the killing blow
 
         public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
         {
@@ -23,6 +24,7 @@ namespace Voidward.Core
             s.SerializeValue(ref SourceClientId);
             s.SerializeValue(ref IsWeakPoint);
             s.SerializeValue(ref ByPlayer);
+            s.SerializeValue(ref Killed);
         }
     }
 
@@ -83,6 +85,11 @@ namespace Voidward.Core
         public static int SectorIndex = 1;
         /// <summary>Camera shake offset applied by the VFX service to the local view.</summary>
         public static float ShakeIntensity;
+        /// <summary>Local camera impulse: FOV offset in degrees (negative = punch in), decays back to 0.</summary>
+        public static float FovPunch;
+        /// <summary>Local, purely visual hit-stop: camera and effects hold until this unscaled time (never Time.timeScale).</summary>
+        public static float HitStopUntil;
+        public static bool HitStopActive => Time.unscaledTime < HitStopUntil;
         /// <summary>World X of the Collapse front (everything with x below is consumed).</summary>
         public static float CollapseX = -99999f;
         public static Vector3 GatePosition;
@@ -93,7 +100,7 @@ namespace Voidward.Core
         public static bool Cinematic;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; SectorIndex = 1; ShakeIntensity = 0f; CollapseX = -99999f; HasGate = false; Objective = ""; Cinematic = false; }
+        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; SectorIndex = 1; ShakeIntensity = 0f; FovPunch = 0f; HitStopUntil = 0f; CollapseX = -99999f; HasGate = false; Objective = ""; Cinematic = false; }
 
         public static bool GameplayInputAllowed => !UIOpen && !Cinematic && Phase == GamePhase.Playing;
     }

@@ -66,9 +66,9 @@ namespace Voidward.Core
         public void Play(string id, Vector3 pos, float volume = 1f, float pitch = 1f)
         {
             if (!clips.TryGetValue(id, out var c)) return;
-            AudioSource s = null;
-            foreach (var p in pool) if (!p.isPlaying) { s = p; break; }
-            if (s == null) { if (pool.Count < 48) { s = NewSource(); pool.Add(s); } else return; }
+            var s = FreeSource();
+            if (s == null) return;
+            s.spatialBlend = 1f;
             s.transform.position = pos;
             s.pitch = pitch;
             s.volume = volume * SfxVolume;
@@ -79,6 +79,27 @@ namespace Voidward.Core
         public void PlayUI(string id, float volume = 1f)
         {
             if (clips.TryGetValue(id, out var c)) ui.PlayOneShot(c, volume * SfxVolume * 0.8f);
+        }
+
+        public void Play2D(string id, float volume = 1f, float pitch = 1f)
+        {
+            if (!clips.TryGetValue(id, out var c)) return;
+            var s = FreeSource();
+            if (s == null) return;
+            s.spatialBlend = 0f;
+            s.pitch = pitch;
+            s.volume = volume * SfxVolume * 0.8f;
+            s.clip = c;
+            s.Play();
+        }
+
+        AudioSource FreeSource()
+        {
+            foreach (var p in pool) if (!p.isPlaying) return p;
+            if (pool.Count >= 48) return null;
+            var s = NewSource();
+            pool.Add(s);
+            return s;
         }
 
         public void SetMusicMood(int sectorIndex)
@@ -152,6 +173,12 @@ namespace Voidward.Core
             clips["explosion"] = Make("explosion", 0.9f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.08f); return (lp * 2.2f + Sin(Mathf.Lerp(90f, 30f, u), t) * 0.5f) * Env(u, 0.004f); }, 3);
             clips["explosion_big"] = Make("explosion_big", 2f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.04f); return (lp * 2.8f + Sin(Mathf.Lerp(60f, 22f, u), t) * 0.6f) * Env(u, 0.004f); }, 4);
             clips["hit"] = Make("hit", 0.08f, (t, u, r) => (Noise(r) * 0.5f + Sin(220f, t) * 0.4f) * Env(u, 0.002f));
+            // Hit feedback (#43): crisp tick, metallic crit ping, kill confirm = low punch + bright two-note chime.
+            clips["hitmarker"] = Make("hitmarker", 0.06f, (t, u, r) => (Sin(Mathf.Lerp(3200f, 2300f, u), t) * 0.35f + Noise(r) * 0.15f * (u < 0.15f ? 1f : 0f)) * Env(u, 0.004f));
+            clips["hit_crit"] = Make("hit_crit", 0.16f, (t, u, r) => (Sin(1900f, t) * 0.3f + Sin(2870f, t) * 0.2f + Sin(4100f, t) * 0.08f + Noise(r) * 0.12f * (u < 0.08f ? 1f : 0f)) * Env(u, 0.003f), 15);
+            clips["kill"] = Make("kill", 0.42f, (t, u, r) => Sin(Mathf.Lerp(150f, 45f, u), t) * 0.7f * Env(u, 0.004f) * (1f - u)
+                + (Sin(1320f, t) * (u < 0.3f ? 1f : 0f) + Sin(1980f, t) * (u >= 0.18f ? 1f : 0f)) * 0.18f * Env(u, 0.01f)
+                + Noise(r) * 0.25f * Mathf.Clamp01(1f - u * 8f), 16);
             clips["shield_hit"] = Make("shield_hit", 0.3f, (t, u, r) => (Sin(Mathf.Lerp(1200f, 600f, u), t) * Sin(37f, t)) * 0.5f * Env(u));
             clips["pickup"] = Make("pickup", 0.18f, (t, u, r) => Sin(u < 0.5f ? 880f : 1320f, t) * 0.35f * Env(u, 0.01f));
             clips["mine"] = Make("mine", 0.2f, (t, u, r) => (Noise(r) * 0.3f + Sq(180f + 40f * Sin(30f, t), t) * 0.2f) * Env(u, 0.02f));

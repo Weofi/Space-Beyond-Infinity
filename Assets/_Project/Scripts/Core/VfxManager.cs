@@ -26,6 +26,7 @@ namespace Voidward.Core
         enum Kind { Flash, Fireball, Spark, Shock, Smoke, Debris, Shield, Sparkle, Muzzle }
         readonly Dictionary<Kind, Queue<ParticleSystem>> pools = new Dictionary<Kind, Queue<ParticleSystem>>();
         readonly List<(ParticleSystem ps, Kind k, float until)> active = new List<(ParticleSystem, Kind, float)>();
+        bool frozen;
 
         void Awake()
         {
@@ -43,6 +44,14 @@ namespace Voidward.Core
         void Update()
         {
             GameState.ShakeIntensity = Mathf.MoveTowards(GameState.ShakeIntensity, 0f, Time.deltaTime * 1.8f);
+            GameState.FovPunch = Mathf.MoveTowards(GameState.FovPunch, 0f, Time.unscaledDeltaTime * 14f);
+            // Local hit-stop: freeze the running effects for a few frames (impact frame), never Time.timeScale.
+            bool hold = GameState.HitStopActive;
+            if (hold != frozen)
+            {
+                frozen = hold;
+                foreach (var e in active) if (e.ps != null) { var m = e.ps.main; m.simulationSpeed = hold ? 0.04f : 1f; }
+            }
             for (int i = active.Count - 1; i >= 0; i--)
             {
                 if (Time.time < active[i].until) continue;
@@ -58,6 +67,8 @@ namespace Voidward.Core
         {
             var q = pools[k];
             ParticleSystem ps = q.Count > 0 ? q.Dequeue() : Create(k);
+            var mm = ps.main;
+            mm.simulationSpeed = frozen ? 0.04f : 1f; // effects spawned during a hit-stop hold with the rest
             ps.gameObject.SetActive(true);
             return ps;
         }
@@ -193,6 +204,15 @@ namespace Voidward.Core
             }
         }
 
+        public void KillBurst(Vector3 pos, float radius, Color tint)
+        {
+            radius = Mathf.Max(0.5f, radius);
+            Emit(Kind.Debris, pos, Mathf.Clamp((int)(radius * 4f), 8, 36), radius * 5f, radius * 0.06f + 0.1f, radius * 0.14f + 0.2f, 2.6f, new Color(0.42f, 0.44f, 0.5f), radius * 0.25f, 3f);
+            Emit(Kind.Spark, pos, Mathf.Clamp((int)(radius * 8f), 14, 80), radius * 12f, 0.06f, radius * 0.05f + 0.14f, 0.6f, new Color(3f, 2.2f, 1.2f), radius * 0.15f);
+            Emit(Kind.Shock, pos, 1, 0f, radius * 6.5f, radius * 6.5f, 0.45f, Color.Lerp(tint, Color.white, 0.4f) * 1.2f, 0.01f, 0.7f);
+            Emit(Kind.Flash, pos, 1, 0f, radius * 1.4f, radius * 1.6f, 0.1f, new Color(3f, 3f, 3f), 0.01f, 0.4f);
+        }
+
         public void MuzzleFlash(Vector3 pos, Vector3 dir)
         {
             Emit(Kind.Muzzle, pos, 4, 3f, 0.2f, 0.5f, 0.12f, new Color(2f, 1.8f, 1.2f));
@@ -231,6 +251,6 @@ namespace Voidward.Core
             Shake(0.4f);
         }
 
-        public void Shake(float intensity) => GameState.ShakeIntensity = Mathf.Max(GameState.ShakeIntensity, Mathf.Clamp01(intensity));
+        public void Shake(float intensity) => GameState.ShakeIntensity = Mathf.Max(GameState.ShakeIntensity, Mathf.Clamp01(intensity) * Mathf.Clamp01(Vfx.ShakeScale));
     }
 }

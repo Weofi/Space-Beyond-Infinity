@@ -8,12 +8,14 @@ namespace Voidward.Core
     /// Known ids: "laser","laser_ship","missile","flak","explosion","explosion_big","hit",
     /// "shield_hit","pickup","mine","craft","trade","ui_click","ui_back","ui_hover","alarm","low_oxygen",
     /// "heal","jump_gate","jump_charge","landing","thud","ping","spawn","boss_roar","stardust",
-    /// "intro_swell","whoosh","radio","blip","highlight","rumble".
+    /// "intro_swell","whoosh","radio","blip","highlight","rumble","hitmarker","hit_crit","kill".
     /// </summary>
     public interface IAudioService
     {
         void Play(string id, Vector3 pos, float volume = 1f, float pitch = 1f);
         void PlayUI(string id, float volume = 1f);
+        /// <summary>Non-spatial one-shot with its own pitch (hit markers, kill confirms).</summary>
+        void Play2D(string id, float volume = 1f, float pitch = 1f);
         /// <summary>0 = menu ambience, 1..3 = sector index.</summary>
         void SetMusicMood(int sectorIndex);
         void SetEngineLoop(bool on, float throttle01);
@@ -33,6 +35,11 @@ namespace Voidward.Core
         public static void PlayUI(string id, float volume = 1f)
         {
             if (G.TryGet<IAudioService>(out var a)) a.PlayUI(id, volume);
+        }
+
+        public static void Play2D(string id, float volume = 1f, float pitch = 1f)
+        {
+            if (G.TryGet<IAudioService>(out var a)) a.Play2D(id, volume, pitch);
         }
 
         public static void Music(int sectorIndex)

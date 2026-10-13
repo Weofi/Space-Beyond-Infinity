@@ -338,8 +338,7 @@ namespace Voidward.AI
         [ClientRpc]
         void DeathClientRpc(Vector3 pos, bool space)
         {
-            Vfx.Explosion(pos, space ? 6f : 2.5f, space ? new Color(1f, 0.55f, 0.3f) : new Color(0.6f, 1f, 0.4f));
-            Sfx.Play(space ? "explosion" : "squish", pos, 1f, Random.Range(0.85f, 1.1f));
+            FeedbackFx.EnemyDeath(pos, space ? 6f : 2.5f, space ? new Color(1f, 0.55f, 0.3f) : new Color(0.6f, 1f, 0.4f), space ? "explosion" : "squish");
         }
     }
 }
