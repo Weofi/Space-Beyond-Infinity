@@ -21,6 +21,8 @@ namespace Voidward.UI
     /// collapse/player/gate pips and a bearing compass with gate/station/Ark/own-ship markers (top-centre),
     /// objective card (top-left), sector card + toasts with item icons (top-right), ring crosshair with hit
     /// markers and keycap prompt, edge-clamped world markers, boss bar, damage and low-oxygen vignettes.
+    /// Damage taken (#43): direction arcs around the crosshair, gauge flash + plate kick, low-health pulse with
+    /// heartbeat (on foot) or hull klaxon (seated), shield-collapse alert.
     /// </summary>
     public class HudView
     {
@@ -32,7 +34,9 @@ namespace Voidward.UI
 
         // vitals + ship
         readonly HudGauge hpGauge, o2Gauge, jetGauge, hullGauge, shieldGauge, fuelGauge;
-        readonly RectTransform shipPlate;
+        readonly RectTransform shipPlate, vitalsPlate;
+        Vector2 shipPlateHome, vitalsPlateHome;
+        float shipKick, vitalsKick;
         readonly TextMeshProUGUI shipName, shipRole, speedText;
         readonly Image speedFill;
 
@@ -84,11 +88,13 @@ namespace Voidward.UI
         readonly TextMeshProUGUI jumpText, deathText, o2Warn;
         readonly RectTransform jumpPlate, deathPlate, o2Plate;
         readonly Image vignette, o2Vignette;
-        float vignetteAlpha;
+        float vignetteAlpha, lowHealthPulse, lowHealthBeat;
+        readonly DamageIndicator damageArcs;
+        ShipCore shownShip;
         float lowO2Beep;
         bool lowO2;
         bool stormWarned;
-        readonly HealthComponentHook hook;
+        readonly HealthComponentHook pawnHook, shipHook;
         readonly CrewHud crew;
 
         // world markers
@@ -121,6 +127,7 @@ namespace Voidward.UI
 
             markerLayer = UIKit.Rect(root, "Markers");
             UIKit.Stretch(markerLayer);
+            damageArcs = new DamageIndicator(root);
             gateMarker = new HudMarker(markerLayer);
             stationMarker = new HudMarker(markerLayer);
             arkMarker = new HudMarker(markerLayer);
@@ -129,8 +136,9 @@ namespace Voidward.UI
             numbers = new DamageNumbers(markerLayer);
 
             // ---------------------------------------------------------- vitals (bottom-left)
-            var vit = HudKit.Plate(root, "Vitals").rectTransform;
+            var vit = vitalsPlate = HudKit.Plate(root, "Vitals").rectTransform;
             UIKit.Place(vit, Vector2.zero, new Vector2(Edge, Edge), new Vector2(456, 112), Vector2.zero);
+            vitalsPlateHome = vit.anchoredPosition;
             UIKit.VLayout(vit.gameObject, 2, 12, TextAnchor.MiddleLeft);
             hpGauge = new HudGauge(vit, Icons.Heart, "Health", HudKit.Health, 250, 18, 32);
             o2Gauge = new HudGauge(vit, Icons.Air, "Oxygen", HudKit.Oxygen, 250, 12, 28);
@@ -144,6 +152,7 @@ namespace Voidward.UI
             // ---------------------------------------------------------- ship card (bottom-right)
             shipPlate = HudKit.Plate(root, "Ship").rectTransform;
             UIKit.Place(shipPlate, new Vector2(1, 0), new Vector2(-Edge, Edge), new Vector2(456, 176), new Vector2(1, 0));
+            shipPlateHome = shipPlate.anchoredPosition;
             UIKit.VLayout(shipPlate.gameObject, 2, 12, TextAnchor.UpperLeft);
             var head = UIKit.Row(shipPlate, 30, 8);
             var shipIcon = UIKit.IconText(head, Icons.Ship, 24, HudKit.Shield);
@@ -360,7 +369,9 @@ namespace Voidward.UI
             EventBus.LocalPlayerHurt += i => vignetteAlpha = Mathf.Max(vignetteAlpha, 0.25f + i * 0.5f);
             FeedbackFx.LocalHitLanded += OnLocalHit;
             HealthComponent.AnyImmuneClient += OnAnyImmune;
-            hook = new HealthComponentHook();
+            ShipCore.ShieldBrokenClient += OnShieldBroken;
+            pawnHook = new HealthComponentHook(OnPawnDamaged);
+            shipHook = new HealthComponentHook(OnShipDamaged);
         }
 
         static RectTransform Pip(RectTransform track, Color c, Sprite sprite, float size)
@@ -480,10 +491,21 @@ namespace Voidward.UI
 
             var pawn = PlayerPawn.Local;
             var cam = Camera.main;
-            hook.Track(pawn);
+            var seatShip = pawn != null && pawn.CurrentShipSeat != null ? pawn.CurrentShipSeat.Ship : null;
+            pawnHook.Track(pawn != null ? pawn.Health : null);
+            shipHook.Track(seatShip != null ? seatShip.Hull : null);
 
+            UpdateLowHealth(pawn, seatShip);
             vignetteAlpha = Mathf.MoveTowards(vignetteAlpha, 0f, Time.deltaTime * 1.4f);
-            vignette.color = new Color(0.86f, 0.15f, 0.15f, vignetteAlpha);
+            // Hurt flash = bright red. The low-health pulse is a near-black red at high alpha: UI blends in linear
+            // space, so it acts like darkening the edges and reads about the same on sunlit sand and in deep space
+            // (a brighter red glows over space and vanishes over bright planets).
+            vignette.color = vignetteAlpha >= lowHealthPulse
+                ? new Color(0.86f, 0.15f, 0.15f, vignetteAlpha)
+                : new Color(0.3f, 0.01f, 0.02f, lowHealthPulse);
+            damageArcs.Update(cam, seatShip != null);
+            vitalsKick = Kick(vitalsPlate, vitalsPlateHome, vitalsKick);
+            shipKick = Kick(shipPlate, shipPlateHome, shipKick);
 
             if (pawn != null)
             {
@@ -632,6 +654,7 @@ namespace Voidward.UI
         void UpdateShip(PlayerPawn pawn)
         {
             ShipCore ship = pawn.CurrentShipSeat != null ? pawn.CurrentShipSeat.Ship : ShipCore.OwnedBy(pawn.OwnerClientId);
+            shownShip = ship;
             shipPlate.gameObject.SetActive(ship != null);
             if (ship == null) return;
             var s = ship.Stats;
@@ -999,17 +1022,112 @@ namespace Voidward.UI
             return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f));
         }
 
-        /// <summary>Raises LocalPlayerHurt when the local pawn takes damage.</summary>
+        // ---------------------------------------------------------------- damage taken (#43)
+
+        void OnPawnDamaged(DamageInfo i)
+        {
+            if (i.Amount < 0.01f) return;
+            float k = Mathf.Clamp01(i.Amount / 40f);
+            EventBus.RaiseLocalPlayerHurt(k);
+            FeedbackFx.LocalHurt(k, false);
+            hpGauge.Flash(HudKit.Danger, 0.6f + k);
+            vitalsKick = Mathf.Max(vitalsKick, 0.4f + k * 0.6f);
+            var pawn = PlayerPawn.Local;
+            if (pawn != null) damageArcs.Add(Camera.main, SourceOf(i, pawn.transform.position), HudKit.Danger, k, pawn.CurrentShipSeat != null);
+        }
+
+        /// <summary>The ship the local player is seated in got hit. Amount 0 = the shield soaked all of it.</summary>
+        void OnShipDamaged(DamageInfo i)
+        {
+            var pawn = PlayerPawn.Local;
+            var ship = pawn != null && pawn.CurrentShipSeat != null ? pawn.CurrentShipSeat.Ship : null;
+            if (ship == null) return;
+            bool shield = i.Amount < 0.01f;
+            float k = shield ? 0.3f : Mathf.Clamp01(i.Amount / Mathf.Max(1f, ship.Hull.MaxHp.Value * 0.12f));
+            FeedbackFx.LocalHurt(k, shield);
+            if (shield) shieldGauge.Flash(Color.white, 0.7f);
+            else hullGauge.Flash(HudKit.Danger, 0.6f + k);
+            shipKick = Mathf.Max(shipKick, shield ? 0.35f : 0.4f + k * 0.6f);
+            if (!shield) EventBus.RaiseLocalPlayerHurt(k * 0.6f);
+            damageArcs.Add(Camera.main, SourceOf(i, ship.transform.position), shield ? ShieldArc : HudKit.Danger, k, true);
+        }
+
+        /// <summary>Paler than the shield gauge so the arc still reads against blue planets and nebulae.</summary>
+        static readonly Color ShieldArc = new Color(0.7f, 0.92f, 1f);
+
+        void OnShieldBroken(ShipCore ship)
+        {
+            if (ship == null || ship != shownShip) return;
+            shieldGauge.Flash(Color.white, 1f);
+            shipKick = 1f;
+            var pawn = PlayerPawn.Local;
+            if (pawn == null || pawn.CurrentShipSeat == null || pawn.CurrentShipSeat.Ship != ship) return;
+            FeedbackFx.LocalShieldBroken();
+            OnNotification("Shields down - hull exposed");
+        }
+
+        /// <summary>Where a hit came from: back along the projectile's travel, else outwards through the hit point.</summary>
+        static Vector3 SourceOf(DamageInfo i, Vector3 target)
+        {
+            if (i.Direction.sqrMagnitude > 0.01f) return i.Point - i.Direction.normalized * 30f;
+            var d = i.Point - target;
+            return d.sqrMagnitude > 0.01f ? target + d.normalized * 30f : i.Point;
+        }
+
+        /// <summary>
+        /// Below 30 % health (on foot) or 25 % hull (seated): the red vignette pulses with a heartbeat / klaxon whose
+        /// rate and strength climb as the bar drops. Off with Settings > Feedback > Low health warning.
+        /// </summary>
+        void UpdateLowHealth(PlayerPawn pawn, ShipCore seatShip)
+        {
+            float severity = 0f;
+            bool ship = seatShip != null;
+            if (pawn != null && pawn.Health != null && pawn.Health.IsAlive && !pawn.IsDown.Value && pawn.Active.Value)
+            {
+                if (ship) { float f = seatShip.Hull.Fraction; if (seatShip.Hull.IsAlive && f < 0.25f) severity = 1f - f / 0.25f; }
+                else { float f = pawn.Health.Fraction; if (f < 0.3f) severity = 1f - f / 0.3f; }
+            }
+            if (severity <= 0f || !FeedbackFx.LowHealthWarning)
+            {
+                lowHealthPulse = Mathf.MoveTowards(lowHealthPulse, 0f, Time.deltaTime);
+                lowHealthBeat = 0f;
+                return;
+            }
+            float period = ship ? 1.6f : Mathf.Lerp(1.1f, 0.55f, severity);
+            lowHealthBeat -= Time.deltaTime;
+            if (lowHealthBeat <= 0f)
+            {
+                lowHealthBeat = period;
+                FeedbackFx.LowHealthBeat(ship, severity);
+            }
+            // Pulse peaks on the beat and decays until the next one.
+            float phase = 1f - Mathf.Clamp01(lowHealthBeat / period);
+            float beat = Mathf.Exp(-phase * 5f);
+            lowHealthPulse = ((0.25f + 0.25f * severity) + beat * (0.15f + 0.15f * severity)) * (ship ? 0.5f : 1f);
+        }
+
+        /// <summary>Decaying jitter on a HUD plate (scaled by Screen shake). Returns the decayed kick.</summary>
+        static float Kick(RectTransform plate, Vector2 home, float kick)
+        {
+            kick = Mathf.MoveTowards(kick, 0f, Time.unscaledDeltaTime / 0.3f);
+            float amp = kick * kick * 9f * Mathf.Clamp01(Vfx.ShakeScale);
+            plate.anchoredPosition = home + (amp > 0.01f ? new Vector2(Random.Range(-amp, amp), Random.Range(-amp, amp) * 0.6f) : Vector2.zero);
+            return kick;
+        }
+
+        /// <summary>Forwards DamagedClient of one tracked HealthComponent (local pawn or seated ship hull).</summary>
         class HealthComponentHook
         {
-            PlayerPawn tracked;
-            void OnDamaged(DamageInfo i) => EventBus.RaiseLocalPlayerHurt(Mathf.Clamp01(i.Amount / 40f));
-            public void Track(PlayerPawn p)
+            HealthComponent tracked;
+            readonly System.Action<DamageInfo> handler;
+            public HealthComponentHook(System.Action<DamageInfo> h) => handler = h;
+            void OnDamaged(DamageInfo i) => handler(i);
+            public void Track(HealthComponent h)
             {
-                if (p == tracked) return;
-                if (tracked != null && tracked.Health != null) tracked.Health.DamagedClient -= OnDamaged;
-                tracked = p;
-                if (p != null && p.Health != null) p.Health.DamagedClient += OnDamaged;
+                if (h == tracked) return;
+                if (!ReferenceEquals(tracked, null)) tracked.DamagedClient -= OnDamaged;
+                tracked = h;
+                if (h != null) h.DamagedClient += OnDamaged;
             }
         }
     }

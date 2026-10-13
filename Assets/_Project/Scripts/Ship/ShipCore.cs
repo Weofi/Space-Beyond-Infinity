@@ -75,7 +75,7 @@ namespace Voidward.Ship
         public event Action StatsChanged;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { All.Clear(); ServerDestroyed = null; }
+        static void ResetStatics() { All.Clear(); ServerDestroyed = null; ShieldBrokenClient = null; }
 
         float lastHitTime = -100f;
         float throttle;
@@ -109,6 +109,7 @@ namespace Voidward.Ship
             }
             Modules.OnListChanged += OnModulesChanged;
             Power.OnValueChanged += OnPowerChanged;
+            Shield.OnValueChanged += OnShieldChanged;
             Recompute();
             if (IsServer)
             {
@@ -127,6 +128,7 @@ namespace Voidward.Ship
         {
             Modules.OnListChanged -= OnModulesChanged;
             Power.OnValueChanged -= OnPowerChanged;
+            Shield.OnValueChanged -= OnShieldChanged;
             if (IsServer) Hull.Died -= OnDied;
             Fabricators.Unregister(FabricatorPoint);
             All.Remove(this);
@@ -218,6 +220,23 @@ namespace Voidward.Ship
                 ShieldHitClientRpc(info.Point);
             }
             return info.Amount - absorbed;
+        }
+
+        /// <summary>Every client: this ship's shield just collapsed under fire (not when the engineer powers it down).</summary>
+        public static event Action<ShipCore> ShieldBrokenClient;
+        float shieldRadius;
+
+        void OnShieldChanged(float before, float now)
+        {
+            if (before < 1f || now > 0.5f || ShieldsOffline.Value || Derelict.Value) return;
+            if (shieldRadius <= 0f)
+            {
+                var b = new Bounds(transform.position, Vector3.zero);
+                foreach (var r in GetComponentsInChildren<Renderer>()) if (!(r is ParticleSystemRenderer)) b.Encapsulate(r.bounds);
+                shieldRadius = Mathf.Clamp(b.extents.magnitude * 0.6f, 2f, 40f);
+            }
+            FeedbackFx.ShieldBroken(transform.position, shieldRadius);
+            ShieldBrokenClient?.Invoke(this);
         }
 
         [ClientRpc]

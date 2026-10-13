@@ -179,6 +179,19 @@ namespace Voidward.Core
             clips["kill"] = Make("kill", 0.42f, (t, u, r) => Sin(Mathf.Lerp(150f, 45f, u), t) * 0.7f * Env(u, 0.004f) * (1f - u)
                 + (Sin(1320f, t) * (u < 0.3f ? 1f : 0f) + Sin(1980f, t) * (u >= 0.18f ? 1f : 0f)) * 0.18f * Env(u, 0.01f)
                 + Noise(r) * 0.25f * Mathf.Clamp01(1f - u * 8f), 16);
+            // Damage taken (#43): dull body thud, lub-dub heartbeat, shield collapse (falling sweep + glassy shards), hull klaxon.
+            clips["hurt"] = Make("hurt", 0.2f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.25f); return (Sin(Mathf.Lerp(130f, 55f, u), t) * 0.6f + lp * 0.7f * Mathf.Clamp01(1f - u * 4f)) * Env(u, 0.003f); }, 17);
+            clips["heartbeat"] = Make("heartbeat", 0.55f, (t, u, r) =>
+            {
+                float a = t < 0.16f ? Mathf.Sin(Mathf.PI * t / 0.16f) : 0f;
+                float b = t >= 0.2f && t < 0.34f ? Mathf.Sin(Mathf.PI * (t - 0.2f) / 0.14f) * 0.7f : 0f;
+                return (Sin(Mathf.Lerp(62f, 44f, u), t) + Sin(31f, t) * 0.5f) * 0.75f * (a * a + b * b);
+            });
+            clips["shield_break"] = Make("shield_break", 1.1f, (t, u, r) =>
+                Sin(Mathf.Lerp(1500f, 120f, Mathf.Sqrt(u)), t) * 0.35f * Env(u, 0.004f)
+                + (Sin(2637f, t) + Sin(3520f, t) * 0.7f + Sin(4699f, t) * 0.4f) * Noise(r) * 0.22f * Mathf.Clamp01(1f - u * 2.5f)
+                + Sin(Mathf.Lerp(90f, 40f, u), t) * 0.45f * Env(u, 0.01f), 18);
+            clips["hull_alarm"] = Make("hull_alarm", 0.5f, (t, u, r) => (Sin(u < 0.5f ? 587f : 440f, t) * 0.25f + Sq(u < 0.5f ? 587f : 440f, t) * 0.05f) * Mathf.Clamp01(u * 40f) * Mathf.Clamp01((1f - u) * 12f));
             clips["shield_hit"] = Make("shield_hit", 0.3f, (t, u, r) => (Sin(Mathf.Lerp(1200f, 600f, u), t) * Sin(37f, t)) * 0.5f * Env(u));
             clips["pickup"] = Make("pickup", 0.18f, (t, u, r) => Sin(u < 0.5f ? 880f : 1320f, t) * 0.35f * Env(u, 0.01f));
             clips["mine"] = Make("mine", 0.2f, (t, u, r) => (Noise(r) * 0.3f + Sq(180f + 40f * Sin(30f, t), t) * 0.2f) * Env(u, 0.02f));

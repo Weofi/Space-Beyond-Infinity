@@ -456,6 +456,7 @@ namespace Voidward.UI
             SliderRow(content, "Screen shake", 0, 1, s.ScreenShake, v => { s.ScreenShake = v; s.Save(); });
             SliderRow(content, "Hit-stop", 0, 1, s.HitStop, v => { s.HitStop = v; s.Save(); });
             UIKit.Toggle(content, "Damage numbers", s.DamageNumbers, v => { s.DamageNumbers = v; s.Save(); });
+            UIKit.Toggle(content, "Low health warning", s.LowHealthWarning, v => { s.LowHealthWarning = v; s.Save(); });
 
             Label(content, "Audio");
             SliderRow(content, "Master", 0, 1, s.Master, v => { s.Master = v; s.Save(); });

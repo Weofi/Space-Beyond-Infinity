@@ -17,6 +17,10 @@ namespace Voidward.Core
         void Scorch(Vector3 pos, Vector3 normal, Transform parent, float size, Color heat, float cool);
         void LaserImpact(Vector3 pos);
         void ShieldHit(Vector3 pos);
+        /// <summary>Ship shield collapsed: big blue shell burst, shard sparks, shock ring and a light pulse.</summary>
+        void ShieldBreak(Vector3 pos, float radius);
+        /// <summary>Full-screen colour flash for the local player (alpha = peak strength).</summary>
+        void ScreenFlash(Color c, float duration);
         void JumpFlash(Vector3 pos);
         void AtmosphereEntryFlash();
         void PickupSparkle(Vector3 pos, Color tint);
@@ -40,6 +44,8 @@ namespace Voidward.Core
         public static void Scorch(Vector3 pos, Vector3 normal, Transform parent, float size, Color heat, float cool = 1.5f) { if (G.TryGet<IVfxService>(out var v)) v.Scorch(pos, normal, parent, size, heat, cool); }
         public static void LaserImpact(Vector3 pos) { if (G.TryGet<IVfxService>(out var v)) v.LaserImpact(pos); }
         public static void ShieldHit(Vector3 pos) { if (G.TryGet<IVfxService>(out var v)) v.ShieldHit(pos); }
+        public static void ShieldBreak(Vector3 pos, float radius) { if (G.TryGet<IVfxService>(out var v)) v.ShieldBreak(pos, radius); }
+        public static void ScreenFlash(Color c, float duration) { if (G.TryGet<IVfxService>(out var v)) v.ScreenFlash(c, duration); }
         public static void JumpFlash(Vector3 pos) { if (G.TryGet<IVfxService>(out var v)) v.JumpFlash(pos); }
         public static void AtmosphereEntry() { if (G.TryGet<IVfxService>(out var v)) v.AtmosphereEntryFlash(); }
         public static void PickupSparkle(Vector3 pos, Color tint) { if (G.TryGet<IVfxService>(out var v)) v.PickupSparkle(pos, tint); }

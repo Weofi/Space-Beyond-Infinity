@@ -24,6 +24,7 @@ namespace Voidward.UI
         public float ScreenShake = 1f;
         public bool DamageNumbers = true;
         public float HitStop = 1f;
+        public bool LowHealthWarning = true;
         public string PlayerName = "";
 
         static GameSettings current;
@@ -55,6 +56,7 @@ namespace Voidward.UI
             Vfx.ShakeScale = Mathf.Clamp01(ScreenShake);
             FeedbackFx.DamageNumbers = DamageNumbers;
             FeedbackFx.HitStopScale = Mathf.Clamp01(HitStop);
+            FeedbackFx.LowHealthWarning = LowHealthWarning;
             Applied?.Invoke();
         }
     }
