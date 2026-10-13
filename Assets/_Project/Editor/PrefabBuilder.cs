@@ -459,6 +459,30 @@ namespace Voidward.EditorTools
             return SaveMesh(mb, meshName);
         }
 
+        /// <summary>
+        /// Crew identity strips (#60), white glow tinted per player by CrewLights: helmet crest (clear of the
+        /// headlamp), a ring on each pauldron and a light bar between the O2 tanks. Fits AstronautMesh.
+        /// </summary>
+        static Mesh CrewStripMesh()
+        {
+            var mb = Hero(0.2f);
+            var crest = new List<Vector3>();
+            for (int i = 0; i <= 8; i++)
+            {
+                float a = Mathf.Lerp(12f, 118f, i / 8f) * Mathf.Deg2Rad;
+                crest.Add(new Vector3(0f, 1.62f + Mathf.Cos(a) * 0.352f, -0.01f - Mathf.Sin(a) * 0.352f));
+            }
+            Glow(mb, () => Polyline(mb, crest, 0.022f, 8, Color.white), 1.6f);
+            for (int s = -1; s <= 1; s += 2)
+            {
+                Vector3 sh = new Vector3(s * 0.4f, 1.27f, 0f);
+                Glow(mb, () => mb.AddLathe(Matrix4x4.TRS(sh + new Vector3(s * 0.02f, 0.03f, 0f), Quaternion.Euler(0, 0, s * -18f), Vector3.one),
+                    new[] { new Vector2(0.163f, -0.04f), new Vector2(0.176f, -0.03f), new Vector2(0.172f, 0.018f), new Vector2(0.155f, 0.03f) }, 20, Color.white), 1.6f);
+            }
+            Glow(mb, () => mb.AddBox(T(0f, 1.08f, -0.47f), new Vector3(0.035f, 0.26f, 0.025f), Color.white), 1.8f);
+            return SaveMesh(mb, "Astronaut_CrewStrips");
+        }
+
         static GameObject BuildPawn()
         {
             var go = NetRoot("PlayerPawn", true, NetworkTransform.AuthorityModes.Owner);
@@ -487,6 +511,8 @@ namespace Voidward.EditorTools
 
             var body = Child(go.transform, "Body", Vector3.zero);
             Visual(body.transform, "Astronaut", AstronautMesh(), MatHull);
+            var strips = Visual(body.transform, "CrewStrips", CrewStripMesh(), MatHull);
+            Set(go.AddComponent<CrewLights>(), "strips", strips.GetComponent<MeshRenderer>());
 
             var cam = Child(go.transform, "CameraPoint", new Vector3(0, 1.62f, 0));
             var vcam = cam.AddComponent<CinemachineCamera>();

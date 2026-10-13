@@ -342,7 +342,7 @@ namespace Voidward.UI
             if (sm == null || nm == null) return;
             var sb = new System.Text.StringBuilder();
             foreach (var p in NetworkPlayer.All)
-                sb.AppendLine($"<color={UIKit.Hex(UIKit.Accent)}>></color>  {p.PlayerName.Value}{(p.OwnerClientId == NetworkManager.ServerClientId ? "  <size=70%><color=#ffd080>HOST</color></size>" : "")}{(p.IsOwner ? "  <size=70%>(you)</size>" : "")}");
+                sb.AppendLine($"<color={UIKit.Hex(p.CrewColor)}>></color>  <color={UIKit.Hex(p.CrewColor)}>{p.PlayerName.Value}</color>{(p.OwnerClientId == NetworkManager.ServerClientId ? "  <size=70%><color=#ffd080>HOST</color></size>" : "")}{(p.IsOwner ? "  <size=70%>(you)</size>" : "")}");
             lobbyPlayers.text = sb.Length > 0 ? sb.ToString() : "Waiting for players...";
             bool steam = sm.ActiveTransport == TransportKind.Steam;
             ulong lobbyId = sm.Steam.CurrentLobbyId;

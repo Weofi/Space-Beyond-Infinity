@@ -278,14 +278,17 @@ namespace Voidward.UI
             if (behind && !clamp) { Hide(); return; }
             Root.gameObject.SetActive(true);
             RectTransformUtility.ScreenPointToLocalPointInRectangle(layer, behind ? new Vector2(UnityEngine.Screen.width - sp.x, UnityEngine.Screen.height - sp.y) : (Vector2)sp, null, out var local);
-            Vector2 half = layer.rect.size * 0.5f - new Vector2(70f, 90f);
-            bool off = behind || Mathf.Abs(local.x) > half.x || Mathf.Abs(local.y) > half.y;
+            // Clamp rectangle; the top margin keeps edge markers below the collapse meter + compass band.
+            Vector2 size = layer.rect.size * 0.5f;
+            float halfX = size.x - 70f, top = size.y - 175f, bottom = size.y - 90f;
+            bool off = behind || Mathf.Abs(local.x) > halfX || local.y > top || local.y < -bottom;
             if (off && clamp)
             {
                 // Push onto the screen-edge rectangle along the direction from the centre.
                 Vector2 dir = local.sqrMagnitude > 1f ? local.normalized : Vector2.down;
                 if (behind && dir.y > 0f) dir.y = -dir.y;
-                float k = Mathf.Min(half.x / Mathf.Max(0.001f, Mathf.Abs(dir.x)), half.y / Mathf.Max(0.001f, Mathf.Abs(dir.y)));
+                float halfY = dir.y > 0f ? top : bottom;
+                float k = Mathf.Min(halfX / Mathf.Max(0.001f, Mathf.Abs(dir.x)), halfY / Mathf.Max(0.001f, Mathf.Abs(dir.y)));
                 local = dir * k;
                 arrow.gameObject.SetActive(true);
                 arrow.color = c;

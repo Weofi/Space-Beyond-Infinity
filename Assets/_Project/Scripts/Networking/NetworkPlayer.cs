@@ -29,6 +29,12 @@ namespace Voidward.Networking
         public NetworkVariable<int> Stardust = new NetworkVariable<int>(
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        /// <summary>Crew colour slot (#60, <see cref="CrewPalette"/>), assigned by the server on spawn.</summary>
+        public NetworkVariable<byte> CrewSlot = new NetworkVariable<byte>(
+            0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        public Color CrewColor => CrewPalette.Get(CrewSlot.Value);
+
         /// <summary>All spawned players (every client).</summary>
         public static readonly List<NetworkPlayer> All = new List<NetworkPlayer>();
 
@@ -44,6 +50,7 @@ namespace Voidward.Networking
 
         public override void OnNetworkSpawn()
         {
+            if (IsServer) CrewSlot.Value = FreeSlot();
             All.Add(this);
             if (IsOwner)
             {
@@ -62,6 +69,18 @@ namespace Voidward.Networking
                 if (Local == this) Local = null;
                 EventBus.RaiseLocalPawnDespawned();
             }
+        }
+
+        /// <summary>Lowest crew slot no other player uses, so colours stay unique and rejoiners refill gaps.</summary>
+        static byte FreeSlot()
+        {
+            for (int s = 0; s < CrewPalette.Slots; s++)
+            {
+                bool used = false;
+                foreach (var p in All) if (p != null && p.CrewSlot.Value == s) { used = true; break; }
+                if (!used) return (byte)s;
+            }
+            return (byte)(All.Count % CrewPalette.Slots);
         }
 
         /// <summary>Finds the NetworkPlayer owned by a given client, or null.</summary>

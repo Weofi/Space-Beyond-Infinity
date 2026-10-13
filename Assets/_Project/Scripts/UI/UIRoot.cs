@@ -218,6 +218,9 @@ namespace Voidward.UI
             else if (flash.color.a > 0f) flash.color = new Color(1, 1, 1, 0);
         }
 
+        /// <summary>Skips the run intro (automated play tests via RunCommand, where the Game view has no input focus).</summary>
+        public void SkipIntro() { if (intro != null && intro.Active) intro.Skip(); }
+
         static bool CheatOverlayVisible() => CheatManager.Instance != null && CheatManager.Instance.Visible;
     }
 }
