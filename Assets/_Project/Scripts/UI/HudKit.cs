@@ -190,6 +190,8 @@ namespace Voidward.UI
         readonly TextMeshProUGUI value, icon;
         readonly Color color;
         float ghostFrac = 1f, lastFrac = 1f, ghostHold;
+        float flash;
+        Color flashColor = Color.white;
 
         public HudGauge(Transform parent, string glyph, string label, Color c, float barWidth, float barHeight, float rowHeight = 30f)
         {
@@ -232,9 +234,19 @@ namespace Voidward.UI
             fill.fillAmount = frac;
             ghost.fillAmount = ghostFrac;
             Color c = critical ? Color.Lerp(color, HudKit.Danger, 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 4f)) : color;
+            flash = Mathf.MoveTowards(flash, 0f, dt / 0.25f);
+            if (flash > 0f) c = Color.Lerp(c, flashColor, flash * flash);
             fill.color = c;
             icon.color = c;
+            track.color = Color.Lerp(HudKit.Inset, flashColor * 0.55f, flash * flash * 0.6f);
             value.text = HudKit.Num(text);
+        }
+
+        /// <summary>Damage taken (#43): fill, icon and track flash towards the colour and fade back in ~0.25 s.</summary>
+        public void Flash(Color c, float strength = 1f)
+        {
+            flashColor = c;
+            flash = Mathf.Max(flash, Mathf.Clamp01(strength));
         }
     }
 

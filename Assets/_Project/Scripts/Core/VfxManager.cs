@@ -419,6 +419,19 @@ namespace Voidward.Core
             Emit(Kind.Shock, pos, 1, 0f, 3.2f, 3.6f, 0.3f, new Color(0.4f, 1.2f, 2.4f), 0.01f, 0.5f);
         }
 
+        public void ShieldBreak(Vector3 pos, float radius)
+        {
+            float r = Mathf.Max(2f, radius);
+            Emit(Kind.Shield, pos, 60, r * 1.6f, 0.4f, 1.3f, 0.7f, new Color(0.5f, 1.6f, 3f), r * 0.8f);
+            Emit(Kind.Spark, pos, 40, r * 3f, 0.05f, 0.12f, 0.6f, new Color(0.8f, 2f, 3.2f), r * 0.6f, 1f);
+            Emit(Kind.Shock, pos, 1, 0f, r * 2.6f, r * 3f, 0.45f, new Color(0.4f, 1.2f, 2.4f), 0.01f, 0.6f);
+            Emit(Kind.Flash, pos, 1, 0f, r * 1.4f, r * 1.6f, 0.12f, new Color(1f, 2.4f, 4f), 0.01f, 0.4f);
+            FlashLight(pos, new Color(0.45f, 0.75f, 1f), 10f, r * 4f, 0.25f);
+        }
+
+        // Explicit: the class already has a static ScreenFlash event (UIRoot draws it).
+        void IVfxService.ScreenFlash(Color c, float duration) => ScreenFlash?.Invoke(c, duration);
+
         public void PickupSparkle(Vector3 pos, Color tint)
         {
             Emit(Kind.Sparkle, pos, 14, 2.5f, 0.08f, 0.22f, 0.8f, tint * 2f, 0.4f);

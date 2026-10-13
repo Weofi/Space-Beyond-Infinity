@@ -28,13 +28,15 @@ namespace Voidward.Combat
         public static bool DamageNumbers = true;
         /// <summary>Player setting: hit-stop duration multiplier (0 = off).</summary>
         public static float HitStopScale = 1f;
+        /// <summary>Player setting: low-health pulse vignette + heartbeat / hull klaxon.</summary>
+        public static bool LowHealthWarning = true;
 
         /// <summary>Local player hit (or killed) an enemy. HUD hit marker + damage numbers listen.</summary>
         public static event Action<LocalHit> LocalHitLanded;
 
         const float ComboWindow = 3.5f;
         static int combo;
-        static float comboUntil, nextHitSound, streakUntil;
+        static float comboUntil, nextHitSound, streakUntil, nextHurtSound;
         static int streak;
 
         /// <summary>Kills in the running combo (0 when the window has expired).</summary>
@@ -46,7 +48,7 @@ namespace Voidward.Combat
         static void ResetStatics()
         {
             LocalHitLanded = null;
-            combo = 0; comboUntil = 0f; nextHitSound = 0f; streak = 0; streakUntil = 0f;
+            combo = 0; comboUntil = 0f; nextHitSound = 0f; streak = 0; streakUntil = 0f; nextHurtSound = 0f;
         }
 
         static ulong LocalId => NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : 0;
@@ -197,6 +199,46 @@ namespace Voidward.Combat
             Vfx.Explosion(pos, radius, tint);
             Vfx.KillBurst(pos, radius, tint);
             if (!string.IsNullOrEmpty(sound)) Sfx.Play(sound, pos, 1f, UnityEngine.Random.Range(0.85f, 1.1f));
+        }
+
+        // ------------------------------------------------------- damage taken (#43 part 3)
+
+        /// <summary>
+        /// Local player (or the ship they fly) took damage; intensity 0..1. Called by the HUD, which also draws the
+        /// direction arc and gauge flash. Shield-absorbed hits only nudge; health/hull hits thud and shake.
+        /// </summary>
+        public static void LocalHurt(float intensity, bool shield)
+        {
+            intensity = Mathf.Clamp01(intensity);
+            if (shield) { Vfx.Shake(0.05f + intensity * 0.15f); return; }
+            Vfx.Shake(0.12f + intensity * 0.4f);
+            float now = Time.unscaledTime;
+            if (now < nextHurtSound) return;
+            nextHurtSound = now + 0.12f;
+            Sfx.Play2D("hurt", 0.45f + intensity * 0.4f, UnityEngine.Random.Range(0.92f, 1.06f));
+        }
+
+        /// <summary>Every client: a ship shield collapsed here (radius ~ ship size). World burst + spatial crack.</summary>
+        public static void ShieldBroken(Vector3 pos, float radius)
+        {
+            Vfx.ShieldBreak(pos, radius);
+            Sfx.Play("shield_break", pos, 1f, UnityEngine.Random.Range(0.95f, 1.05f));
+        }
+
+        /// <summary>The local player's ship lost its shield: blue screen flash, hard shake, 2D crack on top.</summary>
+        public static void LocalShieldBroken()
+        {
+            Vfx.ScreenFlash(new Color(0.35f, 0.75f, 1f, 0.3f * Mathf.Clamp01(Vfx.ShakeScale + 0.3f)), 0.6f);
+            Vfx.Shake(0.45f);
+            Sfx.Play2D("shield_break", 0.8f, 1f);
+        }
+
+        /// <summary>One low-health warning beat: heartbeat on foot, klaxon in a ship. severity 0..1.</summary>
+        public static void LowHealthBeat(bool ship, float severity)
+        {
+            if (!LowHealthWarning) return;
+            if (ship) Sfx.Play2D("hull_alarm", 0.35f + severity * 0.25f, 1f);
+            else Sfx.Play2D("heartbeat", 0.55f + severity * 0.4f, 1f + severity * 0.08f);
         }
 
         /// <summary>Local, visual-only hit-stop (camera + effects hold). Scaled by the player setting.</summary>
