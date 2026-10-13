@@ -200,7 +200,7 @@ namespace Voidward.UI
             UIKit.LayoutElement(r.Swatch.gameObject, 14, 14);
             r.Name = UIKit.Text(row, "", 17, TextAlignmentOptions.Left, HudKit.TextHi, FontStyles.Bold);
             r.Name.textWrappingMode = TextWrappingModes.NoWrap;
-            r.Name.overflowMode = TextOverflowModes.Ellipsis;
+            r.Name.overflowMode = TextOverflowModes.Truncate;
             UIKit.LayoutElement(r.Name.gameObject, 150, RowHeight);
             var track = UIKit.Image(row, "Hp", HudKit.Inset, false);
             track.sprite = HudKit.Soft; track.type = Image.Type.Sliced;
