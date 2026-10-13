@@ -12,9 +12,11 @@ Shader "VOIDWARD/Planet"
         _RegionStrength ("Region Strength", Range(0,1)) = 0
         _PlanetCenter ("Planet Center (world)", Vector) = (0, 0, 0, 0)
         _Gloss ("Gloss", Range(0,1)) = 0.08
-        _Steps ("Toon Steps", Range(1,6)) = 3
-        _Softness ("Band Softness", Range(0,1)) = 0.65
-        _AmbientBoost ("Ambient Boost", Range(0,2)) = 0.55
+        _Wrap ("Light Wrap", Range(0,1)) = 0.25
+        _AmbientBoost ("Ambient Boost", Range(0,2)) = 0.45
+        _MacroStrength ("Macro Variation (35 m / 200 m)", Range(0,1)) = 0.22
+        _CavityStrength ("Cavity AO / Edge Light", Range(0,6)) = 2.5
+        _StrataStrength ("Cliff Strata", Range(0,0.5)) = 0.14
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 0.95
         _LocalLightStrength ("Local Light Strength", Range(0,3)) = 1
         _TerminatorWrap ("Terminator Wrap", Range(0,0.5)) = 0.05
@@ -41,9 +43,11 @@ Shader "VOIDWARD/Planet"
             float _RegionStrength;
             float4 _PlanetCenter;
             float _Gloss;
-            float _Steps;
-            float _Softness;
+            float _Wrap;
             float _AmbientBoost;
+            float _MacroStrength;
+            float _CavityStrength;
+            float _StrataStrength;
             float _ShadowStrength;
             float _LocalLightStrength;
             float _TerminatorWrap;
@@ -51,6 +55,25 @@ Shader "VOIDWARD/Planet"
             float _RimStrength;
             float _RimPower;
         CBUFFER_END
+
+        float Hash3(float3 p)
+        {
+            p = frac(p * 0.3183099 + 0.1);
+            p *= 17.0;
+            return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+        }
+
+        // Value noise in [0,1]: cheap, seamless on the sphere (3D), never tiles like a texture.
+        float VNoise(float3 x)
+        {
+            float3 i = floor(x);
+            float3 f = frac(x);
+            f = f * f * (3.0 - 2.0 * f);
+            return lerp(lerp(lerp(Hash3(i), Hash3(i + float3(1, 0, 0)), f.x),
+                             lerp(Hash3(i + float3(0, 1, 0)), Hash3(i + float3(1, 1, 0)), f.x), f.y),
+                        lerp(lerp(Hash3(i + float3(0, 0, 1)), Hash3(i + float3(1, 0, 1)), f.x),
+                             lerp(Hash3(i + float3(0, 1, 1)), Hash3(i + float3(1, 1, 1)), f.x), f.y), f.z);
+        }
 
         float3 TriWeights(float3 n)
         {
@@ -111,6 +134,7 @@ Shader "VOIDWARD/Planet"
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
                 float2 uv         : TEXCOORD0; // x = color ramp coordinate (elevation), y = region mask
+                float2 uv1        : TEXCOORD1; // x = cavity (+ concave, - convex)
             };
 
             struct Varyings
@@ -120,6 +144,7 @@ Shader "VOIDWARD/Planet"
                 float3 normalWS   : TEXCOORD2;
                 float2 ramp       : TEXCOORD3;
                 float  fogCoord   : TEXCOORD4;
+                float  cavity     : TEXCOORD5;
             };
 
             Varyings vert(Attributes IN)
@@ -129,6 +154,7 @@ Shader "VOIDWARD/Planet"
                 OUT.positionCS = TransformWorldToHClip(OUT.positionWS);
                 OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.ramp = IN.uv;
+                OUT.cavity = IN.uv1.x;
                 OUT.fogCoord = ComputeFogFactor(OUT.positionCS.z);
                 return OUT;
             }
@@ -149,15 +175,30 @@ Shader "VOIDWARD/Planet"
                 float broad = (TriDetail(p * 0.11 + 0.37, w) - 0.5) * saturate(1.0 - dist / (_DetailScale * 400.0));
                 float detail = 0.5 + fine * 0.6 + broad * 0.4;
 
-                float slope = 1.0 - dot(nGeo, up) + (detail - 0.5) * 0.08;
+                // Macro / meso variation (#70): procedural, so it survives at every distance where the detail
+                // texture has faded out. Breaks the large single-colour areas of the elevation ramp.
+                float macro = (VNoise(rel / 210.0) - 0.5) + (VNoise(rel / 38.0 + 7.3) - 0.5) * 0.6;
+                float slope = 1.0 - dot(nGeo, up) + (detail - 0.5) * 0.08 + macro * 0.03;
                 float cliff = smoothstep(_CliffSlope.x, _CliffSlope.y, slope);
-                float t = saturate(IN.ramp.x);
+                float t = saturate(IN.ramp.x + macro * 0.035);
                 float3 ground = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 1.0 / 6.0)).rgb;
                 float3 region = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 5.0 / 6.0)).rgb;
-                ground = lerp(ground, region, saturate(IN.ramp.y) * _RegionStrength);
+                ground = lerp(ground, region, saturate(IN.ramp.y + macro * 0.25) * _RegionStrength);
                 float3 rock = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 0.5)).rgb;
+                // Layered rock on cliffs: horizontal strata bands, slightly wobbly.
+                float r = length(rel);
+                float strata = sin(r / 2.3 + VNoise(rel / 18.0) * 4.0) * 0.6 * saturate(1.0 - dist / 1800.0)
+                             + sin(r / 0.9 + macro * 3.0) * 0.4 * saturate(1.0 - dist / 160.0);
+                rock *= 1.0 + strata * _StrataStrength;
                 float3 baseCol = lerp(ground, rock, cliff);
                 baseCol *= 1.0 + (detail - 0.5) * 2.0 * _DetailStrength;
+                baseCol *= 1.0 + macro * _MacroStrength;
+
+                // Cavity from the mesh: concave dips darken (AO), convex crests catch a little extra light.
+                float cav = IN.cavity * _CavityStrength;
+                float cavityAO = saturate(1.0 - max(cav, 0.0));
+                float crest = saturate(-cav);
+                cavityAO = lerp(0.45, 1.0, cavityAO);
 
                 // Detail normals fade out with distance to avoid shimmer from orbit.
                 float nStrength = _DetailNormalStrength * saturate(1.0 - dist / (_DetailScale * 40.0)) * lerp(0.6, 1.0, cliff);
@@ -170,12 +211,17 @@ Shader "VOIDWARD/Planet"
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
                 float atten = lerp(1.0, mainLight.shadowAttenuation, _ShadowStrength);
                 float ndl = dot(n, mainLight.direction);
-                float smoothLit = smoothstep(-_TerminatorWrap, 0.65 - _TerminatorWrap * 0.6, ndl);
-                float stepped = floor(smoothLit * _Steps + 0.5) / max(_Steps, 1.0);
-                float lit = lerp(stepped, smoothLit, _Softness) * atten * ao.directAmbientOcclusion;
+                // Soft wrapped Lambert (no toon bands): smooth, readable forms like Astroneer / Outer Wilds.
+                float diff = saturate((ndl + _Wrap) / (1.0 + _Wrap));
+                diff = lerp(diff, diff * diff * (3.0 - 2.0 * diff), 0.35);
+                // The planet's own terminator: the night side goes dark even where slopes face the sun.
+                float dayside = smoothstep(-_TerminatorWrap - 0.12, 0.12, dot(up, mainLight.direction));
+                float lit = diff * atten * ao.directAmbientOcclusion * dayside * lerp(0.85, 1.0, cavityAO);
 
                 float3 col = baseCol * mainLight.color * lit;
-                col += baseCol * SampleSH(n) * _AmbientBoost * ao.indirectAmbientOcclusion;
+                float3 amb = SampleSH(n) * _AmbientBoost * ao.indirectAmbientOcclusion * cavityAO;
+                col += baseCol * amb;
+                col += baseCol * mainLight.color * crest * 0.18 * dayside;
 
                 float3 localLight = 0;
             #if defined(_ADDITIONAL_LIGHTS)
@@ -196,7 +242,7 @@ Shader "VOIDWARD/Planet"
                 float ndv = saturate(dot(n, viewDir));
                 float3 h = normalize(mainLight.direction + viewDir);
                 float spec = pow(saturate(dot(n, h)), lerp(16.0, 96.0, _Gloss));
-                col += mainLight.color * smoothstep(0.3, 0.7, spec) * _Gloss * step(0.0, ndl) * atten;
+                col += mainLight.color * spec * _Gloss * 0.6 * step(0.0, ndl) * atten * dayside;
 
                 float rim = pow(1.0 - ndv, _RimPower) * _RimStrength * saturate(lit * 2.0);
                 col += lerp(mainLight.color * 0.35, _RimColor.rgb, 0.5) * rim;

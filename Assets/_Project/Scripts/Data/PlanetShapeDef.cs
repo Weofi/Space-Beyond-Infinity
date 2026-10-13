@@ -136,6 +136,8 @@ namespace Voidward.Data
 
         [Header("Ocean")]
         public bool HasOcean;
+        [Tooltip("The ocean is lava: dark flowing crust with glowing cracks instead of water optics.")]
+        public bool Lava;
         [Tooltip("Fraction of the surface below sea level, picked per seed in this range. The sea radius is derived from it.")]
         public Vector2 OceanCoverage = new Vector2(0.5f, 0.7f);
         [Tooltip("Multiplies terrain depth below sea level (past a short coastal shelf): deeper oceans, crisper coastlines.")]

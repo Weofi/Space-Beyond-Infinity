@@ -30,6 +30,23 @@ namespace Voidward.Dev
         Galaxy,
     }
 
+    /// <summary>Camera views of <see cref="DevTest.PlanetSurvey"/> (one sheet column each).</summary>
+    [Flags]
+    public enum PlanetView
+    {
+        /// <summary>Whole planet, three-quarter lit, from 2.7 radii.</summary>
+        Orbit = 1,
+        /// <summary>Low orbit over the terminator, looking along the limb (atmosphere rim, sunset).</summary>
+        Limb = 2,
+        /// <summary>300 m above a dry spot, looking ahead.</summary>
+        Flight = 4,
+        /// <summary>Eye level on a dry, flat spot with the sun about 45 degrees high, side lit.</summary>
+        Ground = 8,
+        /// <summary>Eye level on a beach, looking out over the sea (falls back to Ground without an ocean).</summary>
+        Shore = 16,
+        All = Orbit | Limb | Flight | Ground | Shore,
+    }
+
     /// <summary>
     /// Dev test harness (#65): makes typical test steps one-liners for agents (Unity_RunCommand) and humans.
     /// <code>
@@ -471,6 +488,150 @@ namespace Voidward.Dev
             JsonUtility.FromJsonOverwrite(metaBackup, Meta.Data);
             Meta.Save();
             Log("meta restored (stardust " + Meta.Data.Stardust + ")");
+        }
+
+        // ------------------------------------------------------------------ planet survey (#70)
+
+        /// <summary>Distinct planet shapes of all biomes in the content catalog.</summary>
+        public static PlanetShapeDef[] CatalogShapes()
+        {
+            var list = new List<PlanetShapeDef>();
+            var cat = ContentCatalog.Instance;
+            if (cat != null) foreach (var b in cat.Biomes) if (b != null && b.Shape != null && !list.Contains(b.Shape)) list.Add(b.Shape);
+            return list.ToArray();
+        }
+
+        /// <summary>
+        /// Look comparison for planet shading: builds each shape as a temporary planet far outside the sector, drives the
+        /// main camera through the requested views (so LOD, decor and PlanetAmbience react like in game), and writes ONE
+        /// sheet: one row per shape, one column per view, no HUD. Needs play mode (any phase). Logs "[Dev] end name -> path".
+        /// </summary>
+        public static void PlanetSurvey(string name, PlanetShapeDef[] shapes, PlanetView views = PlanetView.All, float radius = 1500f, int seed = 4242, float settle = 4f)
+        {
+            Log("begin " + name);
+            DevRunner.Get().Run(PlanetSurveyCo(name, shapes, views, radius, seed, settle));
+        }
+
+        static IEnumerator PlanetSurveyCo(string name, PlanetShapeDef[] shapes, PlanetView views, float radius, int seed, float settle)
+        {
+            var cam = Camera.main;
+            if (cam == null || shapes == null || shapes.Length == 0) { Log("end " + name + " FAILED: no main camera or shapes"); yield break; }
+            var brain = cam.GetComponent("CinemachineBrain") as Behaviour;
+            bool brainWas = brain != null && brain.enabled;
+            Vector3 camPos = cam.transform.position;
+            Quaternion camRot = cam.transform.rotation;
+            float camFov = cam.fieldOfView;
+            var sun = RenderSettings.sun;
+            Vector3 toSun = sun != null ? -sun.transform.forward : Vector3.up;
+            var tiles = new List<Texture2D>();
+            int cols = 0;
+            foreach (PlanetView v in Enum.GetValues(typeof(PlanetView))) if (v != PlanetView.All && (views & v) != 0) cols++;
+
+            for (int k = 0; k < shapes.Length; k++)
+            {
+                if (shapes[k] == null) continue;
+                var go = new GameObject("_DevPlanet_" + shapes[k].name);
+                go.transform.position = new Vector3(0f, 40000f, 80000f);
+                var vis = go.AddComponent<PlanetVisuals>();
+                vis.Build(shapes[k], seed + k, radius, false);
+                foreach (var pose in SurveyPoses(vis, views, toSun))
+                {
+                    float until = Time.realtimeSinceStartup + (pose.Fov < 0f ? 1.5f : settle);
+                    var p = new DevPose(pose.Pos, pose.LookAt, Mathf.Abs(pose.Fov));
+                    while (Time.realtimeSinceStartup < until)
+                    {
+                        if (brain != null) brain.enabled = false;
+                        cam.transform.SetPositionAndRotation(p.Pos, Quaternion.LookRotation(p.LookAt - p.Pos, (p.Pos - go.transform.position).normalized));
+                        yield return null;
+                    }
+                    tiles.Add(DevShots.Render(p, TileW, TileH, (p.Pos - go.transform.position).normalized));
+                }
+                UnityEngine.Object.Destroy(go);
+                yield return null;
+            }
+
+            if (brain != null) brain.enabled = brainWas;
+            cam.transform.SetPositionAndRotation(camPos, camRot);
+            cam.fieldOfView = camFov;
+            string path = "";
+            if (tiles.Count > 0)
+            {
+                var sheet = DevShots.Sheet(tiles, cols);
+                path = DevShots.Save(sheet, name);
+                DevShots.Kill(sheet);
+            }
+            foreach (var t in tiles) DevShots.Kill(t);
+            Log("end " + name + " -> " + path + " (rows " + shapes.Length + ", cols " + cols + ")");
+        }
+
+        /// <summary>Survey poses for one planet; a negative Fov marks quick (orbit) views.</summary>
+        static List<DevPose> SurveyPoses(PlanetVisuals vis, PlanetView views, Vector3 toSun)
+        {
+            var poses = new List<DevPose>();
+            var T = vis.Terrain;
+            Vector3 c = vis.transform.position;
+            float R = T.Radius;
+            Vector3 side = Vector3.Cross(toSun, Mathf.Abs(toSun.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+
+            if ((views & PlanetView.Orbit) != 0)
+                poses.Add(new DevPose(c + (toSun * 0.75f + side * 0.65f).normalized * R * 2.7f, c, -50f));
+            if ((views & PlanetView.Limb) != 0)
+            {
+                // Over the terminator, looking along the limb toward the day side.
+                Vector3 d = (side + toSun * 0.15f).normalized;
+                Vector3 pos = c + d * (T.AtmosphereRadius + R * 0.25f);
+                Vector3 fwd = Vector3.ProjectOnPlane(toSun, d).normalized;
+                poses.Add(new DevPose(pos, c + fwd * R * 1.1f, -55f));
+            }
+
+            Vector3 dry = FindSpot(T, toSun, side, false);
+            Vector3 look = Vector3.ProjectOnPlane(side, dry).normalized;
+            Vector3 g = c + dry * T.GroundRadius(dry);
+            if ((views & PlanetView.Flight) != 0)
+                poses.Add(new DevPose(g + dry * 300f - look * 250f, g + look * 600f, 60f));
+            if ((views & PlanetView.Ground) != 0)
+                poses.Add(new DevPose(g + dry * 1.8f, g + dry * 1.0f + look * 100f, 60f));
+            if ((views & PlanetView.Shore) != 0)
+            {
+                Vector3 beach = T.HasOcean ? FindSpot(T, toSun, side, true) : dry;
+                Vector3 b = c + beach * T.GroundRadius(beach);
+                Vector3 seaward = look;
+                if (T.HasOcean)
+                {
+                    // Step outward in 8 directions and face the first one that reaches the water.
+                    Vector3 t1 = Vector3.Cross(beach, side).normalized;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        Vector3 o = Quaternion.AngleAxis(i * 45f, beach) * t1;
+                        if (T.IsUnderwater((beach + o * (40f / R)).normalized)) { seaward = o; break; }
+                    }
+                }
+                poses.Add(new DevPose(b + beach * 2.2f - seaward * 6f, b + beach * 1.0f + seaward * 80f, 60f));
+            }
+            return poses;
+        }
+
+        /// <summary>Dry spot with the sun ~45 degrees high; shore = dry land within 40 m of the sea.</summary>
+        static Vector3 FindSpot(PlanetTerrain T, Vector3 toSun, Vector3 side, bool shore)
+        {
+            Vector3 baseDir = (toSun + side).normalized;
+            Vector3 fallback = baseDir;
+            var rng = new System.Random(77);
+            float step = 40f / T.Radius;
+            for (int i = 0; i < 4000; i++)
+            {
+                float spread = Mathf.Lerp(0.2f, 1.6f, i / 4000f);
+                var j = new Vector3((float)rng.NextDouble() - 0.5f, (float)rng.NextDouble() - 0.5f, (float)rng.NextDouble() - 0.5f) * spread;
+                Vector3 d = (baseDir + j).normalized;
+                if (Vector3.Dot(d, toSun) < 0.35f || T.IsUnderwater(d)) continue;
+                if (T.SlopeAt(d, 4f) > 0.15f) continue;
+                if (!shore) return d;
+                Vector3 t1 = Vector3.Cross(d, side).normalized;
+                for (int a = 0; a < 8; a++)
+                    if (T.IsUnderwater((d + Quaternion.AngleAxis(a * 45f, d) * t1 * step).normalized)) return d;
+                fallback = d;
+            }
+            return fallback;
         }
 
         // ------------------------------------------------------------------ shots

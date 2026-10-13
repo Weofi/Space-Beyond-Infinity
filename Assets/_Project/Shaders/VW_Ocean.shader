@@ -1,21 +1,27 @@
 Shader "VOIDWARD/Ocean"
 {
+    // Planet sea shell (#70). Water: depth-based absorption over the refracted seabed, sky reflection with fresnel, a
+    // sun glint whose roughness grows with distance (crisp sparkle up close, a broad soft highlight from orbit), wrap
+    // lighting across the terminator and stylized shore foam. Lava (_Lava = 1): flowing dark crust with glowing cracks,
+    // hotter in deep channels, no water optics.
     Properties
     {
         _ShallowColor ("Shallow Color", Color) = (0.25,0.85,0.85,1)
         _DeepColor ("Deep Color", Color) = (0.04,0.18,0.45,1)
         _WaterDepth ("Depth to Deep Color (m)", Float) = 14
-        [HDR] _EmissionColor ("Emission (lava etc.)", Color) = (0,0,0,1)
+        [HDR] _EmissionColor ("Emission (lava glow)", Color) = (0,0,0,1)
         _Gloss ("Gloss", Range(0,1)) = 0.9
         _WaveStrength ("Wave Strength", Range(0,2)) = 0.5
         _WaveScale ("Wave Scale (m)", Float) = 9
-        _FoamWidth ("Shore Foam Width (m)", Float) = 0.9
+        _FoamWidth ("Shore Foam Width (m)", Float) = 0.7
         _Refraction ("Refraction", Range(0,0.1)) = 0.02
         [NoScaleOffset] _DetailNormal ("Wave Normal (linear RGB)", 2D) = "bump" {}
-        _Steps ("Toon Steps", Range(1,6)) = 3
-        _Softness ("Band Softness", Range(0,1)) = 0.65
-        _AmbientBoost ("Ambient Boost", Range(0,2)) = 0.55
-        _TerminatorWrap ("Terminator Wrap", Range(0,0.5)) = 0.05
+        [NoScaleOffset] _DetailTex ("Noise (R, linear)", 2D) = "gray" {}
+        _SkyColor ("Sky Color (zenith reflection)", Color) = (0.4,0.65,1,1)
+        _HorizonColor ("Horizon Color (grazing reflection)", Color) = (0.75,0.85,0.95,1)
+        _HasSky ("Has Atmosphere", Float) = 1
+        _Lava ("Lava", Float) = 0
+        _CrustColor ("Lava Crust Color", Color) = (0.09,0.06,0.06,1)
     }
     SubShader
     {
@@ -42,6 +48,7 @@ Shader "VOIDWARD/Ocean"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
 
             TEXTURE2D(_DetailNormal); SAMPLER(sampler_DetailNormal);
+            TEXTURE2D(_DetailTex); SAMPLER(sampler_DetailTex);
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _ShallowColor;
@@ -53,10 +60,11 @@ Shader "VOIDWARD/Ocean"
                 float _WaveScale;
                 float _FoamWidth;
                 float _Refraction;
-                float _Steps;
-                float _Softness;
-                float _AmbientBoost;
-                float _TerminatorWrap;
+                float4 _SkyColor;
+                float4 _HorizonColor;
+                float _HasSky;
+                float _Lava;
+                float4 _CrustColor;
             CBUFFER_END
 
             struct Attributes
@@ -87,79 +95,148 @@ Shader "VOIDWARD/Ocean"
                 return OUT;
             }
 
-            float3 WaveNormal(float2 uv, float strength)
+            float3 Tri(float3 n)
             {
-                float3 t = SAMPLE_TEXTURE2D(_DetailNormal, sampler_DetailNormal, uv).xyz * 2.0 - 1.0;
-                return float3(t.xy * strength, 0);
+                float3 w = pow(abs(n), 4.0);
+                return w / (w.x + w.y + w.z);
+            }
+
+            float2 WaveNormal(float2 uv)
+            {
+                return SAMPLE_TEXTURE2D(_DetailNormal, sampler_DetailNormal, uv).xy * 2.0 - 1.0;
             }
 
             // Two scrolling triplanar normal layers; returns the object-space perturbation (tangential offset).
-            float3 Waves(float3 p, float3 n, float strength)
+            float3 Waves(float3 p, float3 w, float strength, float speed)
             {
-                float3 w = pow(abs(n), 4.0);
-                w /= (w.x + w.y + w.z);
-                float tm = _Time.y;
-                float3 o = 0;
+                float tm = _Time.y * speed;
                 float2 s1 = float2(0.021, 0.013) * tm, s2 = float2(-0.017, 0.024) * tm;
-                float3 a = WaveNormal(p.zy + s1, strength) + WaveNormal(p.zy * 0.43 + s2, strength);
-                float3 b = WaveNormal(p.xz + s1, strength) + WaveNormal(p.xz * 0.43 + s2, strength);
-                float3 c = WaveNormal(p.xy + s1, strength) + WaveNormal(p.xy * 0.43 + s2, strength);
-                o += float3(0, a.y, a.x) * w.x;
-                o += float3(b.x, 0, b.y) * w.y;
-                o += float3(c.x, c.y, 0) * w.z;
-                return o;
+                float2 a = WaveNormal(p.zy + s1) + WaveNormal(p.zy * 0.43 + s2);
+                float2 b = WaveNormal(p.xz + s1) + WaveNormal(p.xz * 0.43 + s2);
+                float2 c = WaveNormal(p.xy + s1) + WaveNormal(p.xy * 0.43 + s2);
+                return (float3(0, a.y, a.x) * w.x + float3(b.x, 0, b.y) * w.y + float3(c.x, c.y, 0) * w.z) * strength;
+            }
+
+            float TriNoise(float3 p, float3 w)
+            {
+                return SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex, p.zy).r * w.x
+                     + SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex, p.xz).r * w.y
+                     + SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex, p.xy).r * w.z;
+            }
+
+            // GGX distribution, clamped so a sharp glint blooms instead of exploding.
+            float GGX(float nh, float rough)
+            {
+                float a2 = rough * rough * rough * rough;
+                float d = nh * nh * (a2 - 1.0) + 1.0;
+                return min(a2 / (PI * d * d), 60.0);
             }
 
             half4 frag(Varyings IN) : SV_Target
             {
                 float3 nGeo = normalize(IN.normalOS);
-                float3 nGeoWS = normalize(TransformObjectToWorldNormal(nGeo));
+                float3 upWS = normalize(TransformObjectToWorldNormal(nGeo));
+                float3 w = Tri(nGeo);
                 float dist = length(IN.positionWS - _WorldSpaceCameraPos);
-                float waveFade = saturate(1.0 - dist / (_WaveScale * 60.0));
-                float3 nOS = normalize(nGeo + Waves(IN.positionOS / _WaveScale, nGeo, _WaveStrength * 0.5) * waveFade);
-                float3 n = normalize(TransformObjectToWorldNormal(nOS));
                 float3 viewDir = normalize(GetWorldSpaceViewDir(IN.positionWS));
-                float ndv = saturate(dot(n, viewDir));
 
                 // Water thickness from the scene depth (terrain below), converted to vertical depth.
                 float2 suv = GetNormalizedScreenSpaceUV(IN.positionCS);
                 float sceneEye = LinearEyeDepth(SampleSceneDepth(suv), _ZBufferParams);
                 float3 camFwd = -UNITY_MATRIX_V[2].xyz;
                 float cosRay = max(0.05, dot(-viewDir, camFwd));
-                float thick = max(0.0, sceneEye - IN.eyeDepth) / cosRay * saturate(dot(nGeoWS, viewDir));
-                float depth01 = saturate(thick / max(0.01, _WaterDepth));
+                float thick = max(0.0, sceneEye - IN.eyeDepth) / cosRay * saturate(dot(upWS, viewDir) + 0.05);
+
+                Light sun = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
+                float3 L = sun.direction;
+                float mu = dot(upWS, L);
+                float day = smoothstep(-0.18, 0.25, mu);
+                float shadow = lerp(1.0, sun.shadowAttenuation, 0.6);
+                // Soft wrap lighting: no toon bands across the sphere, a gentle fade into the night side.
+                float diffuse = saturate((mu + 0.3) / 1.3);
+                diffuse *= diffuse;
+                float3 ambient = SampleSH(upWS) * 0.45;
+
+                if (_Lava > 0.5)
+                {
+                    // Flowing crust plates: two noise scales drift against each other; cracks between plates glow.
+                    float3 p = IN.positionOS / max(1.0, _WaveScale * 2.2);
+                    float t = _Time.y * 0.012;
+                    float n1 = TriNoise(p + float3(t, 0, t * 0.7), w);
+                    float n2 = TriNoise(p * 2.7 - float3(t * 1.3, t, 0), w);
+                    float n = n1 * 0.65 + n2 * 0.35;
+                    float heat = saturate(thick / max(0.5, _WaterDepth));       // deep channel centres run hotter
+                    float far = saturate(dist / 900.0);                            // sub-pixel cracks average out
+                    float crack = 1.0 - smoothstep(0.035, 0.11 + heat * 0.08, abs(n - 0.5));
+                    crack = lerp(crack, 0.35 + heat * 0.25, far);
+                    float pulse = 0.85 + 0.15 * sin(_Time.y * 1.3 + n1 * 12.0);
+                    float3 glow = lerp(_DeepColor.rgb, _ShallowColor.rgb, saturate(crack * 1.2)) * _EmissionColor.rgb * pulse;
+                    float3 crust = _CrustColor.rgb * (sun.color * diffuse * shadow + ambient) * (0.7 + n2 * 0.6);
+                    // Cooling rim along the banks.
+                    float rim = 1.0 - saturate(thick / max(0.1, _FoamWidth * 1.5));
+                    float hot = saturate(crack * (1.0 - rim * 0.6) + heat * 0.15);
+                    float3 lava = lerp(crust, glow, hot) + glow * 0.08;
+                    lava = MixFog(lava, IN.fogCoord);
+                    return half4(lava, 1);
+                }
+
+                // Near: two wave octaves. Far: a broad swell keeps texture from orbit; finer detail turns into roughness.
+                float nearFade = saturate(1.0 - dist / (_WaveScale * 70.0));
+                float farFade = saturate(1.0 - dist / (_WaveScale * 900.0));
+                float3 nOS = nGeo + Waves(IN.positionOS / _WaveScale, w, _WaveStrength * 0.45, 1.0) * nearFade
+                                  + Waves(IN.positionOS / (_WaveScale * 11.0), w, _WaveStrength * 0.25, 0.35) * farFade;
+                float3 n = normalize(TransformObjectToWorldNormal(normalize(nOS)));
+                float ndv = saturate(dot(n, viewDir));
 
                 // Refracted seabed, offset by the wave normal (fall back if the offset sample is in front of the water).
-                float2 ruv = suv + mul((float3x3)UNITY_MATRIX_V, n - nGeoWS).xy * _Refraction * saturate(thick * 0.5);
+                float2 ruv = suv + mul((float3x3)UNITY_MATRIX_V, n - upWS).xy * _Refraction * saturate(thick * 0.5) * nearFade;
                 float rEye = LinearEyeDepth(SampleSceneDepth(ruv), _ZBufferParams);
                 if (rEye < IN.eyeDepth) ruv = suv;
                 float3 seabed = SampleSceneColor(ruv);
 
-                Light mainLight = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
-                float ndl = dot(nGeoWS, mainLight.direction);
-                float smoothLit = smoothstep(-_TerminatorWrap, 0.65 - _TerminatorWrap * 0.6, ndl);
-                float stepped = floor(smoothLit * _Steps + 0.5) / max(_Steps, 1.0);
-                float lit = lerp(stepped, smoothLit, _Softness) * lerp(1.0, mainLight.shadowAttenuation, 0.6);
-                float3 light = mainLight.color * lit + SampleSH(n) * _AmbientBoost;
+                // Absorption: the seabed fades out with depth into a lit water body (shallow -> deep color).
+                float depthN = thick / max(0.01, _WaterDepth);
+                float transmit = exp(-depthN * 2.2);
+                float3 body = lerp(_ShallowColor.rgb, _DeepColor.rgb, saturate(1.0 - exp(-depthN * 1.4)));
+                float3 lightCol = sun.color * diffuse * shadow + ambient;
+                float3 col = lerp(body * lightCol, seabed * lerp(1.0, _ShallowColor.rgb, 0.45), transmit * 0.85);
 
-                float3 waterCol = lerp(_ShallowColor.rgb, _DeepColor.rgb, sqrt(depth01));
-                float absorb = 1.0 - exp(-4.0 * depth01);
-                float3 col = lerp(seabed * lerp(float3(1, 1, 1), _ShallowColor.rgb, 0.7), waterCol * light, saturate(absorb + 0.2));
+                // Reflection: the planet's own sky (horizon haze at grazing angles, zenith color looking up).
+                float3 r = reflect(-viewDir, n);
+                float3 sky;
+                if (_HasSky > 0.5)
+                {
+                    float up = saturate(dot(r, upWS));
+                    sky = lerp(_HorizonColor.rgb, _SkyColor.rgb, saturate(up * 1.8)) * lerp(0.04, 1.0, day) * sun.color;
+                }
+                else sky = GlossyEnvironmentReflection(r, 0.2, 1.0);
+                float fres = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+                col = lerp(col, sky, saturate(fres * (0.35 + 0.65 * _Gloss)));
 
-                // Sky reflection + crisp sun glint.
-                float fres = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
-                float3 refl = GlossyEnvironmentReflection(reflect(-viewDir, n), 1.0 - _Gloss, 1.0);
-                col += refl * fres * _Gloss;
-                float3 h = normalize(mainLight.direction + viewDir);
-                float spec = pow(saturate(dot(n, h)), lerp(48.0, 260.0, _Gloss));
-                col += mainLight.color * smoothstep(0.35, 0.9, spec) * _Gloss * 0.8 * step(0.0, ndl);
+                // Sun glint: roughness grows with distance (sub-pixel waves), so orbit views get a broad sheen.
+                float rough = lerp(0.09, 0.34, saturate(dist / 2500.0)) * lerp(1.4, 0.8, _Gloss) + _WaveStrength * 0.03;
+                float3 h = normalize(L + viewDir);
+                float spec = GGX(saturate(dot(n, h)), rough) * (0.02 + 0.98 * pow(1.0 - saturate(dot(h, viewDir)), 5.0));
+                col += sun.color * spec * saturate(dot(n, L)) * shadow * _Gloss;
 
-                // Pulsing shore foam (close range only: depth-buffer precision makes it smear from orbit).
-                float shore = (1.0 - saturate(thick / max(0.01, _FoamWidth))) * saturate(1.0 - dist / 150.0);
-                float foam = shore * saturate(0.55 + 0.45 * sin(thick / max(0.01, _FoamWidth) * 9.0 - _Time.y * 2.0));
-                col = lerp(col, light * 0.95, foam * 0.75);
+                // Stylized shore: a lighter shallow lip, a solid contact line and foam bands rolling toward the beach.
+                float shoreFade = saturate(1.0 - dist / 220.0);
+                if (shoreFade > 0.0)
+                {
+                    float fw = max(0.05, _FoamWidth);
+                    float noise = TriNoise(IN.positionOS / 7.0 + _Time.y * 0.01, w);
+                    float contact = 1.0 - smoothstep(0.2, 0.45, thick / fw + (noise - 0.5) * 0.5);
+                    // One thin band rolling in toward the contact line, broken up by noise.
+                    float band = frac(thick / (fw * 1.6) - _Time.y * 0.2 + noise * 0.4);
+                    float bands = smoothstep(0.84, 0.9, band) * (1.0 - smoothstep(0.94, 1.0, band))
+                                * (1.0 - saturate(thick / (fw * 2.6))) * smoothstep(0.35, 0.6, noise + 0.15);
+                    float foam = saturate(contact + bands * 0.7) * shoreFade;
+                    float lip = (1.0 - saturate(thick / (fw * 4.0))) * shoreFade;
+                    col = lerp(col, _ShallowColor.rgb * lightCol * 1.15, lip * 0.25);
+                    col = lerp(col, lightCol * 1.1 + 0.08, foam * 0.85);
+                }
 
-                col += _EmissionColor.rgb * (0.8 + 0.6 * saturate(length(nOS - nGeo) * 3.0));
+                col += _EmissionColor.rgb * (0.7 + 0.3 * transmit);
                 col = MixFog(col, IN.fogCoord);
                 return half4(col, 1);
             }
