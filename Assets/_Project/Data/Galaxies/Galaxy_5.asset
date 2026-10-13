@@ -10,30 +10,29 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e4a88b22349cd4d71a86acb3a0a27666, type: 3}
-  m_Name: Sector_3
-  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.SectorDef
-  Index: 3
-  DisplayName: Ember Maw
-  Intro: The Warden guards the last way out. Prepare, then face it.
-  CorridorLength: 10000
-  MinPlanets: 2
-  MaxPlanets: 3
-  AsteroidBelts: 4
-  WreckCount: 3
-  HasStation: 1
+  m_Name: Galaxy_5
+  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.GalaxyDef
+  Index: 5
+  DisplayName: Large Magellanic Cloud
+  Designation: LMC
+  DistanceMly: 0.16
+  Intro: The Milky Way fills the sky. The Wardens guard their last cores here.
+  DriveTier: 6
+  MinSystems: 5
+  MaxSystems: 6
+  SystemLength: 10000
   BiomePool:
   - {fileID: 11400000, guid: ab0526895cd874fca8014898fe407820, type: 2}
   - {fileID: 11400000, guid: 6ed14b6a0d59747e89fc6eaa0fe4f151, type: 2}
   - {fileID: 11400000, guid: bca547142e0744b75881d7bdbda5d2ee, type: 2}
-  SpaceEnemies: 000000000200000001000000i
-  SpaceEnemyCap: 5
+  - {fileID: 11400000, guid: 2a730c46e6efa4ad787f13d9e375e151, type: 2}
+  SpaceEnemies: 000000000100000002000000i
+  SpaceEnemyCap: 6
   SpaceEnemyGrace: 45
   SpaceEnemyRamp: 90
   SurfaceEnemies: 030000000400000005000000i
-  EnemyTier: 2
-  CollapseSpeed: 13.5
-  CollapseStartOffset: 1450
+  EnemyTier: 2.7
+  LootTier: 3
   EventCount: 4
-  Palette: {fileID: 11400000, guid: 7b771968b428b471bb65a420647f5102, type: 2}
-  GateCellCost: 0
-  IsBossSector: 1
+  Palette: {fileID: 11400000, guid: bd0fdb43d52c6694c9d0877560185e40, type: 2}
+  NextGalaxyTint: {r: 1, g: 0.9, b: 0.75, a: 1}

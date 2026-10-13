@@ -18,10 +18,14 @@ namespace Voidward.EditorTools
         [MenuItem("Voidward/Dev/Play: Lab, wait for 2 players", priority = 103)]
         static void PlayLab2() => DevTest.Play(DevScenario.Lab, 2);
 
+        [MenuItem("Voidward/Dev/Play: Galaxy map (pilot)", priority = 104)]
+        static void PlayGalaxy() => DevTest.Play(DevScenario.Galaxy);
+
         [MenuItem("Voidward/Dev/Play: Space (pilot)", true)]
         [MenuItem("Voidward/Dev/Play: Planet (on foot)", true)]
         [MenuItem("Voidward/Dev/Play: Lab (test walls)", true)]
         [MenuItem("Voidward/Dev/Play: Lab, wait for 2 players", true)]
+        [MenuItem("Voidward/Dev/Play: Galaxy map (pilot)", true)]
         static bool CanPlay() => !EditorApplication.isPlayingOrWillChangePlaymode;
     }
 }

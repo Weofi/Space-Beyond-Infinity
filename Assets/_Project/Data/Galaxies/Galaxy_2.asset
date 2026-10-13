@@ -10,17 +10,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e4a88b22349cd4d71a86acb3a0a27666, type: 3}
-  m_Name: Sector_2
-  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.SectorDef
+  m_Name: Galaxy_2
+  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.GalaxyDef
   Index: 2
-  DisplayName: Verdigris Expanse
-  Intro: Pirate gunships patrol these lanes. The Collapse is hungrier.
-  CorridorLength: 10000
-  MinPlanets: 2
-  MaxPlanets: 3
-  AsteroidBelts: 5
-  WreckCount: 4
-  HasStation: 1
+  DisplayName: Andromeda
+  Designation: M31
+  DistanceMly: 2.54
+  Intro: Huge and dense, full of worlds. Swarms guard what you need.
+  DriveTier: 3
+  MinSystems: 5
+  MaxSystems: 6
+  SystemLength: 9000
   BiomePool:
   - {fileID: 11400000, guid: 6ed14b6a0d59747e89fc6eaa0fe4f151, type: 2}
   - {fileID: 11400000, guid: 2a730c46e6efa4ad787f13d9e375e151, type: 2}
@@ -28,13 +28,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: bca547142e0744b75881d7bdbda5d2ee, type: 2}
   SpaceEnemies: 000000000100000002000000i
   SpaceEnemyCap: 4
-  SpaceEnemyGrace: 60
+  SpaceEnemyGrace: 75
   SpaceEnemyRamp: 120
   SurfaceEnemies: 030000000400000005000000i
-  EnemyTier: 1.5
-  CollapseSpeed: 12
-  CollapseStartOffset: 1600
-  EventCount: 4
-  Palette: {fileID: 11400000, guid: 4fd1180be8dc14339ba9809ba27d5b54, type: 2}
-  GateCellCost: 3
-  IsBossSector: 0
+  EnemyTier: 1.4
+  LootTier: 2
+  EventCount: 3
+  Palette: {fileID: 11400000, guid: 4e44b8c9da1fd2b449457eb8c2069eb1, type: 2}
+  NextGalaxyTint: {r: 1, g: 0.75, b: 0.9, a: 1}

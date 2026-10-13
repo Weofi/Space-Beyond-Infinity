@@ -77,10 +77,10 @@ namespace Voidward.Dev
             }
         }
 
-        void OnEnable() { EventBus.SectorStarted += OnSector; }
-        void OnDisable() { EventBus.SectorStarted -= OnSector; }
+        void OnEnable() { EventBus.SystemEntered += OnSystem; }
+        void OnDisable() { EventBus.SystemEntered -= OnSystem; }
 
-        void OnSector(int sector)
+        void OnSystem(int galaxy, int system)
         {
             if (DevTest.LabRoot != null) Destroy(DevTest.LabRoot.gameObject);
         }

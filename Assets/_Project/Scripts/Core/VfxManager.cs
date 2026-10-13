@@ -46,19 +46,19 @@ namespace Voidward.Core
             DontDestroyOnLoad(gameObject);
             foreach (Kind k in Enum.GetValues(typeof(Kind))) pools[k] = new Queue<ParticleSystem>();
             decals = new DecalPool(DecalMaterial, transform);
-            EventBus.SectorStarted += OnSectorStarted;
+            EventBus.SystemEntered += OnSystemEntered;
             EventBus.PhaseChanged += OnPhaseChanged;
         }
 
         void OnDestroy()
         {
-            EventBus.SectorStarted -= OnSectorStarted;
+            EventBus.SystemEntered -= OnSystemEntered;
             EventBus.PhaseChanged -= OnPhaseChanged;
             if (ReferenceEquals(G.Get<IVfxService>(), this)) G.Unregister<IVfxService>();
         }
 
         // The floating origin moves on every jump: marks anchored to the world (far terrain) would end up wrong.
-        void OnSectorStarted(int sector) => decals?.Clear();
+        void OnSystemEntered(int galaxy, int system) => decals?.Clear();
         void OnPhaseChanged(GamePhase phase) { if (phase != GamePhase.Playing && phase != GamePhase.Paused) decals?.Clear(); }
 
         /// <summary>Live scorch decals (debug / tests).</summary>

@@ -40,10 +40,7 @@ namespace Voidward.Ship
                 Center.text = $"<size=140%>{spd:0}</size> m/s\n{(alt < 2000f ? $"ALT {alt:0} m" : "DEEP SPACE")}";
             if (Right)
             {
-                float collapse = Mathf.Max(0f, ship.transform.position.x - GameState.CollapseX);
-                string gate = GameState.HasGate ? $"GATE {Vector3.Distance(ship.transform.position, GameState.GatePosition):0} m" : "GATE --";
-                string col = collapse < 400f ? "#ff5070" : collapse < 1000f ? "#ffc060" : "#80ffd0";
-                Right.text = $"<b>COLLAPSE</b>\n<color={col}>{(collapse > 50000f ? "--" : collapse.ToString("0"))} m</color>\n{gate}";
+                Right.text = $"<b>NAV</b>\nGALAXY {GameState.GalaxyIndex}/5\nSYSTEM {GameState.SystemIndex + 1}";
             }
         }
     }

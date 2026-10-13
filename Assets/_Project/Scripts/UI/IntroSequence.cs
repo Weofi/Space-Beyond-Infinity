@@ -19,7 +19,7 @@ namespace Voidward.UI
 {
     /// <summary>
     /// Client-local intro cinematic at the start of a run: a title card, then eased camera moves over
-    /// the key POIs (own ship, Collapse, Ark, planet, nest, station, gate) with fades, letterbox,
+    /// the key POIs (own ship, the destination galaxy, Ark, planet, nest, station) with fades, letterbox,
     /// radio-style captions and POI highlights. Each caption waits for the player (#24): click or any key
     /// reveals the full text, the next press moves on. Esc or hold Space skips. The last shot ends behind
     /// the local cockpit and Cinemachine blends into the player camera. Driven by UIRoot.
@@ -176,12 +176,11 @@ namespace Voidward.UI
             sub.characterSpacing = 12;
 
             builders.Add(ArrivalShot);
-            builders.Add(CollapseShot);
+            builders.Add(LostShot);
             builders.Add(ArkShot);
             builders.Add(PlanetShot);
             builders.Add(NestShot);
             builders.Add(StationShot);
-            builders.Add(GateShot);
             builders.Add(HelmShot);
 
             root.gameObject.SetActive(false);
@@ -206,9 +205,9 @@ namespace Voidward.UI
             cam.Priority = Priority;
             cam.enabled = true;
 
-            var sector = ContentCatalog.GetSector(1);
-            cardSector.text = "SECTOR 1";
-            cardName.text = sector != null ? sector.DisplayName : "THE OUTER RIM";
+            var galaxy = ContentCatalog.GetGalaxy(1);
+            cardSector.text = galaxy != null ? $"GALAXY 1 - {galaxy.Designation}" : "GALAXY 1";
+            cardName.text = galaxy != null ? galaxy.DisplayName : "TRIANGULUM";
 
             state = State.Playing;
             shot = null;
@@ -478,21 +477,20 @@ namespace Voidward.UI
             };
         }
 
-        Shot CollapseShot()
+        /// <summary>Where the crew is and where home lies: the destination galaxy on the sky (#46, story frame #72).</summary>
+        Shot LostShot()
         {
-            float cx = GameState.CollapseX;
-            if (cx < -50000f) return null;
             Vector3 s = anchor;
-            Vector3 wall = new Vector3(cx, s.y, s.z);
+            Vector3 sky = s + SystemVisuals.DestinationDir * 3000f;
             return new Shot
             {
-                Title = "The Collapse",
-                Body = "Behind you a black hole is swallowing the sector, and it never stops. Anything it touches is lost for good - keep moving forward.",
-                Label = "THE COLLAPSE", Highlight = wall + new Vector3(0f, 140f, -260f), Sfx = "rumble",
-                Duration = 5.5f,
-                FromPos = s + new Vector3(34f, 12f, -22f),
-                ToPos = s + new Vector3(28f, 4f, -10f),
-                FromLook = wall + Vector3.up * 260f + Vector3.forward * 200f, ToLook = wall - Vector3.up * 120f,
+                Title = "2.73 million light-years from home",
+                Body = "A wormhole threw the SELENE-4 crew into the Triangulum Galaxy. Upgrade the warp drive and fly galaxy by galaxy through the Local Group - Andromeda first, then on to the Milky Way. [M] opens the galaxy map.",
+                Label = "ANDROMEDA (M31)", Highlight = sky, ShowDistance = false, Sfx = "rumble",
+                Duration = 6.5f,
+                FromPos = s + new Vector3(-30f, 6f, 24f),
+                ToPos = s + new Vector3(-22f, 3f, 14f),
+                FromLook = s + SystemVisuals.DestinationDir * 3000f + Vector3.down * 600f, ToLook = sky,
             };
         }
 
@@ -577,24 +575,6 @@ namespace Voidward.UI
                 FromPos = c + Quaternion.AngleAxis(30f, Vector3.up) * toAnchor * 120f + Vector3.up * 30f,
                 ToPos = c + Quaternion.AngleAxis(-5f, Vector3.up) * toAnchor * 80f + Vector3.up * 12f,
                 FromLook = c, ToLook = c,
-            };
-        }
-
-        Shot GateShot()
-        {
-            var gate = JumpGate.Instance;
-            if (gate == null) return null;
-            Vector3 c = gate.transform.position;
-            int cells = gate.CellsRequired.Value;
-            return new Shot
-            {
-                Title = "Mission: power the jump gate",
-                Body = $"Bring {cells} Energy Cells to the gate at the end of the sector. Once it is charged, the whole crew gathers here to jump. Cross 3 sectors and defeat the Warden.",
-                Label = "JUMP GATE", Highlight = c, Sfx = "jump_charge",
-                Duration = 6.5f,
-                FromPos = c + new Vector3(-190f, 40f, 95f),
-                ToPos = c + new Vector3(-105f, 12f, 48f),
-                FromLook = c + Vector3.up * 20f, ToLook = c,
             };
         }
 

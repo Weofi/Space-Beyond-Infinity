@@ -41,6 +41,9 @@ namespace Voidward.Core
 
     public enum SectorEventKind { MeteorShower, DistressSignal, SolarFlare }
 
+    /// <summary>What a star system inside a galaxy holds (#46).</summary>
+    public enum SystemKind { Planetary, AsteroidField, Anomaly, Enclave, Nomads, Void }
+
     /// <summary>Scatter / points of interest placed on planet surfaces.</summary>
     public enum ScatterKind { OreNode, CrystalNode, ScrapNode, FuelNode, LootCrate, Nest, Ruin, CrashedShip }
 

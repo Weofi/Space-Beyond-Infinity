@@ -299,7 +299,6 @@ namespace Voidward.EditorTools
             catalog.CrashedShipPrefab = BuildCrashed();
             catalog.Wreck = BuildWreck();
             catalog.TraderStation = BuildStation();
-            catalog.JumpGate = BuildGate();
             catalog.GameDirector = BuildDirector();
             catalog.LaserBolt = catalog.Missile = catalog.FlakBurst = catalog.SpitProjectile = catalog.Meteor = null;
             EditorUtility.SetDirty(catalog);
@@ -2633,74 +2632,6 @@ namespace Voidward.EditorTools
             pad.AddComponent<GravityVolume>();
             var console = Child(go.transform, "TraderConsole", new Vector3(0, 1.5f, 22.5f));
             Box(console, Vector3.zero, new Vector3(4f, 4f, 3f), true);
-            return SavePrefab(go);
-        }
-
-        static GameObject BuildGate()
-        {
-            var go = NetRoot("JumpGate", false);
-            var gate = go.AddComponent<JumpGate>();
-            // Ring of armoured segments (lofted blocks) with gold emitter nodes, inner cyan conduit and outer struts.
-            var ring = Hero(0.15f);
-            const int seg = 28;
-            const float R = 55f;
-            for (int i = 0; i < seg; i++)
-            {
-                float a = i * 360f / seg;
-                var rot = Quaternion.Euler(0, 0, a);
-                var m = Matrix4x4.TRS(rot * new Vector3(0, R, 0), rot * Quaternion.Euler(0, 90, 0), Vector3.one);
-                bool node = i % 4 == 0;
-                ring.AddLoft(m, new[]
-                {
-                    new MeshBuilder.Section(-6.3f, 2.4f, 3.2f, 4f), new MeshBuilder.Section(-5.6f, 3.0f, 3.9f, 5f),
-                    new MeshBuilder.Section(5.6f, 3.0f, 3.9f, 5f), new MeshBuilder.Section(6.3f, 2.4f, 3.2f, 4f),
-                }, 20, node ? Gold : (i % 2 == 0 ? Blue : Chalk), smoothing: 1);
-                if (node)
-                {
-                    With(ring, Satin, 0.6f, 0.5f, () => ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R + 5f, 0), rot, Vector3.one), new Vector3(3f, 5f, 3f), Navy));
-                    Glow(ring, () => ring.AddSphere(Matrix4x4.TRS(rot * new Vector3(0, R + 7.8f, 0), rot, Vector3.one), 0.9f, 2, Cyan), 1.5f);
-                    for (int f = -1; f <= 1; f += 2)
-                        With(ring, 0.5f, 1f, 0f, () => ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R + 1f, f * 4.3f), rot, Vector3.one), new Vector3(8f, 0.4f, 0.6f), Gunmetal));
-                }
-                With(ring, 0.45f, 1f, 0f, () => ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R - 2.95f, 0), rot, Vector3.one), new Vector3(11f, 0.3f, 3f), Graphite));
-                Glow(ring, () => ring.AddBox(Matrix4x4.TRS(rot * new Vector3(0, R - 3.15f, 0), rot, Vector3.one), new Vector3(10f, 0.1f, 1.2f), Cyan), 1.1f);
-            }
-            var ringGo = Child(go.transform, "Ring", Vector3.zero);
-            Visual(ringGo.transform, "RingMesh", SaveMesh(ring, "Gate_Ring"), MatHull);
-            for (int i = 0; i < seg; i += 2)
-            {
-                float a = i * 360f / seg;
-                var rot = Quaternion.Euler(0, 0, a);
-                var c = ringGo.AddComponent<BoxCollider>();
-                c.center = rot * new Vector3(0, R, 0);
-                c.size = new Vector3(26f, 6f, 8f);
-            }
-            var disc = new MeshBuilder();
-            disc.AddPrism(TR(0, 0, 0, 90, 0, 0), R - 4f, R - 4f, 0.4f, 28, Color.white);
-            var core = Visual(go.transform, "Core", SaveMesh(disc, "Gate_Core"), MatGlass);
-            core.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            // Socket platform for manual insertion on foot
-            var plat = Hero(0.1f);
-            With(plat, Satin, 0.4f, 0.8f, () => plat.AddBox(T(0, -R - 10f, 0), new Vector3(16f, 1f, 16f), Navy));
-            for (int side = 0; side < 4; side++)
-            {
-                var q = Quaternion.Euler(0, side * 90f, 0);
-                Hazard(plat, Matrix4x4.TRS(new Vector3(0, -R - 9.49f, 0) + q * new Vector3(0, 0, 7.6f), q, Vector3.one), 15f, 0.5f, 16, 0.02f);
-            }
-            With(plat, 0.75f, 0.85f, 0f, () => plat.AddLathe(T(0, -R - 9.5f, 0), new[] { new Vector2(1.6f, 0f), new Vector2(1.5f, 0.6f), new Vector2(1.1f, 0.8f), new Vector2(1.0f, 2.2f), new Vector2(0f, 2.3f) }, 12, Gold));
-            Glow(plat, () => plat.AddBox(T(0, -R - 9.49f, 0), new Vector3(12f, 0.02f, 0.3f), Cyan), 0.8f);
-            Glow(plat, () => plat.AddLathe(T(0, -R - 8.3f, 0), new[] { new Vector2(1.06f, -0.08f), new Vector2(1.12f, 0f), new Vector2(1.06f, 0.08f) }, 12, Cyan), 1.4f);
-            Visual(go.transform, "Socket", SaveMesh(plat, "Gate_Socket"), MatHull);
-            Box(go, new Vector3(0, -R - 10f, 0), new Vector3(16f, 1f, 16f));
-            var sock = Child(go.transform, "SocketTrigger", new Vector3(0, -R - 8.5f, 0));
-            Box(sock, Vector3.zero, new Vector3(4f, 4f, 4f), true);
-            var grav = Child(go.transform, "SocketGravity", new Vector3(0, -R - 5f, 0));
-            Box(grav, Vector3.zero, new Vector3(16f, 9f, 16f), true);
-            grav.AddComponent<GravityVolume>();
-            Set(gate, "ring", ringGo.transform);
-            AddLight(go.transform, "CoreLight", Vector3.zero, Cyan, 6000f, 140f);
-            AddLight(go.transform, "SocketLight", new Vector3(0, -R - 5f, 0), Cyan, 40f, 16f);
-            Set(gate, "core", core.GetComponent<MeshRenderer>());
             return SavePrefab(go);
         }
 

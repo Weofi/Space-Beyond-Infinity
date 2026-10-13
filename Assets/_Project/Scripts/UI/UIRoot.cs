@@ -27,6 +27,7 @@ namespace Voidward.UI
         HudView hud;
         InventoryView inventory;
         TradeView trade;
+        GalaxyMapView galaxyMap;
         EngineerView engineer;
         IntroSequence intro;
         GamePhase lastPhase = GamePhase.MainMenu;
@@ -74,6 +75,7 @@ namespace Voidward.UI
             menus = new MenuScreens(this, Root);
             inventory = new InventoryView(Root);
             trade = new TradeView(Root);
+            galaxyMap = new GalaxyMapView(Root);
             engineer = new EngineerView(Root);
 
             flash = UIKit.Image(Root, "Flash", new Color(1, 1, 1, 0), false);
@@ -151,13 +153,17 @@ namespace Voidward.UI
             }
         }
 
-        public bool AnyModal => inventory.IsOpen || trade.IsOpen || engineer.IsOpen;
+        /// <summary>Open the galaxy map (DevTest, tutorials).</summary>
+        public void OpenGalaxyMap() { CloseModals(); galaxyMap.Open(); }
+
+        public bool AnyModal => inventory.IsOpen || trade.IsOpen || engineer.IsOpen || galaxyMap.IsOpen;
 
         public void CloseModals()
         {
             inventory.Close();
             trade.Close();
             engineer.Close();
+            galaxyMap.Close();
         }
 
         void Update()
@@ -193,6 +199,13 @@ namespace Voidward.UI
                 else { CloseModals(); inventory.Open(InventoryView.Tab.Inventory); }
             }
 
+            // Galaxy map toggle (#46)
+            if (playing && screen == Screen.None && !intro.Active && VwInput.Pressed(VwInput.Map))
+            {
+                if (galaxyMap.IsOpen) galaxyMap.Close();
+                else { CloseModals(); galaxyMap.Open(); }
+            }
+
             bool uiOpen = screen != Screen.None || AnyModal;
             gate.AnyModalOpen = uiOpen;
             GameState.UIOpen = uiOpen;
@@ -206,6 +219,7 @@ namespace Voidward.UI
             menus.Update();
             inventory.Update();
             trade.Update();
+            galaxyMap.Update();
             engineer.Update();
 
             if (flashTime > 0f)

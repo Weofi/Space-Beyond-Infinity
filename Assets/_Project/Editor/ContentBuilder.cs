@@ -69,7 +69,7 @@ namespace Voidward.EditorTools
 
         static void EnsureFolders()
         {
-            foreach (var d in new[] { DataDir, DataDir + "/Items", DataDir + "/Modules", DataDir + "/Enemies", DataDir + "/Biomes", DataDir + "/Sectors",
+            foreach (var d in new[] { DataDir, DataDir + "/Items", DataDir + "/Modules", DataDir + "/Enemies", DataDir + "/Biomes", DataDir + "/Galaxies",
                          DataDir + "/Palettes", DataDir + "/Recipes", DataDir + "/Ships", DataDir + "/Loot", PlanetDir, ArtDir, MeshDir, MatDir, TextureDir, PrefabDir, ResourcesDir, SceneDir })
                 if (!AssetDatabase.IsValidFolder(d))
                 {
@@ -182,7 +182,7 @@ namespace Voidward.EditorTools
             var enemies = BuildEnemies();
             BuildPlanetShapes();
             BuildBiomes();
-            var sectors = BuildSectors(palettes);
+            var galaxies = BuildGalaxies(palettes);
             var recipes = BuildRecipes();
             var ships = BuildShips();
 
@@ -193,7 +193,7 @@ namespace Voidward.EditorTools
             catalog.Enemies = enemies.ToArray();
             catalog.Biomes = new[] { biomes["Ice"], biomes["Desert"], biomes["ToxicJungle"], biomes["Crystal"], biomes["Volcanic"] };
             catalog.Palettes = palettes;
-            catalog.Sectors = sectors;
+            catalog.Galaxies = galaxies;
             catalog.Recipes = recipes.ToArray();
             catalog.Ships = ships;
             catalog.LootTables = new[] { loot["loot_t1"], loot["loot_t2"], loot["loot_t3"], loot["loot_pirate"], loot["loot_drone"], loot["loot_alien"], loot["loot_guardian"], loot["loot_gunship"] };
@@ -228,17 +228,25 @@ namespace Voidward.EditorTools
             var list = new[]
             {
                 // Deep black space: barely-there sky gradient, faint tinted nebulae, very low ambient so the sun carves hard light/shadow.
-                P("Pastel Drift", new Color(0.002f, 0.003f, 0.008f), new Color(0.006f, 0.009f, 0.02f), new Color(0.15f, 0.3f, 0.75f), new Color(0.25f, 0.6f, 0.8f),
+                P("Triangulum", new Color(0.002f, 0.003f, 0.008f), new Color(0.006f, 0.009f, 0.02f), new Color(0.15f, 0.3f, 0.75f), new Color(0.25f, 0.6f, 0.8f),
                   new Color(1f, 0.96f, 0.9f), new Color(0.09f, 0.11f, 0.17f), new Color(0.004f, 0.006f, 0.014f), 0.00005f, new Color(0.4f, 0.75f, 1f)),
-                P("Verdigris Expanse", new Color(0.002f, 0.004f, 0.006f), new Color(0.004f, 0.012f, 0.016f), new Color(0.15f, 0.6f, 0.55f), new Color(0.2f, 0.35f, 0.75f),
+                P("Andromeda", new Color(0.002f, 0.004f, 0.006f), new Color(0.004f, 0.012f, 0.016f), new Color(0.15f, 0.6f, 0.55f), new Color(0.2f, 0.35f, 0.75f),
                   new Color(0.95f, 1f, 0.96f), new Color(0.08f, 0.12f, 0.14f), new Color(0.003f, 0.01f, 0.012f), 0.00005f, new Color(0.45f, 1f, 0.85f)),
-                P("Ember Maw", new Color(0.004f, 0.002f, 0.006f), new Color(0.016f, 0.006f, 0.014f), new Color(0.8f, 0.32f, 0.18f), new Color(0.35f, 0.22f, 0.75f),
+                // Nebulae and star birth: magenta/violet clouds.
+                P("NGC 6822", new Color(0.004f, 0.002f, 0.008f), new Color(0.016f, 0.006f, 0.02f), new Color(0.85f, 0.3f, 0.7f), new Color(0.4f, 0.3f, 0.9f),
+                  new Color(1f, 0.92f, 0.96f), new Color(0.12f, 0.09f, 0.15f), new Color(0.01f, 0.004f, 0.014f), 0.00005f, new Color(1f, 0.55f, 0.9f)),
+                // Ancient, star-poor and dark: almost no nebula, cold grey light.
+                P("Leo I", new Color(0.001f, 0.001f, 0.002f), new Color(0.003f, 0.003f, 0.005f), new Color(0.25f, 0.25f, 0.35f), new Color(0.15f, 0.2f, 0.3f),
+                  new Color(0.9f, 0.92f, 1f), new Color(0.06f, 0.065f, 0.08f), new Color(0.002f, 0.002f, 0.004f), 0.00004f, new Color(0.7f, 0.8f, 1f)),
+                P("Magellanic Cloud", new Color(0.004f, 0.002f, 0.006f), new Color(0.016f, 0.006f, 0.014f), new Color(0.8f, 0.32f, 0.18f), new Color(0.35f, 0.22f, 0.75f),
                   new Color(1f, 0.86f, 0.72f), new Color(0.12f, 0.09f, 0.12f), new Color(0.012f, 0.004f, 0.008f), 0.00006f, new Color(1f, 0.6f, 0.4f)),
             };
-            // Per-sector grade: cool and clean -> teal and calm -> warm, contrasty climax.
+            // Per-galaxy grade: cool and clean -> teal and calm -> pink nebula -> cold and contrasty -> warm climax.
             Grade(list[0], new Color(0.97f, 0.99f, 1f), 12f, 16f, 0.12f, -8f, new Color(0.8f, 0.9f, 1f));
             Grade(list[1], new Color(0.95f, 1f, 0.98f), 8f, 18f, 0.08f, -3f, new Color(0.75f, 1f, 0.92f));
-            Grade(list[2], new Color(1f, 0.95f, 0.92f), 16f, 24f, 0.05f, 8f, new Color(1f, 0.82f, 0.7f));
+            Grade(list[2], new Color(1f, 0.96f, 1f), 14f, 18f, 0.08f, 2f, new Color(1f, 0.85f, 0.98f));
+            Grade(list[3], new Color(0.95f, 0.97f, 1f), -6f, 26f, 0f, -10f, new Color(0.8f, 0.85f, 1f));
+            Grade(list[4], new Color(1f, 0.95f, 0.92f), 16f, 24f, 0.05f, 8f, new Color(1f, 0.82f, 0.7f));
             return list;
         }
 
@@ -428,32 +436,38 @@ namespace Voidward.EditorTools
                 (ScatterKind.OreNode, 9), (ScatterKind.FuelNode, 5), (ScatterKind.LootCrate, 5), (ScatterKind.Nest, 2), (ScatterKind.CrashedShip, 2));
         }
 
-        static SectorDef[] BuildSectors(PaletteDef[] pal)
+        /// <summary>The 5 galaxies of the journey home (#46, gameplan #72). Difficulty and loot rise along the route.</summary>
+        static GalaxyDef[] BuildGalaxies(PaletteDef[] pal)
         {
-            SectorDef S(int i, string name, string intro, float len, int minP, int maxP, int belts, int wrecks, BiomeDef[] pool, EnemyKind[] space, int cap,
-                EnemyKind[] surface, float tier, float speed, float offset, int events, int cells, bool boss)
+            GalaxyDef Gx(int i, string name, string designation, float mly, int drive, string intro, int minSys, int maxSys, float len,
+                BiomeDef[] pool, EnemyKind[] space, int cap, float grace, float ramp, EnemyKind[] surface, float tier, int loot, int events, Color nextTint)
             {
-                var s = Asset<SectorDef>($"{DataDir}/Sectors/Sector_{i}.asset");
-                s.Index = i; s.DisplayName = name; s.Intro = intro; s.CorridorLength = len; s.MinPlanets = minP; s.MaxPlanets = maxP; s.AsteroidBelts = belts;
-                s.WreckCount = wrecks; s.HasStation = true; s.BiomePool = pool; s.SpaceEnemies = space; s.SpaceEnemyCap = cap; s.SurfaceEnemies = surface;
-                s.EnemyTier = tier; s.CollapseSpeed = speed; s.CollapseStartOffset = offset; s.EventCount = events; s.Palette = pal[i - 1];
-                s.GateCellCost = cells; s.IsBossSector = boss;
-                // Pacing (#19): no space enemies right after a jump, then the cap ramps up. Gentlest in sector 1.
-                s.SpaceEnemyGrace = i == 1 ? 120f : i == 2 ? 60f : 45f;
-                s.SpaceEnemyRamp = i == 1 ? 180f : i == 2 ? 120f : 90f;
-                return s;
+                var g = Asset<GalaxyDef>($"{DataDir}/Galaxies/Galaxy_{i}.asset");
+                g.Index = i; g.DisplayName = name; g.Designation = designation; g.DistanceMly = mly; g.DriveTier = drive; g.Intro = intro;
+                g.MinSystems = minSys; g.MaxSystems = maxSys; g.SystemLength = len; g.BiomePool = pool;
+                g.SpaceEnemies = space; g.SpaceEnemyCap = cap; g.SpaceEnemyGrace = grace; g.SpaceEnemyRamp = ramp; g.SurfaceEnemies = surface;
+                g.EnemyTier = tier; g.LootTier = loot; g.EventCount = events; g.Palette = pal[i - 1]; g.NextGalaxyTint = nextTint;
+                return g;
             }
+            var fighters = new[] { EnemyKind.PirateFighter, EnemyKind.DroneSwarm, EnemyKind.PirateGunship };
+            var critters = new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter };
             return new[]
             {
-                S(1, "Pastel Drift", "Calm before the storm. Gather Energy Cells - and find the derelict Ark.", 9000, 2, 3, 4, 3,
-                    new[] { biomes["Ice"], biomes["Desert"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.DroneSwarm }, 3,
-                    new[] { EnemyKind.Crawler, EnemyKind.Spitter }, 1f, 9.5f, 1900, 3, 2, false),
-                S(2, "Verdigris Expanse", "Pirate gunships patrol these lanes. The Collapse is hungrier.", 10000, 2, 3, 5, 4,
-                    new[] { biomes["ToxicJungle"], biomes["Desert"], biomes["Ice"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.DroneSwarm, EnemyKind.PirateGunship }, 4,
-                    new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter }, 1.5f, 12f, 1600, 4, 3, false),
-                S(3, "Ember Maw", "The Warden guards the last way out. Prepare, then face it.", 10000, 2, 3, 4, 3,
-                    new[] { biomes["Volcanic"], biomes["ToxicJungle"], biomes["Crystal"] }, new[] { EnemyKind.PirateFighter, EnemyKind.PirateGunship, EnemyKind.DroneSwarm }, 5,
-                    new[] { EnemyKind.Crawler, EnemyKind.Spitter, EnemyKind.FlyingCritter }, 2f, 13.5f, 1450, 4, 0, true),
+                Gx(1, "Triangulum", "M33", 2.73f, 2, "The wormhole spat you out here. Calm space - explore, salvage and find better drive parts.", 4, 5, 8000,
+                    new[] { biomes["Ice"], biomes["Desert"], biomes["Crystal"] }, new[] { EnemyKind.DroneSwarm, EnemyKind.PirateFighter }, 3, 120f, 180f,
+                    new[] { EnemyKind.Crawler, EnemyKind.Spitter }, 1f, 1, 2, new Color(0.85f, 0.88f, 1f)),
+                Gx(2, "Andromeda", "M31", 2.54f, 3, "Huge and dense, full of worlds. Swarms guard what you need.", 5, 6, 9000,
+                    new[] { biomes["ToxicJungle"], biomes["Desert"], biomes["Ice"], biomes["Crystal"] }, fighters, 4, 75f, 120f,
+                    critters, 1.4f, 2, 3, new Color(1f, 0.75f, 0.9f)),
+                Gx(3, "Barnard's Galaxy", "NGC 6822", 1.6f, 4, "A dwarf galaxy of nebulae and newborn stars. Crystal beings drift between them.", 4, 5, 9000,
+                    new[] { biomes["Crystal"], biomes["ToxicJungle"], biomes["Ice"] }, fighters, 4, 60f, 110f,
+                    critters, 1.8f, 2, 3, new Color(1f, 0.92f, 0.75f)),
+                Gx(4, "Leo I", "Leo I", 0.82f, 5, "Ancient, star-poor and dark. Something hunts in the void.", 4, 5, 10000,
+                    new[] { biomes["Volcanic"], biomes["Desert"], biomes["Ice"] }, new[] { EnemyKind.PirateGunship, EnemyKind.PirateFighter, EnemyKind.DroneSwarm }, 5, 50f, 100f,
+                    critters, 2.2f, 3, 3, new Color(0.9f, 0.9f, 1f)),
+                Gx(5, "Large Magellanic Cloud", "LMC", 0.16f, 6, "The Milky Way fills the sky. The Wardens guard their last cores here.", 5, 6, 10000,
+                    new[] { biomes["Volcanic"], biomes["ToxicJungle"], biomes["Crystal"], biomes["Desert"] }, fighters, 6, 45f, 90f,
+                    critters, 2.7f, 3, 4, new Color(1f, 0.9f, 0.75f)),
             };
         }
 

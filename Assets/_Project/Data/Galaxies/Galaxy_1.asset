@@ -10,30 +10,28 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e4a88b22349cd4d71a86acb3a0a27666, type: 3}
-  m_Name: Sector_1
-  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.SectorDef
+  m_Name: Galaxy_1
+  m_EditorClassIdentifier: Voidward.Data::Voidward.Data.GalaxyDef
   Index: 1
-  DisplayName: Pastel Drift
-  Intro: Calm before the storm. Gather Energy Cells - and find the derelict Ark.
-  CorridorLength: 9000
-  MinPlanets: 2
-  MaxPlanets: 3
-  AsteroidBelts: 4
-  WreckCount: 3
-  HasStation: 1
+  DisplayName: Triangulum
+  Designation: M33
+  DistanceMly: 2.73
+  Intro: The wormhole spat you out here. Calm space - explore, salvage and find better drive parts.
+  DriveTier: 2
+  MinSystems: 4
+  MaxSystems: 5
+  SystemLength: 8000
   BiomePool:
   - {fileID: 11400000, guid: cfb5ce4dc655b40819060cc1a9d00614, type: 2}
   - {fileID: 11400000, guid: 2a730c46e6efa4ad787f13d9e375e151, type: 2}
   - {fileID: 11400000, guid: bca547142e0744b75881d7bdbda5d2ee, type: 2}
-  SpaceEnemies: 0000000001000000i
+  SpaceEnemies: 0100000000000000i
   SpaceEnemyCap: 3
   SpaceEnemyGrace: 120
   SpaceEnemyRamp: 180
   SurfaceEnemies: 0300000004000000i
   EnemyTier: 1
-  CollapseSpeed: 9.5
-  CollapseStartOffset: 1900
-  EventCount: 3
-  Palette: {fileID: 11400000, guid: 47db274daedab4c34a6baf80b9ffdad5, type: 2}
-  GateCellCost: 2
-  IsBossSector: 0
+  LootTier: 1
+  EventCount: 2
+  Palette: {fileID: 11400000, guid: 4d9eb52202002a0498e6402243c0390c, type: 2}
+  NextGalaxyTint: {r: 0.85, g: 0.88, b: 1, a: 1}

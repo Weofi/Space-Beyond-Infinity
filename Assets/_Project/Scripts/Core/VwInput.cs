@@ -31,6 +31,7 @@ namespace Voidward.Core
         public static InputAction AltFire { get; private set; }     // RMB
         public static InputAction Ping { get; private set; }        // T / MMB
         public static InputAction Inventory { get; private set; }   // Tab
+        public static InputAction Map { get; private set; }         // M: galaxy map
         public static InputAction Roll { get; private set; }        // 1D axis Q/E (ships)
         public static InputAction Brake { get; private set; }       // X (ships)
         public static InputAction Flashlight { get; private set; }  // L: helmet lamp
@@ -100,6 +101,7 @@ namespace Voidward.Core
             Ping = Button(gameplay, "Ping", "<Keyboard>/t", null);
             Ping.AddBinding("<Mouse>/middleButton");
             Inventory = Button(gameplay, "Inventory", "<Keyboard>/tab", "<Gamepad>/buttonNorth");
+            Map = Button(gameplay, "Map", "<Keyboard>/m", "<Gamepad>/select");
             Brake = Button(gameplay, "Brake", "<Keyboard>/x", "<Gamepad>/buttonEast");
             Flashlight = Button(gameplay, "Flashlight", "<Keyboard>/l", "<Gamepad>/dpad/up");
 
@@ -200,7 +202,7 @@ namespace Voidward.Core
         /// <summary>Actions shown in the rebinding list.</summary>
         public static (string label, InputAction action)[] Rebindable => new[]
         {
-            ("Interact", Interact), ("Jump / Jetpack", Jump), ("Sprint / Boost", Sprint), ("Inventory", Inventory),
+            ("Interact", Interact), ("Jump / Jetpack", Jump), ("Sprint / Boost", Sprint), ("Inventory", Inventory), ("Galaxy Map", Map),
             ("Ping", Ping), ("Brake", Brake), ("Flashlight", Flashlight), ("Fire", Fire), ("Alt Fire", AltFire)
         };
 
