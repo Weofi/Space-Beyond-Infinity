@@ -12,7 +12,7 @@ namespace Voidward.World
     [Serializable]
     public class RunState
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
 
         public int Version = CurrentVersion;
         public int RunSeed;
@@ -27,6 +27,9 @@ namespace Voidward.World
         public float Distance;
         public int Kills;
         public int Loot;
+        /// <summary>Crew warp drive (#78, version 2): tier per DriveSlot (core, nav, cooling, tank) and Exotic Matter in the tank.</summary>
+        public int[] DriveTiers;
+        public float Exotic;
         public List<PlayerSave> Players = new List<PlayerSave>();
         public List<ShipSave> Ships = new List<ShipSave>();
     }

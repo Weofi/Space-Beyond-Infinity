@@ -7,9 +7,13 @@ namespace Voidward.Core
     public enum GamePhase { Boot, MainMenu, Lobby, Hangar, Playing, Paused, GameOver, DemoComplete }
 
     /// <summary>Mineable / lootable resource types. Credits are tracked separately as currency.</summary>
-    public enum ResourceType { Ore, Crystal, Scrap, Fuel, EnergyCell }
+    public enum ResourceType { Ore, Crystal, Scrap, Fuel, ExoticMatter }
 
-    public enum ItemKind { Resource, Module, Consumable, Gear }
+    public enum ItemKind { Resource, Module, Consumable, Gear, DriveComponent }
+
+    /// <summary>Component sockets of the crew's warp drive (#78): core = top speed (drive tier), navigation = how much of it
+    /// is safely flyable through fields, cooling = how long full throttle holds, tank = Exotic Matter capacity.</summary>
+    public enum DriveSlot { Core, Navigation, Cooling, Tank }
 
     /// <summary>Player gear upgrade categories (Kind=Gear items).</summary>
     public enum GearKind { None, Suit, Oxygen, Jetpack, MiningTool, Rifle }

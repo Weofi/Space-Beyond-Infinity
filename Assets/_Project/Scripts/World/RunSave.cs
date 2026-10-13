@@ -22,7 +22,7 @@ namespace Voidward.World
         {
             if (!Exists) return null;
             var s = SaveSystem.Load<RunState>(Key);
-            if (s == null || s.RunSeed == 0 || s.Version != RunState.CurrentVersion) return null;
+            if (s == null || s.RunSeed == 0 || s.Version < 1 || s.Version > RunState.CurrentVersion) return null; // v1 (before #78) has no drive: Mk I
             return s;
         }
 

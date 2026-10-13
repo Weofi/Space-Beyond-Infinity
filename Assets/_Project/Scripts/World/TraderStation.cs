@@ -22,6 +22,8 @@ namespace Voidward.World
 
         public NetworkVariable<int> Seed = new NetworkVariable<int>(0);
         public NetworkVariable<int> Sector = new NetworkVariable<int>(1);
+        /// <summary>Galaxy 1-5: drive parts on offer match its tier (#78).</summary>
+        public NetworkVariable<int> Galaxy = new NetworkVariable<int>(1);
 
         [SerializeField] Transform spinner;
 
@@ -45,18 +47,18 @@ namespace Voidward.World
         {
             get
             {
-                if (stockSeed != Seed.Value) BuildStock();
+                if (stockSeed != Seed.Value * 8 + Galaxy.Value) BuildStock();
                 return stock;
             }
         }
 
         void BuildStock()
         {
-            stockSeed = Seed.Value;
+            stockSeed = Seed.Value * 8 + Galaxy.Value;
             stock.Clear();
             var cat = ContentCatalog.Instance;
             if (cat == null) return;
-            foreach (var id in new[] { "fuel", "cell", "medkit", "repair_kit" })
+            foreach (var id in new[] { "fuel", "exotic", "medkit", "repair_kit" })
             {
                 var d = ContentCatalog.GetItem(id);
                 if (d != null) stock.Add(d);
@@ -75,6 +77,12 @@ namespace Voidward.World
                 int k = rng.Next(pool.Count);
                 stock.Add(pool[k]);
                 pool.RemoveAt(k);
+            }
+            // Two warp drive parts (nav / cooling / tank) at the galaxy's tier or one below.
+            for (int i = 0; i < 2; i++)
+            {
+                var d = ContentCatalog.GetItem(DriveComponentDef.ItemId((DriveSlot)(1 + rng.Next(3)), Mathf.Max(1, Galaxy.Value + 1 - rng.Next(2))));
+                if (d != null && d.SoldAtTrader && !stock.Contains(d)) stock.Add(d);
             }
         }
 

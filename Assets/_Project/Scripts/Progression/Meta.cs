@@ -59,7 +59,7 @@ namespace Voidward.Progression
             new PerkDef(0, "reinforced_suit", "Reinforced Suit", 60, "+30 max health on foot."),
             new PerkDef(1, "deep_lungs", "Deep Lungs", 50, "+40% oxygen capacity."),
             new PerkDef(2, "head_start", "Head Start", 40, "Start each run with +150 Credits."),
-            new PerkDef(3, "spare_cells", "Spare Cells", 80, "Start with 1 Energy Cell for the first Jump Gate."),
+            new PerkDef(3, "spare_cells", "Spare Exotics", 80, "Start with 2 Exotic Matter for the warp drive."),
             new PerkDef(4, MuleLicense, "Mule Hauler License", 100, "Unlocks the Mule: a tough cargo hauler with laser + flak and a big hold."),
             new PerkDef(5, "laser_mk2", "Prototype Laser", 120, "Start with a Laser Mk II installed."),
             new PerkDef(6, "shield_mk2", "Prototype Shield", 120, "Start with a Shield Mk II installed."),

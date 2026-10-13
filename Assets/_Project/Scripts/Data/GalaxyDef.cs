@@ -19,8 +19,12 @@ namespace Voidward.Data
         [Tooltip("Distance to Sol in million light-years.")]
         public float DistanceMly = 2.73f;
         [TextArea] public string Intro = "";
-        [Tooltip("Best warp drive tier found here (2 = Mk II ... 6 = Home Drive); used by #73.")]
+        [Tooltip("Warp core tier guarded by this galaxy's Warden enclave (2 = Mk II ... 6 = Home Drive).")]
         public int DriveTier = 2;
+        [Tooltip("Warp flight to the next stop (from the LMC: home) in minutes with a balanced Mk I drive (#78).")]
+        public float LegLength = 30f;
+        [Tooltip("Exotic Matter the warp to the next stop burns.")]
+        public int LegFuel = 8;
 
         [Header("Systems")]
         public int MinSystems = 4;

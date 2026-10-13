@@ -165,6 +165,7 @@ namespace Voidward.EditorTools
         static MeshBuilder ItemModel(ItemDef it)
         {
             if (it.Kind == ItemKind.Module && it.Module != null) return ModuleModel(it.Module, it.Id);
+            if (it.Kind == ItemKind.DriveComponent && it.Drive != null) return DriveModel(it.Drive);
             if (it.Kind == ItemKind.Gear)
             {
                 switch (it.Gear)
@@ -182,7 +183,7 @@ namespace Voidward.EditorTools
                 case "crystal": return ItemCrystal();
                 case "scrap": return ItemScrap();
                 case "fuel": return ItemFuel();
-                case "cell": return ItemCell();
+                case "exotic": return ItemExotic(new Color(0.7f, 0.4f, 1f));
                 case "medkit": return ItemMedkit();
                 case "repair_kit": return ItemRepairKit();
             }
@@ -300,10 +301,10 @@ namespace Voidward.EditorTools
             return mb;
         }
 
-        static MeshBuilder ItemCell()
+        /// <summary>Exotic Matter (#78): a glowing violet core in a containment flask with gold caps.</summary>
+        static MeshBuilder ItemExotic(Color g)
         {
             var mb = ItemMB(0.1f);
-            Color g = new Color(0.4f, 1f, 0.5f);
             Glow(mb, () => mb.AddPrism(T(0, 0.22f, 0), 0.085f, 0.085f, 0.3f, 12, g), 1.4f);
             With(mb, 0.7f, 0.2f, 0.6f, () =>
             {
@@ -471,6 +472,76 @@ namespace Voidward.EditorTools
         }
 
         // ---------------------------------------------------------------- ship modules
+
+        // ---------------------------------------------------------------- warp drive components (#78)
+
+        /// <summary>Tier colours 1-6 of drive parts: grey, cyan, purple, orange, gold, white-hot (Home Drive / Warden).</summary>
+        static Color DriveTierColor(int tier)
+        {
+            switch (tier)
+            {
+                case 1: return TierGrey;
+                case 2: return TierCyan;
+                case 3: return TierPurple;
+                case 4: return new Color(1f, 0.55f, 0.2f);
+                case 5: return new Color(1f, 0.8f, 0.25f);
+                default: return new Color(1f, 0.97f, 0.9f);
+            }
+        }
+
+        static MeshBuilder DriveModel(DriveComponentDef d)
+        {
+            Color tier = DriveTierColor(d.Tier);
+            switch (d.Slot)
+            {
+                case DriveSlot.Core: return DriveCore(d.Tier, tier);
+                case DriveSlot.Navigation: return ModScanner(tier);
+                case DriveSlot.Cooling: return DriveCooling(d.Tier, tier);
+                default:
+                {
+                    var mb = ItemExotic(Color.Lerp(new Color(0.7f, 0.4f, 1f), tier, 0.35f));
+                    ModBase(mb, 0.32f, 0.32f, tier);
+                    return mb;
+                }
+            }
+        }
+
+        /// <summary>Warp core: a standing containment ring around a glowing singularity, one gold band per tier.</summary>
+        static MeshBuilder DriveCore(int tierN, Color tier)
+        {
+            var mb = ItemMB(0.08f);
+            ModBase(mb, 0.36f, 0.3f, tier);
+            var ring = Matrix4x4.TRS(new Vector3(0, 0.22f, 0), Quaternion.Euler(90, 0, 0), Vector3.one);
+            With(mb, Satin, 0.8f, 0.6f, () => mb.AddLathe(ring, new[] { new Vector2(0.13f, -0.035f), new Vector2(0.17f, -0.03f), new Vector2(0.175f, 0.03f), new Vector2(0.13f, 0.035f), new Vector2(0.12f, 0f) }, 24, Chalk));
+            With(mb, 0.8f, 1f, 0f, () =>
+            {
+                mb.AddBox(T(0, 0.08f, 0), new Vector3(0.08f, 0.1f, 0.06f), Gunmetal);
+                for (int k = 0; k < Mathf.Min(tierN, 5); k++)
+                {
+                    float a = (k - (Mathf.Min(tierN, 5) - 1) * 0.5f) * 22f;
+                    mb.AddBox(Matrix4x4.TRS(new Vector3(0, 0.22f, 0), Quaternion.Euler(0, 0, a), Vector3.one) * T(0, 0.168f, 0), new Vector3(0.03f, 0.016f, 0.08f), Gold);
+                }
+            });
+            Glow(mb, () => mb.AddSphere(Matrix4x4.TRS(new Vector3(0, 0.22f, 0), Quaternion.identity, Vector3.one), 0.07f + tierN * 0.006f, 2, Color.Lerp(new Color(0.55f, 0.45f, 1f), tier, 0.4f)), 2.2f);
+            Glow(mb, () => mb.AddLathe(ring, new[] { new Vector2(0.115f, -0.01f), new Vector2(0.125f, -0.01f), new Vector2(0.125f, 0.01f), new Vector2(0.115f, 0.01f) }, 24, tier), 1.4f);
+            return mb;
+        }
+
+        /// <summary>Cooling: a block of radiator fins with a glowing coolant line.</summary>
+        static MeshBuilder DriveCooling(int tierN, Color tier)
+        {
+            var mb = ItemMB(0.06f);
+            ModBase(mb, 0.38f, 0.28f, tier);
+            With(mb, Satin, 0.8f, 0f, () => mb.AddBox(T(0, 0.09f, 0), new Vector3(0.3f, 0.06f, 0.2f), Gunmetal));
+            int fins = 5 + tierN;
+            for (int k = 0; k < fins; k++)
+            {
+                float x = -0.14f + k * (0.28f / (fins - 1));
+                With(mb, 0.7f, 1f, 0f, () => mb.AddBox(T(x, 0.19f, 0), new Vector3(0.012f, 0.14f, 0.22f), Chalk));
+            }
+            Glow(mb, () => mb.AddTube(new Vector3(-0.16f, 0.13f, 0.11f), new Vector3(0.16f, 0.13f, 0.11f), 0.012f, 0.012f, 8, new Color(0.45f, 0.85f, 1f)), 1.6f);
+            return mb;
+        }
 
         static MeshBuilder ModEngine(int tierN, Color tier, float scale)
         {

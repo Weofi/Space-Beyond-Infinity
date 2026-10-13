@@ -43,6 +43,14 @@ namespace Voidward.Inventory
             if (cat != null && cat.LootTables.Length >= t && cat.LootTables[t - 1] != null)
                 cat.LootTables[t - 1].Roll(new System.Random((int)NetworkObjectId * 7919 + t), results);
 
+            // Warp drive parts (#78): nav / cooling / tank at the galaxy's tier, now and then one tier better.
+            if (Random.value < 0.1f + 0.06f * t)
+            {
+                int g = Mathf.Clamp(GameState.GalaxyIndex, 1, GalaxyDef.Count);
+                var part = ContentCatalog.GetItem(DriveComponentDef.ItemId((DriveSlot)Random.Range(1, 4), g + (Random.value < 0.25f ? 1 : 0)));
+                if (part != null) results.Add(new KeyValuePair<ItemDef, int>(part, 1));
+            }
+
             int credits = Random.Range(10, 30) * t;
             inv.Credits.Value += credits;
             Vector3 up = transform.up;

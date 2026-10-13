@@ -12,8 +12,9 @@ namespace Voidward.UI
     /// <summary>
     /// Galaxy map (#46, key M): the route home through the Local Group, the systems of the current galaxy with
     /// kind, threat and visit state, and the warp course. A pilot picks a system (short in-galaxy warp, also back
-    /// to visited ones) or the one-way warp to the next galaxy; from the last galaxy that is the flight home.
-    /// Until the flown warp of #73 a warp is a short countdown, then the whole crew jumps.
+    /// to visited ones) or the one-way warp to the next galaxy (or skips one, #78); from the last galaxy that is the
+    /// flight home. Galaxy warps show the Home ETA, flight time and Exotic Matter need (red = not reachable).
+    /// Until the flown warp of #79/#80 a warp is a short countdown, then the whole crew jumps.
     /// </summary>
     public class GalaxyMapView
     {
@@ -24,7 +25,7 @@ namespace Voidward.UI
         RectTransform body;
         int selected = -1;
         int shownSystem = -1;
-        bool confirmGalaxy;
+        int confirmTarget;
         float timer;
 
         public bool IsOpen => panel.gameObject.activeSelf;
@@ -50,7 +51,7 @@ namespace Voidward.UI
             if (rm == null || rm.RunSeed.Value == 0) return;
             selected = rm.SystemIndex.Value;
             shownSystem = rm.GalaxyIndex.Value * 16 + rm.SystemIndex.Value;
-            confirmGalaxy = false;
+            confirmTarget = 0;
             panel.gameObject.SetActive(true);
             timer = 0f;
             Sfx.PlayUI("ui_click");
@@ -77,7 +78,7 @@ namespace Voidward.UI
             return seat != null && seat.Role == StationRole.Pilot;
         }
 
-        void Select(int i) { selected = i; confirmGalaxy = false; timer = 0f; Sfx.PlayUI("ui_click"); }
+        void Select(int i) { selected = i; confirmTarget = 0; timer = 0f; Sfx.PlayUI("ui_click"); }
 
         void Rebuild(RunManager rm)
         {
@@ -85,7 +86,7 @@ namespace Voidward.UI
             var def = plan.Def;
             // After a warp the map follows the crew.
             int here = rm.GalaxyIndex.Value * 16 + rm.SystemIndex.Value;
-            if (here != shownSystem) { shownSystem = here; selected = rm.SystemIndex.Value; confirmGalaxy = false; }
+            if (here != shownSystem) { shownSystem = here; selected = rm.SystemIndex.Value; confirmTarget = 0; }
             int g = rm.GalaxyIndex.Value;
             header.text = $"{RunManager.GalaxyTitle(def)}   <size=70%><color=#94A3B8>{(def != null ? def.DistanceMly.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "?")} M ly from home  |  run {HudView.Clock(rm.RunTime)}</color></size>";
             var sb = new System.Text.StringBuilder("ROUTE   ");
@@ -97,6 +98,10 @@ namespace Voidward.UI
                 sb.Append($"<color={col}>{(i == g ? "<b>" + name + "</b>" : name)}</color>");
                 if (i <= GalaxyDef.Count) sb.Append("  <color=#475569>></color>  ");
             }
+            var drive = WarpDrive.Instance;
+            if (drive != null)
+                sb.Append($"     <color=#94A3B8>HOME ETA</color> <color=#F59E0B><b>{DriveMath.Eta(drive.EtaTo(DriveMath.Home))}</b></color>" +
+                          $"   <color=#94A3B8>EXOTIC</color> <b>{Mathf.FloorToInt(drive.Exotic.Value)}/{drive.Capacity}</b>");
             route.text = sb.ToString();
 
             Object.Destroy(body.gameObject);
@@ -132,7 +137,7 @@ namespace Voidward.UI
             Line(info, UIKit.Text(info, $"Threat  <color=#EF4444>{threat}</color>", 24, TextAlignmentOptions.Left, UIKit.TextDim), 32);
             string state = current ? "<color=#38BDF8>You are here</color>" : rm.IsVisited(sys.Index) ? "Visited - its crates are already opened" : "Unexplored";
             Line(info, UIKit.Text(info, state, 22, TextAlignmentOptions.Left, UIKit.TextDim), 30);
-            Line(info, UIKit.Text(info, GalaxyGenerator.KindHint(sys.Kind), 22, TextAlignmentOptions.TopLeft, UIKit.TextDim), 96);
+            Line(info, UIKit.Text(info, GalaxyGenerator.KindHint(sys.Kind), 22, TextAlignmentOptions.TopLeft, UIKit.TextDim), 70);
 
             bool pilot = LocalIsPilot();
             bool warping = rm.WarpCountdown.Value >= 0f;
@@ -143,24 +148,41 @@ namespace Voidward.UI
             }
             else
             {
-                var warp = UIKit.Button(info, current ? "You are here" : pilot ? "Warp here" : "Pilot seat needed", () => { rm.RequestWarpServerRpc(sys.Index); }, 60, UIKit.Primary, 26);
+                var warp = UIKit.Button(info, current ? "You are here" : pilot ? "Warp here" : "Pilot seat needed", () => { rm.RequestWarpServerRpc(sys.Index); }, 52, UIKit.Primary, 26);
                 warp.interactable = !current && pilot;
-                UIKit.LayoutElement(warp.gameObject, -1, 60);
+                UIKit.LayoutElement(warp.gameObject, -1, 52);
             }
 
             UIKit.LayoutElement(UIKit.Image(info, "Rule", new Color(1f, 1f, 1f, 0.12f), false).gameObject, -1, 2);
             bool last = g >= GalaxyDef.Count;
-            string next = rm.WarpLabel(RunManager.WarpNextGalaxy);
-            Line(info, UIKit.Text(info, last ? "The Milky Way fills the sky. Home is one warp away." : $"Next galaxy: <b>{next}</b>\nOne-way: this galaxy's systems stay behind.", 22, TextAlignmentOptions.TopLeft, UIKit.TextDim), 64);
-            string label = !pilot ? "Pilot seat needed" : confirmGalaxy ? "Confirm - warp now" : last ? "Fly home" : "Warp to next galaxy";
-            var gal = UIKit.Button(info, label, () =>
+            Line(info, UIKit.Text(info, last ? "The Milky Way fills the sky. Home is one warp away." : "One-way: this galaxy's systems stay behind.", 20, TextAlignmentOptions.TopLeft, UIKit.TextDim), 28);
+            GalaxyWarp(info, rm, RunManager.WarpNextGalaxy, last ? "Fly home" : "Warp to next galaxy", pilot, warping);
+            if (g + 2 <= GalaxyDef.Count) GalaxyWarp(info, rm, RunManager.WarpSkipGalaxy, "Skip a galaxy", pilot, warping);
+        }
+
+        /// <summary>One galaxy warp option: destination, flight time and Exotic Matter need, then a two-click warp button.</summary>
+        void GalaxyWarp(RectTransform info, RunManager rm, int target, string label, bool pilot, bool warping)
+        {
+            var drive = WarpDrive.Instance;
+            int stop = rm.StopOf(target);
+            int need = WarpDrive.FuelTo(stop);
+            bool tankOk = drive == null || drive.TankCanHold(stop);
+            bool fuelOk = drive == null || drive.HasFuelFor(stop);
+            string eta = drive != null ? DriveMath.Eta(drive.EtaTo(stop)) : "--";
+            string fuel = !tankOk ? $"<color=#EF4444>needs {need} Exotic - tank too small ({drive.Capacity})</color>"
+                : !fuelOk ? $"<color=#EF4444>needs {need} Exotic - {Mathf.FloorToInt(drive.Exotic.Value)} loaded</color>"
+                : $"<color=#94A3B8>needs {need} Exotic</color>";
+            Line(info, UIKit.Text(info, $"<b>{rm.WarpLabel(target)}</b>   <color=#F59E0B>{eta}</color>\n<size=85%>{fuel}</size>", 21, TextAlignmentOptions.TopLeft, UIKit.TextColor), 52);
+            bool confirm = confirmTarget == target;
+            string text = !pilot ? "Pilot seat needed" : !tankOk || !fuelOk ? "Not enough Exotic Matter" : confirm ? "Confirm - warp now" : label;
+            var btn = UIKit.Button(info, text, () =>
             {
-                if (!confirmGalaxy) { confirmGalaxy = true; timer = 0f; return; }
-                confirmGalaxy = false;
-                rm.RequestWarpServerRpc(RunManager.WarpNextGalaxy);
-            }, 60, confirmGalaxy ? UIKit.Warn : UIKit.Good, 26);
-            gal.interactable = pilot && !warping;
-            UIKit.LayoutElement(gal.gameObject, -1, 60);
+                if (confirmTarget != target) { confirmTarget = target; timer = 0f; return; }
+                confirmTarget = 0;
+                rm.RequestWarpServerRpc(target);
+            }, 52, confirm ? UIKit.Warn : target == RunManager.WarpSkipGalaxy ? UIKit.Accent : UIKit.Good, 24);
+            btn.interactable = pilot && !warping && (tankOk && fuelOk || CheatManager.GodMode);
+            UIKit.LayoutElement(btn.gameObject, -1, 52);
         }
 
         static void Line(Transform parent, TextMeshProUGUI t, float h) => UIKit.LayoutElement(t.gameObject, -1, h);

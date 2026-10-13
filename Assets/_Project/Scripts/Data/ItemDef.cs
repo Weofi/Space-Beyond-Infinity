@@ -24,6 +24,8 @@ namespace Voidward.Data
         public Mesh Model;
         [Tooltip("Set when Kind=Module: which module this item installs.")]
         public ModuleDef Module;
+        [Tooltip("Set when Kind=DriveComponent: which warp drive component this item installs (#78).")]
+        public DriveComponentDef Drive;
         [Tooltip("Set when Kind=Gear.")]
         public GearKind Gear;
         [Range(1, 3)] public int GearTier = 1;

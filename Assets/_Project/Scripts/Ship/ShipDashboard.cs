@@ -40,7 +40,8 @@ namespace Voidward.Ship
                 Center.text = $"<size=140%>{spd:0}</size> m/s\n{(alt < 2000f ? $"ALT {alt:0} m" : "DEEP SPACE")}";
             if (Right)
             {
-                Right.text = $"<b>NAV</b>\nGALAXY {GameState.GalaxyIndex}/5\nSYSTEM {GameState.SystemIndex + 1}";
+                Right.text = $"<b>NAV</b>\nGALAXY {GameState.GalaxyIndex}/5\nSYSTEM {GameState.SystemIndex + 1}" +
+                             (GameState.HomeEta.Length > 0 ? $"\n<b>HOME</b> {GameState.HomeEta}" : "");
             }
         }
     }

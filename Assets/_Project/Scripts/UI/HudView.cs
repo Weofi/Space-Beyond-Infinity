@@ -65,6 +65,8 @@ namespace Voidward.UI
         readonly Image meterFill;
         readonly RectTransform meterTrack, pipPlayer, pipEnd;
         readonly TextMeshProUGUI meterText;
+        readonly TextMeshProUGUI etaText;
+        float etaTimer;
         readonly RectTransform compassStrip;
         readonly List<(RectTransform rt, float deg)> compassTicks = new List<(RectTransform, float)>();
         class CompassMark { public RectTransform Rt; public TextMeshProUGUI Icon, Dist; }
@@ -247,6 +249,10 @@ namespace Voidward.UI
             meterText = UIKit.Text(meter, "", 19, TextAlignmentOptions.Center, HudKit.Teal, FontStyles.Bold);
             UIKit.Place(meterText.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(440, 26), new Vector2(0.5f, 0));
             meterText.characterSpacing = 3f;
+            // Home ETA of the crew's warp drive (#78), always visible under the system meter.
+            etaText = HudKit.Micro(root, "", 15f, HudKit.TextDim, TextAlignmentOptions.Center);
+            UIKit.Place(etaText.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -84), new Vector2(640, 22), new Vector2(0.5f, 1));
+            etaText.richText = true;
             crew = new CrewHud(root, markerLayer, meterTrack, new Vector2(Edge, Edge + 112 + 14));
 
             // ---------------------------------------------------------- compass (below the meter)
@@ -712,6 +718,20 @@ namespace Voidward.UI
             var def = rm.Plan != null ? rm.Plan.Def : null;
             meterText.color = HudKit.Teal;
             meterText.text = (def != null ? def.Designation.ToUpperInvariant() : "") + "   " + HudKit.Num(Clock(rm.RunTime));
+
+            etaTimer -= Time.deltaTime;
+            if (etaTimer > 0f) return;
+            etaTimer = 0.5f;
+            var drive = WarpDrive.Instance;
+            if (drive == null) { etaText.text = ""; return; }
+            int g = rm.GalaxyIndex.Value;
+            string Col(int stop) => drive.HasFuelFor(stop) ? "#E2E8F0" : "#EF4444";
+            var sb = new System.Text.StringBuilder();
+            if (g < GalaxyDef.Count) sb.Append($"NEXT <color={Col(g + 1)}>{DriveMath.Eta(drive.EtaTo(g + 1))}</color>   ");
+            if (g + 2 <= GalaxyDef.Count) sb.Append($"SKIP <color={Col(g + 2)}>{DriveMath.Eta(drive.EtaTo(g + 2))}</color>   ");
+            sb.Append($"HOME <color=#F59E0B>{DriveMath.Eta(drive.EtaTo(DriveMath.Home))}</color>   ");
+            sb.Append($"EXOTIC <color=#C4A5FF>{Mathf.FloorToInt(drive.Exotic.Value)}/{drive.Capacity}</color>");
+            etaText.text = sb.ToString();
         }
 
         /// <summary>Run clock text h:mm:ss (or m:ss in the first hour).</summary>
