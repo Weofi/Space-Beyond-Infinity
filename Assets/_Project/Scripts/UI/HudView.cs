@@ -7,6 +7,7 @@ using Voidward.AI;
 using Voidward.Combat;
 using Voidward.Core;
 using Voidward.Data;
+using Voidward.Networking;
 using Voidward.Planet;
 using Voidward.Player;
 using Voidward.Ship;
@@ -86,6 +87,7 @@ namespace Voidward.UI
         bool lowO2;
         bool stormWarned;
         readonly HealthComponentHook hook;
+        readonly CrewHud crew;
 
         // world markers
         readonly HudMarker gateMarker, stationMarker, arkMarker, shipMarker;
@@ -235,6 +237,7 @@ namespace Voidward.UI
             collapseText = UIKit.Text(meter, "", 19, TextAlignmentOptions.Center, HudKit.Teal, FontStyles.Bold);
             UIKit.Place(collapseText.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(440, 26), new Vector2(0.5f, 0));
             collapseText.characterSpacing = 3f;
+            crew = new CrewHud(root, markerLayer, meterTrack, new Vector2(Edge, Edge + 112 + 14));
 
             // ---------------------------------------------------------- compass (below the meter)
             var compassWrap = UIKit.Rect(root, "Compass");
@@ -423,7 +426,7 @@ namespace Voidward.UI
         static Color ToastColor(string m)
         {
             string l = m.ToLowerInvariant();
-            if (l.Contains("warning") || l.Contains("collapse") || l.Contains("enraged") || l.Contains("destroyed!") || l.Contains("lost") || l.Contains("storm") || l.Contains("blizzard")) return HudKit.Danger;
+            if (l.Contains("warning") || l.Contains("collapse") || l.Contains("enraged") || l.Contains("destroyed!") || l.Contains("lost") || l.Contains("storm") || l.Contains("blizzard") || l.Contains("is down")) return HudKit.Danger;
             if (l.Contains("+") || l.Contains("received") || l.Contains("installed") || l.Contains("crafted") || l.Contains("bought")) return HudKit.Gold;
             if (l.Contains("joined") || l.Contains("jump")) return HudKit.Health;
             return HudKit.Shield;
@@ -500,6 +503,8 @@ namespace Voidward.UI
                 UpdateObjective(pawn);
             }
             else jumpPlate.gameObject.SetActive(false);
+
+            crew.Update(cam, pawn, sectorStartX, sectorEndX - sectorStartX);
 
             UpdateBoss();
             if (cam != null)
@@ -667,6 +672,8 @@ namespace Voidward.UI
             float w = meterTrack.rect.width;
             pipCollapse.anchoredPosition = new Vector2(cf * w, 0f);
             pipPlayer.anchoredPosition = new Vector2(pf * w, 13f);
+            var np = NetworkPlayer.Local;
+            pipPlayer.GetComponent<Image>().color = np != null && NetworkPlayer.All.Count > 1 ? np.CrewColor : HudKit.Shield;
             pipGate.anchoredPosition = new Vector2(w, 0f);
 
             float dist = Mathf.Max(0f, px - cx);
@@ -876,6 +883,7 @@ namespace Voidward.UI
             if (boss != null && boss.IsSpawned) marks.Add(("boss", Icons.Danger, boss.transform.position, HudKit.BossTitle));
             if (GameState.CollapseX > -90000f) marks.Add(("collapse", Icons.Warning, new Vector3(GameState.CollapseX, camPos.y, camPos.z), HudKit.Danger));
             for (int i = 0; i < pings.Count; i++) marks.Add(("ping" + i, Icons.Pin, pings[i].Pos, HudKit.TextHi));
+            foreach (var m in crew.Teammates) marks.Add(("crew" + m.Id, m.Down ? Icons.Danger : Icons.Person, m.Pos, m.Down ? HudKit.Danger : m.Color));
 
             var used = new HashSet<string>();
             foreach (var m in marks)
@@ -898,9 +906,12 @@ namespace Voidward.UI
                 float ang = Vector3.SignedAngle(fwd, Vector3.ProjectOnPlane(to, up), up);
                 bool edge = Mathf.Abs(ang) > CompassRange - 4f;
                 cm.Rt.anchoredPosition = new Vector2(Mathf.Clamp(ang, -(CompassRange - 4f), CompassRange - 4f) * pxPerDeg, 0f);
+                cm.Icon.text = m.glyph;
+                cm.Icon.color = m.c;
+                cm.Dist.color = m.c;
                 cm.Icon.alpha = edge ? 0.45f : 1f;
                 // Distances only for the key bearings, so clustered markers don't overprint each other.
-                bool key = m.id == "gate" || m.id == "ship" || m.id == "boss" || m.id.StartsWith("ping");
+                bool key = m.id == "gate" || m.id == "ship" || m.id == "boss" || m.id.StartsWith("ping") || m.id.StartsWith("crew");
                 cm.Dist.text = key ? HudKit.Dist(to.magnitude) : "";
                 cm.Dist.alpha = edge ? 0f : 0.9f;
             }

@@ -56,7 +56,7 @@ One issue = one branch = one PR. Don't mix issues.
 - Compile check: read `Logs/Editor.log` after the last "Requested script compilation" and grep `): error CS`.
 - `Unity_RunCommand` returns "Unity not detected" while compiling/reloading → just retry. System.Reflection is not allowed there.
 - Run menu items (`Voidward/Build All Content`, `Voidward/Build/...`) via ManageMenuItem, not RunCommand.
-- Quick play test via RunCommand: `SessionManager.Instance.HostGame()`, then `SessionManager.Instance.StartRun()`. Screenshot: `ScreenCapture.CaptureScreenshot("/tmp/x.png")` (Windows: a path in the scratchpad/temp dir).
+- Quick play test via RunCommand: `SessionManager.Instance.HostGame()`, then `SessionManager.Instance.StartRun()`. The run intro waits for input the unfocused Game view never gets: skip it with `Voidward.UI.UIRoot.Instance.SkipIntro()`. Screenshot: `ScreenCapture.CaptureScreenshot("/tmp/x.png")` (Windows: a path in the scratchpad/temp dir).
 - MP test (Mac): Editor host + `Builds/macOS-Dev/Voidward.app/Contents/MacOS/Voidward -transport=utp -autojoin=127.0.0.1`; afterwards `pkill -f Voidward.app`.
 - MP test (Windows): Editor host + `Builds/Windows-Dev/Voidward.exe -transport=utp -autojoin=127.0.0.1`; afterwards `Stop-Process -Name Voidward`.
 - Target: zero console errors/warnings from Voidward code. Known foreign noise: AI Inference tensor warnings, PreviewRenderUtility leak.
