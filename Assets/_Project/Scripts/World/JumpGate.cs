@@ -11,8 +11,10 @@ namespace Voidward.World
     /// or their ship's cargo). Once powered, it charges when every living player is within range;
     /// the RunManager performs the jump.
     /// </summary>
-    public class JumpGate : NetworkBehaviour, IInteractable
+    public class JumpGate : NetworkBehaviour, IInteractable, ISurface
     {
+        public SurfaceKind Surface => SurfaceKind.Metal;
+
         public const float GatherRange = 380f;
 
         public NetworkVariable<int> CellsInserted = new NetworkVariable<int>(0);

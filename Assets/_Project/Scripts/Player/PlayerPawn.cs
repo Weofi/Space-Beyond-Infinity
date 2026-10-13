@@ -87,6 +87,8 @@ namespace Voidward.Player
         bool hitStopHeld;
         Vector3 hitStopPos;
         Quaternion hitStopRot;
+        Vector3[] toolBasePos;
+        Quaternion[] toolBaseRot;
         IInteractable focused;
         Transform platform;
         Vector3 platformLocalPos;
@@ -108,6 +110,10 @@ namespace Voidward.Player
             rb.constraints = RigidbodyConstraints.FreezeRotation;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             if (cameraPoint != null) vcam = cameraPoint.GetComponent<CinemachineCamera>();
+            toolBasePos = new Vector3[toolModels.Length];
+            toolBaseRot = new Quaternion[toolModels.Length];
+            for (int i = 0; i < toolModels.Length; i++)
+                if (toolModels[i]) { toolBasePos[i] = toolModels[i].localPosition; toolBaseRot[i] = toolModels[i].localRotation; }
         }
 
         public override void OnNetworkSpawn()
@@ -226,7 +232,7 @@ namespace Voidward.Player
                 if (IsOwner && cameraPoint != null)
                     cameraPoint.SetPositionAndRotation(CurrentSeat.ViewPoint.position, CurrentSeat.ViewPoint.rotation);
             }
-            if (IsOwner && cameraPoint != null) { ApplyShake(); ApplyHitStop(); }
+            if (IsOwner && cameraPoint != null) { ApplyShake(); ApplyRecoil(); ApplyHitStop(); }
             float fov = GameState.FieldOfView + GameState.FovPunch;
             if (IsOwner && vcam != null && Mathf.Abs(vcam.Lens.FieldOfView - fov) > 0.05f)
             {
@@ -253,6 +259,34 @@ namespace Voidward.Player
             if (!hitStopHeld) { hitStopHeld = true; hitStopPos = cameraPoint.position; hitStopRot = cameraPoint.rotation; }
             if (CurrentSeat == null) cameraPoint.SetPositionAndRotation(hitStopPos, hitStopRot);
             else cameraPoint.rotation = hitStopRot;
+        }
+
+        // Weapon kick (#43): the held tool snaps back and its muzzle climbs, the view nudges up; in a seat the camera
+        // jolts back along the view. GameState.Recoil (already scaled by Screen shake) springs back to 0 on its own.
+        void ApplyRecoil()
+        {
+            float r = GameState.Recoil;
+            int cur = (int)CurrentTool;
+            for (int i = 0; i < toolModels.Length; i++)
+            {
+                var t = toolModels[i];
+                if (t == null || !t.gameObject.activeSelf) continue;
+                float k = i == cur ? r : 0f;
+                t.localPosition = toolBasePos[i] + new Vector3(0f, 0.012f, -0.09f) * k;
+                t.localRotation = toolBaseRot[i] * Quaternion.Euler(-12f * k, 0f, 0f);
+            }
+            if (r <= 0.002f) return;
+            if (CurrentSeat == null)
+            {
+                // on top of the look pitch (ApplyShake may already have set the rotation this frame)
+                if (GameState.ShakeIntensity <= 0.001f) cameraPoint.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+                cameraPoint.localRotation *= Quaternion.Euler(-1.2f * r, 0f, 0f);
+            }
+            else
+            {
+                cameraPoint.position -= cameraPoint.forward * (0.5f * r);
+                cameraPoint.rotation *= Quaternion.Euler(-1.2f * r, 0f, 0f);
+            }
         }
 
         void ApplyShake()
@@ -532,6 +566,7 @@ namespace Voidward.Player
                         Vector3 dir = AimDir(150f);
                         if (CombatNet.Instance != null) CombatNet.Instance.RequestFireServerRpc(ProjectileKind.Blaster, MuzzlePos, dir, 15f);
                         Kick(0.08f);
+                        FeedbackFx.LocalRecoil(0.55f);
                     }
                     break;
                 case Tool.Rifle:
@@ -609,20 +644,27 @@ namespace Voidward.Player
             Vector3 spread = Random.insideUnitSphere * 0.012f;
             Vector3 dir = (r.direction + spread).normalized;
             Vector3 end = r.origin + dir * 160f;
+            Vector3 normal = Vector3.zero;
+            SurfaceKind surface = SurfaceKind.None;
             if (Physics.Raycast(r.origin, dir, out var hit, 160f, ~0, QueryTriggerInteraction.Collide))
             {
                 var d = hit.collider.GetComponentInParent<IDamageable>();
                 if (!hit.collider.isTrigger || d != null)
                 {
                     end = hit.point;
+                    normal = hit.normal;
+                    surface = FeedbackFx.SurfaceOf(hit.collider);
                     if (d != null && d.Team != Team.Players)
                         HealthComponent.DamageHit(hit.collider, hit.point, 8f, DamageType.Kinetic, dir, OwnerClientId, true);
-                    Vfx.LaserImpact(end);
                 }
             }
-            if (CombatNet.Instance != null) CombatNet.Instance.Tracer(MuzzlePos, end, new Color(3f, 2.2f, 0.8f));
+            // tracer, muzzle flash and impact (sparks + burn mark) here and on every other peer
+            var rifleColor = new Color(3f, 2.2f, 0.8f);
+            if (CombatNet.Instance != null) CombatNet.Instance.Tracer(MuzzlePos, end, rifleColor, normal, surface);
+            else { FeedbackFx.WeaponFired(MuzzlePos, end - MuzzlePos, rifleColor, 0.3f); FeedbackFx.HitscanImpact(end, normal, surface, rifleColor); }
             Sfx.Play("rifle", MuzzlePos, 0.6f, Random.Range(0.95f, 1.05f));
             Kick(0.05f);
+            FeedbackFx.LocalRecoil(0.3f);
         }
 
         // ================================================================ Server

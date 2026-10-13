@@ -17,8 +17,8 @@ namespace Voidward.Combat
     }
 
     /// <summary>
-    /// Central game-feel service (#43): hit markers, hit sounds, damage numbers, kill feedback, camera impulses
-    /// and the local hit-stop. Purely client-side and cosmetic: hooks are the client RPCs of HealthComponent
+    /// Central game-feel service (#43): hit markers, hit sounds, damage numbers, kill feedback, camera impulses,
+    /// the local hit-stop, and weapon feedback (muzzle flash + light, recoil, surface impacts, scorch decals). Purely client-side and cosmetic: hooks are the client RPCs of HealthComponent
     /// (damage, kills) and CombatNet (projectile impacts); nothing here touches simulation or Time.timeScale.
     /// Strength settings (shake, numbers, hit-stop) are pushed in by GameSettings.Apply.
     /// </summary>
@@ -93,19 +93,102 @@ namespace Voidward.Combat
             LocalHitLanded?.Invoke(hit);
         }
 
-        /// <summary>Every client, from CombatNet.ImpactClientRpc: where a projectile ended.</summary>
-        internal static void ProjectileImpact(Vector3 point, float aoe, Color color)
+        // ------------------------------------------------------------ weapons (#43 part 2)
+
+        /// <summary>Hot glow of a fresh burn mark (kinetic / explosive); energy weapons tint it with their bolt colour.</summary>
+        static readonly Color BurnHeat = new Color(3f, 1.15f, 0.3f);
+
+        /// <summary>
+        /// Every client: a weapon fired here (projectile spawn or hitscan tracer). Directional muzzle flash with a
+        /// short muzzle light; scale 1 = ship gun, ~0.35 = handheld.
+        /// </summary>
+        public static void WeaponFired(Vector3 muzzle, Vector3 dir, Color tint, float scale)
+        {
+            Vfx.MuzzleFlash(muzzle, dir, tint, scale);
+        }
+
+        /// <summary>
+        /// Local player only, at the moment they pull the trigger: weapon / seat camera kick. Scaled by the Screen
+        /// shake setting (0 = no recoil animation); heavy guns add a tiny shake on top.
+        /// </summary>
+        public static void LocalRecoil(float amount)
+        {
+            Vfx.Recoil(amount);
+            if (amount >= 0.4f) Vfx.Shake(amount * 0.12f);
+        }
+
+        /// <summary>What a collider is made of, for impact effects. Server (projectiles) and shooter (hitscan).</summary>
+        public static SurfaceKind SurfaceOf(Collider c)
+        {
+            if (c == null) return SurfaceKind.None;
+            var s = c.GetComponentInParent<ISurface>();
+            if (s != null) return s.Surface;
+            var d = c.GetComponentInParent<IDamageable>();
+            if (d != null)
+            {
+                switch (d.Team)
+                {
+                    case Team.Aliens: return SurfaceKind.Organic;
+                    case Team.Neutral: return SurfaceKind.Rock;
+                    default: return SurfaceKind.Metal; // pirate hulls, drones, suits
+                }
+            }
+            return SurfaceKind.Rock;
+        }
+
+        /// <summary>Every client, from CombatNet.ImpactClientRpc: where a projectile ended (normal = zero for air bursts).</summary>
+        internal static void ProjectileImpact(Vector3 point, Vector3 normal, SurfaceKind surface, float aoe, Color color, float scale, bool acid)
         {
             if (aoe > 0f)
             {
                 Vfx.Explosion(point, aoe * 0.6f, color * 0.5f);
                 Sfx.Play(aoe > 8f ? "explosion_big" : "explosion", point, 1f, UnityEngine.Random.Range(0.9f, 1.1f));
+                if (acid) Vfx.Impact(point, normal, SurfaceKind.Organic, color, 1.2f);
+                // Blast mark on whatever it hit (not for air bursts and not on shields).
+                PlaceScorch(point, normal, surface, aoe * (acid ? 0.6f : 0.45f), acid ? new Color(0.9f, 2.6f, 0.4f) : BurnHeat, acid ? 2.5f : 3f);
             }
             else
             {
-                Vfx.LaserImpact(point);
+                Vfx.Impact(point, normal, surface, color, scale);
                 Sfx.Play("hit", point, 0.6f, UnityEngine.Random.Range(0.9f, 1.2f));
+                PlaceScorch(point, normal, surface, 1.1f * scale, Color.Lerp(BurnHeat, color, 0.45f), 1.4f);
             }
+        }
+
+        /// <summary>Hitscan hit (rifle): shooter calls it directly, the others via the tracer RPC.</summary>
+        public static void HitscanImpact(Vector3 point, Vector3 normal, SurfaceKind surface, Color color)
+        {
+            if (surface == SurfaceKind.None) return;
+            Vfx.Impact(point, normal, surface, color, 0.45f);
+            PlaceScorch(point, normal, surface, 0.32f, BurnHeat, 0.6f);
+        }
+
+        /// <summary>
+        /// Lay a burn mark where a shot ended. The decal sticks to the object found under the point on this peer
+        /// (ships, asteroids, the planet); far terrain without streamed colliders gets a world-anchored mark.
+        /// Organic targets, shields, player suits and air bursts get none.
+        /// </summary>
+        static void PlaceScorch(Vector3 point, Vector3 normal, SurfaceKind surface, float size, Color heat, float cool)
+        {
+            if (surface == SurfaceKind.None || surface == SurfaceKind.Organic || surface == SurfaceKind.Shield) return;
+            if (normal.sqrMagnitude < 0.01f) return;
+            normal.Normalize();
+            Transform parent = null;
+            if (Physics.Raycast(point + normal * 0.6f, -normal, out var hit, 1.4f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                var s = hit.collider.GetComponentInParent<ISurface>();
+                if (s == null)
+                {
+                    var d = hit.collider.GetComponentInParent<IDamageable>();
+                    if (d != null && (d.Team == Team.Players || d.Team == Team.Aliens)) return; // suits, creatures
+                }
+                if (s != null && s.Surface == SurfaceKind.Shield) return;
+                parent = s != null ? s.transform : hit.collider.transform;
+                point = hit.point;
+                normal = hit.normal;
+            }
+            else if (surface != SurfaceKind.Dirt) return; // a moving target that is somewhere else on this peer
+            Vfx.Scorch(point, normal, parent, size, heat, cool);
         }
 
         /// <summary>Every client: an enemy died here. Explosion + debris burst + shock ring; shake falls off with distance.</summary>
