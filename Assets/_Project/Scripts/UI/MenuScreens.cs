@@ -5,6 +5,7 @@ using TMPro;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
+using Voidward.Combat;
 using Voidward.Core;
 using Voidward.Networking;
 using Voidward.Progression;
@@ -32,7 +33,11 @@ namespace Voidward.UI
         RectTransform perkList;
         Button dartButton, muleButton;
         // results
-        TextMeshProUGUI resultsTitle, resultsBody;
+        TextMeshProUGUI resultsTitle, resultsBody, resultsStardust;
+        // Results Stardust count-up (#43): starts after a short beat, ticks up, bursts when done.
+        int stardustTarget, stardustShown, stardustTotal;
+        float stardustStart = -1f, stardustNextTick;
+        string celebratePerk;
         Button resultsLobby;
         // connecting
         TextMeshProUGUI connectingLabel;
@@ -418,7 +423,7 @@ namespace Voidward.UI
                 {
                     var b = UIKit.Button(row, $"Unlock ({p.Cost})", () =>
                     {
-                        if (Meta.TryUnlock(perk.Id)) Sfx.PlayUI("stardust");
+                        if (Meta.TryUnlock(perk.Id)) { FeedbackFx.PerkUnlocked(); celebratePerk = perk.Id; }
                         else Sfx.PlayUI("ui_back");
                         RefreshHangar();
                     }, 56, UIKit.Warn, 22);
@@ -432,6 +437,12 @@ namespace Voidward.UI
                     bool eq = Meta.IsEquipped(p.Id);
                     var b = UIKit.Button(row, eq ? "Equipped" : "Equip", () => { Meta.ToggleEquip(perk.Id); RefreshHangar(); }, 56, eq ? UIKit.Good : UIKit.Secondary, 22);
                     UIKit.LayoutElement(b.gameObject, 220, 56);
+                }
+                if (celebratePerk == p.Id)
+                {
+                    celebratePerk = null;
+                    UnlockBurst.Play(row, UIKit.Warn, FeedbackFx.RewardFx);
+                    UnlockBurst.Play(stardustLabel.rectTransform, UIKit.Warn, FeedbackFx.RewardFx * 0.5f);
                 }
             }
         }
@@ -457,11 +468,13 @@ namespace Voidward.UI
             SliderRow(content, "Hit-stop", 0, 1, s.HitStop, v => { s.HitStop = v; s.Save(); });
             UIKit.Toggle(content, "Damage numbers", s.DamageNumbers, v => { s.DamageNumbers = v; s.Save(); });
             UIKit.Toggle(content, "Low health warning", s.LowHealthWarning, v => { s.LowHealthWarning = v; s.Save(); });
+            SliderRow(content, "Reward effects", 0, 1, s.RewardFx, v => { s.RewardFx = v; s.Save(); });
 
             Label(content, "Audio");
             SliderRow(content, "Master", 0, 1, s.Master, v => { s.Master = v; s.Save(); });
             SliderRow(content, "Music", 0, 1, s.Music, v => { s.Music = v; s.Save(); });
             SliderRow(content, "Effects", 0, 1, s.SfxVol, v => { s.SfxVol = v; s.Save(); });
+            UIKit.Toggle(content, "Dynamic combat music", s.DynamicMusic, v => { s.DynamicMusic = v; s.Save(); });
 
             Label(content, "Controls");
             SliderRow(content, "Mouse sensitivity", 0.2f, 3f, s.Sensitivity, v => { s.Sensitivity = v; s.Save(); });
@@ -526,7 +539,9 @@ namespace Voidward.UI
             resultsTitle.fontSharedMaterial = UIKit.ShadowMaterial;
             UIKit.LayoutElement(resultsTitle.gameObject, -1, 140);
             resultsBody = UIKit.Text(w, "", 30, TextAlignmentOptions.Center);
-            UIKit.LayoutElement(resultsBody.gameObject, -1, 360);
+            UIKit.LayoutElement(resultsBody.gameObject, -1, 250);
+            resultsStardust = UIKit.Text(w, "", 30, TextAlignmentOptions.Center);
+            UIKit.LayoutElement(resultsStardust.gameObject, -1, 110);
             var row = UIKit.Row(w, 64);
             row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
             resultsLobby = UIKit.Button(row, "Return to Lobby", () => RunManager.Instance?.ReturnToLobbyServerRpc(), 64, UIKit.Good, 24, Icons.Replay);
@@ -537,7 +552,7 @@ namespace Voidward.UI
         void RefreshResults()
         {
             var s = ui.LastSummary;
-            if (s == null) { resultsTitle.text = "RUN OVER"; resultsBody.text = ""; return; }
+            if (s == null) { resultsTitle.text = "RUN OVER"; resultsBody.text = ""; resultsStardust.text = ""; stardustStart = -1f; return; }
             resultsTitle.text = s.Victory
                 ? "DEMO COMPLETE\n<size=55%><color=#ffd8a0>Thanks for playing VOIDWARD!</color></size>"
                 : "RUN OVER\n<size=55%><color=#ffa0b0>" + s.EndReason + "</color></size>";
@@ -547,11 +562,43 @@ namespace Voidward.UI
                 $"Distance traveled: <b>{s.DistanceTraveled / 1000f:0.0} km</b>\n" +
                 $"Enemies destroyed: <b>{s.Kills}</b>\n" +
                 $"Loot collected: <b>{s.LootCollected}</b>\n" +
-                $"Run time: <b>{min:00}:{sec:00}</b>\n\n" +
-                $"<color=#ffd070><size=120%>+{s.StardustEarned} Stardust</size></color>\n" +
-                $"<size=75%><color=#b0b0d0>Total: {Meta.Data.Stardust} - spend it in the Hangar</color></size>";
+                $"Run time: <b>{min:00}:{sec:00}</b>";
+            stardustTarget = Mathf.Max(0, s.StardustEarned);
+            stardustTotal = Meta.Data.Stardust;
+            stardustShown = 0;
+            stardustStart = Time.unscaledTime + 0.7f;
+            SetStardustText();
             var nm = NetworkManager.Singleton;
             resultsLobby.interactable = nm != null && nm.IsHost;
+        }
+
+        void SetStardustText()
+        {
+            resultsStardust.text = $"<color=#ffd070><size=120%>+{stardustShown} Stardust</size></color>\n" +
+                $"<size=75%><color=#b0b0d0>Total: {stardustTotal - stardustTarget + stardustShown} - spend it in the Hangar</color></size>";
+        }
+
+        /// <summary>Results: count the earned Stardust up with rising ticks, then chime + burst.</summary>
+        void TickStardust()
+        {
+            if (stardustStart < 0f || Time.unscaledTime < stardustStart) return;
+            float dur = Mathf.Clamp(0.4f + stardustTarget * 0.012f, 0.4f, 1.8f);
+            float k = Mathf.Clamp01((Time.unscaledTime - stardustStart) / dur);
+            int shown = Mathf.RoundToInt(stardustTarget * (1f - (1f - k) * (1f - k)));
+            if (shown != stardustShown)
+            {
+                stardustShown = shown;
+                SetStardustText();
+                if (Time.unscaledTime >= stardustNextTick) { stardustNextTick = Time.unscaledTime + 0.045f; FeedbackFx.StardustTick(k); }
+            }
+            if (k >= 1f)
+            {
+                stardustStart = -1f;
+                stardustShown = stardustTarget;
+                SetStardustText();
+                FeedbackFx.StardustDone(stardustTarget);
+                if (stardustTarget > 0) UnlockBurst.Play(resultsStardust.rectTransform, UIKit.Warn, FeedbackFx.RewardFx);
+            }
         }
 
         // ================================================================ per-frame
@@ -559,6 +606,7 @@ namespace Voidward.UI
         public void Update()
         {
             var s = ui.Current;
+            if (s == Screen.Results) TickStardust();
             if (s == Screen.Lobby)
             {
                 lobbyRefresh -= Time.unscaledDeltaTime;

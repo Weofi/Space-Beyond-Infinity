@@ -438,6 +438,19 @@ namespace Voidward.Core
             Emit(Kind.Spark, pos, 6, 3f, 0.02f, 0.04f, 0.5f, tint * 2.4f, 0.2f, 1f);
         }
 
+        public void LootSparkle(Vector3 pos, Color tint, float scale, int tier)
+        {
+            scale = Mathf.Max(0.2f, scale);
+            Emit(Kind.Sparkle, pos, Mathf.RoundToInt((12 + tier * 8) * scale), 2.2f + tier * 0.8f, 0.07f, 0.2f + tier * 0.04f, 0.7f + tier * 0.15f, tint * (2f + tier * 0.5f), 0.35f);
+            Emit(Kind.Spark, pos, Mathf.RoundToInt((5 + tier * 5) * scale), 3f + tier, 0.02f, 0.045f, 0.45f + tier * 0.1f, tint * 2.6f, 0.2f, 1f);
+            if (tier >= 2)
+            {
+                // Rare / epic: a small shock ring and a light pop on top.
+                Emit(Kind.Shock, pos, 1, 0f, 1.2f + tier * 0.6f, 1.4f + tier * 0.7f, 0.35f, tint * 1.4f, 0.01f, 0.5f);
+                FlashLight(pos, tint, 3f + tier * 2f, 4f + tier * 2f, 0.3f);
+            }
+        }
+
         public void JumpFlash(Vector3 pos)
         {
             ScreenFlash?.Invoke(new Color(0.85f, 0.95f, 1f, 1f), 1.4f);

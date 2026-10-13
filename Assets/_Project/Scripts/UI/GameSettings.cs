@@ -25,6 +25,8 @@ namespace Voidward.UI
         public bool DamageNumbers = true;
         public float HitStop = 1f;
         public bool LowHealthWarning = true;
+        public float RewardFx = 1f;
+        public bool DynamicMusic = true;
         public string PlayerName = "";
 
         static GameSettings current;
@@ -57,6 +59,8 @@ namespace Voidward.UI
             FeedbackFx.DamageNumbers = DamageNumbers;
             FeedbackFx.HitStopScale = Mathf.Clamp01(HitStop);
             FeedbackFx.LowHealthWarning = LowHealthWarning;
+            FeedbackFx.RewardFx = Mathf.Clamp01(RewardFx);
+            Sfx.DynamicMusic = DynamicMusic;
             Applied?.Invoke();
         }
     }

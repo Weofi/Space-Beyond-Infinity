@@ -13,7 +13,7 @@ namespace Voidward.AI
     /// aligned to planet gravity. Transform is synced by a server-authoritative NetworkTransform.
     /// </summary>
     [RequireComponent(typeof(HealthComponent))]
-    public class EnemyBrain : NetworkBehaviour
+    public class EnemyBrain : NetworkBehaviour, IThreatSource
     {
         public enum State { Patrol, Chase, Attack, Flee }
 
@@ -49,6 +49,12 @@ namespace Voidward.AI
 
         public bool IsSpaceEnemy => def != null && def.IsSpace;
 
+        // Dynamic music (#43): engaged enemies (networked state, so every peer agrees) push the combat layer.
+        Vector3 IThreatSource.Position => transform.position;
+        float IThreatSource.Engagement => health != null && health.IsAlive && (CurrentState.Value == State.Chase || CurrentState.Value == State.Attack) ? 1f : 0f;
+        float IThreatSource.ThreatRadius => IsSpaceEnemy ? 650f : 90f;
+        bool IThreatSource.IsBoss => false;
+
         void Awake()
         {
             health = GetComponent<HealthComponent>();
@@ -65,6 +71,7 @@ namespace Voidward.AI
         public override void OnNetworkSpawn()
         {
             if (def == null) def = ContentCatalog.GetEnemy(Kind);
+            Threat.Register(this);
             if (!IsServer) return;
             home = transform.position;
             patrolTarget = home;
@@ -75,6 +82,7 @@ namespace Voidward.AI
 
         public override void OnNetworkDespawn()
         {
+            Threat.Unregister(this);
             if (IsServer) health.Died -= OnDied;
         }
 
