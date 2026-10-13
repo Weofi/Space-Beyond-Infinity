@@ -8,18 +8,20 @@ using Voidward.Data;
 namespace Voidward.World
 {
     /// <summary>
-    /// Client-local, deterministic sector dressing built from the synced seed on every peer:
+    /// Client-local, deterministic system dressing built from the synced seed on every peer:
     /// asteroid fields (with colliders, identical everywhere so server physics matches; destructible,
-    /// destroyed ids are replicated by RunManager), the
-    /// Collapse wall, palette (sky, fog, light) and music. Nothing here is networked.
+    /// destroyed ids are replicated by RunManager), the galaxy palette (sky, fog, light), music and the
+    /// journey on the sky (#46): the destination galaxy and the Milky Way grow from galaxy to galaxy.
+    /// Nothing here is networked.
     /// </summary>
-    public class SectorVisuals : MonoBehaviour
+    public class SystemVisuals : MonoBehaviour
     {
-        public static SectorVisuals Instance { get; private set; }
+        public static SystemVisuals Instance { get; private set; }
 
         readonly List<GameObject> spawned = new List<GameObject>();
         readonly List<Mesh> meshes = new List<Mesh>();
-        Transform collapse;
+        Transform destination, milkyWay;
+        float destinationDeg, milkyWayDeg;
         Material skyInstance;
         Light sun;
         Volume gradeVolume;
@@ -32,25 +34,29 @@ namespace Voidward.World
         {
             Clear();
             if (Instance == this) Instance = null;
-            if (collapse) Destroy(collapse.gameObject);
+            DestroySky(destination);
+            DestroySky(milkyWay);
             if (gradeVolume) Destroy(gradeVolume.gameObject);
             if (gradeProfile) Destroy(gradeProfile);
         }
 
-        public void Build(int seed, int sectorIndex)
+        /// <summary>Build the dressing of one system; a no-op when that system is already built.</summary>
+        public void Build(int runSeed, int galaxy, int system)
         {
-            if (seed == builtSeed) return;
-            builtSeed = seed;
+            int key = GalaxyGenerator.GalaxySeed(runSeed, galaxy) ^ (system * 7919 + 1);
+            if (key == builtSeed) return;
             Clear();
-            var def = ContentCatalog.GetSector(sectorIndex);
-            var layout = SectorLayout.Build(seed, def);
+            builtSeed = key;
+            var layout = GalaxyGenerator.Layout(runSeed, galaxy, system);
+            var def = layout.Def;
             var cat = ContentCatalog.Instance;
             Material mat = cat == null ? null : (cat.TerrainMaterial != null ? cat.TerrainMaterial : cat.ToonMaterial); // rock detail material
 
-            for (int i = 0; i < layout.Fields.Length; i++) BuildField(layout.Fields[i], i, layout, mat, def);
-            ApplyPalette(def != null ? def.Palette : null, seed);
-            EnsureCollapse(cat);
-            Sfx.Music(sectorIndex);
+            for (int i = 0; i < layout.Fields.Length; i++) BuildField(layout.Fields[i], i, layout, mat);
+            ApplyPalette(def != null ? def.Palette : null, layout.Seed);
+            BuildJourneySky(cat, galaxy, def);
+            // Music moods: calm start, rising tension, climax in the last two galaxies.
+            Sfx.Music(new[] { 1, 1, 2, 2, 3, 3 }[Mathf.Clamp(galaxy, 0, 5)]);
         }
 
         public void Clear()
@@ -95,7 +101,7 @@ namespace Voidward.World
         public Vector3 RockPosition(int id) =>
             rocks.TryGetValue(id, out var r) && r.Chunk.Go != null ? r.Chunk.Go.transform.TransformPoint(r.Local.GetColumn(3)) : Vector3.zero;
 
-        void BuildField(SectorLayout.Field f, int fieldIndex, SectorLayout layout, Material mat, SectorDef def)
+        void BuildField(SystemLayout.Field f, int fieldIndex, SystemLayout layout, Material mat)
         {
             var rng = new System.Random(f.Seed);
             var root = new GameObject("AsteroidField");
@@ -274,30 +280,102 @@ namespace Voidward.World
             return null;
         }
 
-        void EnsureCollapse(ContentCatalog cat)
+        // ---------------------------------------------------------------- journey on the sky
+
+        const float SkyDistance = 15000f; // inside the 20 km far plane, beyond everything in a system
+        public static readonly Vector3 DestinationDir = new Vector3(1f, 0.16f, -0.42f).normalized;
+        static readonly Vector3 MilkyWayDir = new Vector3(1f, 0.38f, 0.52f).normalized;
+        // Apparent diameter in degrees per galaxy (index 1..5): the destination comes closer, the Milky Way grows.
+        static readonly float[] DestinationSize = { 0f, 9f, 6f, 7f, 13f, 0f };
+        static readonly float[] MilkyWaySize = { 0f, 2.5f, 3f, 4.5f, 9f, 42f };
+
+        void BuildJourneySky(ContentCatalog cat, int galaxy, GalaxyDef def)
         {
-            if (collapse != null) return;
-            var go = new GameObject("TheCollapse");
-            collapse = go.transform;
-            var mesh = IcoSphere.Create(1f, 3, "CollapseSphere");
-            meshes.Remove(mesh);
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = cat != null ? cat.CollapseMaterial : null;
-            mr.shadowCastingMode = ShadowCastingMode.Off;
-            mr.receiveShadows = false;
-            const float R = 9000f;
-            go.transform.localScale = Vector3.one * R;
+            var mat = cat != null ? cat.ParticleMaterial : null;
+            if (mat == null) return;
+            int g = Mathf.Clamp(galaxy, 1, 5);
+            if (milkyWay == null) milkyWay = SkyGalaxy("MilkyWay", mat, 2, new Color(1f, 0.88f, 0.72f), 9001, Quaternion.LookRotation(MilkyWayDir) * Quaternion.Euler(64f, 0f, 18f));
+            milkyWayDeg = MilkyWaySize[g];
+            DestroySky(destination);
+            destination = null;
+            destinationDeg = DestinationSize[g];
+            if (destinationDeg > 0f)
+            {
+                Color tint = def != null ? def.NextGalaxyTint : Color.white;
+                destination = SkyGalaxy("NextGalaxy", mat, g % 2 == 0 ? 3 : 2, tint, 4200 + g, Quaternion.LookRotation(DestinationDir) * Quaternion.Euler(52f + g * 6f, 0f, -30f + g * 11f));
+            }
         }
 
-        void Update()
+        /// <summary>A spiral galaxy made of soft additive dots (unit radius) with a bright core.</summary>
+        Transform SkyGalaxy(string name, Material mat, int arms, Color tint, int seed, Quaternion rot)
         {
-            if (collapse == null) return;
-            const float R = 9000f;
-            bool show = GameState.Phase == GamePhase.Playing || GameState.Phase == GamePhase.GameOver;
-            collapse.gameObject.SetActive(show && GameState.CollapseX > -50000f);
-            collapse.position = new Vector3(GameState.CollapseX - R, 0f, 0f);
-            collapse.Rotate(0f, 0f, 1.5f * Time.deltaTime, Space.World);
+            var rng = new System.Random(seed);
+            const int dots = 1400;
+            var verts = new List<Vector3>(dots * 4);
+            var cols = new List<Color>(dots * 4);
+            var uvs = new List<Vector2>(dots * 4);
+            var tris = new List<int>(dots * 6);
+            Color core = new Color(1f, 0.93f, 0.8f);
+            for (int i = 0; i < dots; i++)
+            {
+                bool bulge = i < 160;
+                float t = bulge ? Mathf.Pow((float)rng.NextDouble(), 2f) * 0.22f : 0.08f + 0.92f * Mathf.Pow((float)rng.NextDouble(), 0.8f);
+                float ang = bulge ? (float)rng.NextDouble() * Mathf.PI * 2f : (rng.Next(arms) * Mathf.PI * 2f / arms) + t * 4.2f;
+                float spread = bulge ? 0f : 0.05f + 0.16f * t;
+                Vector2 pos = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * t + new Vector2(Gauss(rng), Gauss(rng)) * spread;
+                float size = bulge ? 0.07f + 0.08f * (float)rng.NextDouble() : 0.025f + 0.05f * (float)rng.NextDouble();
+                Color c = Color.Lerp(core, tint, Mathf.Clamp01(t * 1.6f));
+                c.a = bulge ? 0.35f : Mathf.Lerp(0.3f, 0.08f, t);
+                int b0 = verts.Count;
+                verts.Add(new Vector3(pos.x - size, pos.y - size, 0f)); verts.Add(new Vector3(pos.x + size, pos.y - size, 0f));
+                verts.Add(new Vector3(pos.x + size, pos.y + size, 0f)); verts.Add(new Vector3(pos.x - size, pos.y + size, 0f));
+                uvs.Add(new Vector2(0, 0)); uvs.Add(new Vector2(1, 0)); uvs.Add(new Vector2(1, 1)); uvs.Add(new Vector2(0, 1));
+                for (int k = 0; k < 4; k++) cols.Add(c);
+                tris.Add(b0); tris.Add(b0 + 2); tris.Add(b0 + 1); tris.Add(b0); tris.Add(b0 + 3); tris.Add(b0 + 2);
+            }
+            var mesh = new Mesh { name = name };
+            mesh.SetVertices(verts); mesh.SetColors(cols); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
+            mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 4f);
+            var go = new GameObject("Sky_" + name);
+            go.transform.rotation = rot;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = mat;
+            mr.shadowCastingMode = ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+            return go.transform;
+        }
+
+        /// <summary>Sky galaxies outlive Clear() (the Milky Way is built once); they own their mesh.</summary>
+        static void DestroySky(Transform t)
+        {
+            if (t == null) return;
+            var mf = t.GetComponent<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null) Destroy(mf.sharedMesh);
+            Destroy(t.gameObject);
+        }
+
+        static float Gauss(System.Random r)
+        {
+            double u = 1.0 - r.NextDouble(), v = r.NextDouble();
+            return (float)(System.Math.Sqrt(-2.0 * System.Math.Log(u)) * System.Math.Cos(2.0 * System.Math.PI * v)) * 0.5f;
+        }
+
+        void LateUpdate()
+        {
+            var cam = Camera.main;
+            bool show = cam != null && GameState.Phase == GamePhase.Playing && builtSeed != int.MinValue;
+            PlaceSky(milkyWay, MilkyWayDir, milkyWayDeg, show, cam);
+            PlaceSky(destination, DestinationDir, destinationDeg, show, cam);
+        }
+
+        static void PlaceSky(Transform t, Vector3 dir, float deg, bool show, Camera cam)
+        {
+            if (t == null) return;
+            t.gameObject.SetActive(show && deg > 0f);
+            if (!show || deg <= 0f) return;
+            t.position = cam.transform.position + dir * SkyDistance;
+            t.localScale = Vector3.one * (SkyDistance * Mathf.Tan(deg * 0.5f * Mathf.Deg2Rad));
         }
     }
 }

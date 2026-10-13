@@ -12,8 +12,8 @@ namespace Voidward.Core
         // ---- Game flow ----
         public static event Action<GamePhase> PhaseChanged;
         public static event Action<RunSummary> RunEnded;
-        public static event Action<int> SectorStarted;        // 1-based sector index
-        public static event Action<int> SectorJumpCompleted;  // sector index just left
+        public static event Action<int, int> SystemEntered;   // 1-based galaxy, 0-based system
+        public static event Action<int> WarpCompleted;        // 1-based galaxy after the warp
         public static event Action BossSpawned;
         public static event Action BossDefeated;
 
@@ -39,8 +39,8 @@ namespace Voidward.Core
 
         public static void RaisePhaseChanged(GamePhase p) => PhaseChanged?.Invoke(p);
         public static void RaiseRunEnded(RunSummary s) => RunEnded?.Invoke(s);
-        public static void RaiseSectorStarted(int i) => SectorStarted?.Invoke(i);
-        public static void RaiseSectorJumpCompleted(int i) => SectorJumpCompleted?.Invoke(i);
+        public static void RaiseSystemEntered(int galaxy, int system) => SystemEntered?.Invoke(galaxy, system);
+        public static void RaiseWarpCompleted(int galaxy) => WarpCompleted?.Invoke(galaxy);
         public static void RaiseBossSpawned() => BossSpawned?.Invoke();
         public static void RaiseBossDefeated() => BossDefeated?.Invoke();
         public static void RaiseLocalPawnSpawned(GameObject go) => LocalPawnSpawned?.Invoke(go);

@@ -134,7 +134,7 @@ namespace Voidward.Progression
             if (s.Victory) Data.Victories++;
             Data.Stardust += s.StardustEarned;
             Data.TotalStardust += s.StardustEarned;
-            Data.BestSector = Mathf.Max(Data.BestSector, s.SectorReached);
+            Data.BestSector = Mathf.Max(Data.BestSector, s.GalaxyReached); // best galaxy (field name kept for save compatibility)
             Data.BestDistance = Mathf.Max(Data.BestDistance, s.DistanceTraveled);
             Save();
         }

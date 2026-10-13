@@ -5,13 +5,15 @@ using Voidward.Data;
 namespace Voidward.World
 {
     /// <summary>
-    /// Deterministic sector layout shared by server (spawning) and clients (local visuals).
-    /// The corridor runs along +X and is centered on the origin: every sector is rebuilt around
-    /// (0,0,0), which is our floating-origin strategy (world rebasing on each jump keeps all
+    /// Deterministic star system layout shared by server (spawning) and clients (local visuals).
+    /// The flight corridor runs along +X and is centered on the origin: every system is rebuilt around
+    /// (0,0,0), which is our floating-origin strategy (world rebasing on each warp keeps all
     /// coordinates within ~12 km incl. the kilometre-scale planets, so float precision stays around a
-    /// millimetre in multiplayer). Distances are deliberately large (#22): crossing a sector is a trip.
+    /// millimetre in multiplayer). Distances are deliberately large (#22): crossing a system is a trip.
+    /// What a system contains depends on its kind (#46): planetary systems have 2-3 worlds, asteroid fields
+    /// many rocks and wrecks, enclaves a Warden arena at the far end, empty space next to nothing.
     /// </summary>
-    public class SectorLayout
+    public class SystemLayout
     {
         public struct PlanetSpot { public Vector3 Pos; public float Radius; public int BiomeIndex; public int Seed; }
         public struct Field { public Vector3 Center; public Vector3 Extents; public int Count; public int Seed; }
@@ -20,12 +22,13 @@ namespace Voidward.World
         public const float MaxPlanetRadius = 1900f;
 
         public int Seed;
-        public SectorDef Def;
+        public GalaxyDef Def;
+        public SystemKind Kind;
+        public bool HasStation;
         public float Length;
         public float StartX;
         public float EndX;
         public Vector3 StartPoint;
-        public Vector3 GatePos;
         public Vector3 StationPos;
         public Vector3 BossPos;
         public Vector3 ArkPos;
@@ -33,20 +36,30 @@ namespace Voidward.World
         public Field[] Fields;
         public Vector3[] Wrecks;
 
-        public static SectorLayout Build(int seed, SectorDef def)
+        public static SystemLayout Build(int seed, GalaxyDef def, SystemKind kind, bool hasStation)
         {
-            var L = new SectorLayout { Seed = seed, Def = def };
+            var L = new SystemLayout { Seed = seed, Def = def, Kind = kind, HasStation = hasStation };
             var rng = new System.Random(seed);
-            L.Length = def != null ? def.CorridorLength : 9000f;
+            L.Length = def != null ? def.SystemLength : 9000f;
             L.StartX = -L.Length * 0.5f;
             L.EndX = L.Length * 0.5f;
             L.StartPoint = new Vector3(L.StartX + 80f, 0f, 0f);
-            L.GatePos = new Vector3(L.EndX, 0f, 0f);
             L.BossPos = new Vector3(L.EndX - 300f, 40f, 0f);
             L.StationPos = new Vector3(MathUtils.Range(rng, -L.Length * 0.15f, L.Length * 0.15f), MathUtils.Range(rng, -120f, 120f), MathUtils.Range(rng, 350f, 600f) * Sign(rng));
             L.ArkPos = new Vector3(L.StartX + 1500f, 40f, -320f);
 
-            int nPlanets = def != null ? rng.Next(def.MinPlanets, def.MaxPlanets + 1) : 3;
+            int nPlanets, nFields, nWrecks;
+            switch (kind)
+            {
+                case SystemKind.Planetary: nPlanets = rng.Next(2, 4); nFields = 3; nWrecks = 2; break;
+                case SystemKind.AsteroidField: nPlanets = rng.Next(0, 2); nFields = 6; nWrecks = 4; break;
+                case SystemKind.Anomaly: nPlanets = 1; nFields = 3; nWrecks = 1; break;
+                case SystemKind.Enclave: nPlanets = 1; nFields = 2; nWrecks = 1; break;
+                case SystemKind.Nomads: nPlanets = rng.Next(1, 3); nFields = 2; nWrecks = 1; break;
+                default: nPlanets = 0; nFields = 1; nWrecks = 1; break;
+            }
+            if (def != null && def.Index == 4) nFields = Mathf.Max(1, nFields - 1); // Leo I: star-poor and empty
+
             L.Planets = new PlanetSpot[nPlanets];
             var cat = ContentCatalog.Instance;
             float usable = L.Length - 2600f;
@@ -64,7 +77,7 @@ namespace Voidward.World
                 Vector3 outward = new Vector3(0f, p.y, p.z).normalized;
                 for (int k = 0; k < 8; k++)
                 {
-                    bool clear = Vector3.Distance(p, L.StationPos) > r * 1.4f + 400f;
+                    bool clear = !hasStation || Vector3.Distance(p, L.StationPos) > r * 1.4f + 400f;
                     for (int j = 0; j < i && clear; j++)
                         if (Vector3.Distance(p, L.Planets[j].Pos) < (r + L.Planets[j].Radius) * 1.35f + 600f) clear = false;
                     if (clear) break;
@@ -80,7 +93,6 @@ namespace Voidward.World
                 L.Planets[i] = new PlanetSpot { Pos = p, Radius = r, BiomeIndex = biomeIndex, Seed = rng.Next() };
             }
 
-            int nFields = def != null ? def.AsteroidBelts : 3;
             L.Fields = new Field[nFields];
             for (int i = 0; i < nFields; i++)
             {
@@ -95,7 +107,6 @@ namespace Voidward.World
                 };
             }
 
-            int nWrecks = def != null ? def.WreckCount : 2;
             L.Wrecks = new Vector3[nWrecks];
             for (int i = 0; i < nWrecks; i++)
                 L.Wrecks[i] = new Vector3(MathUtils.Range(rng, L.StartX + 800f, L.EndX - 900f), MathUtils.Range(rng, -150f, 150f), MathUtils.Range(rng, 150f, 450f) * Sign(rng));

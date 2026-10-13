@@ -16,7 +16,7 @@ namespace Voidward.Data
         public ItemDef[] Items = new ItemDef[0];
         public ModuleDef[] Modules = new ModuleDef[0];
         public EnemyDef[] Enemies = new EnemyDef[0];
-        public SectorDef[] Sectors = new SectorDef[0];
+        public GalaxyDef[] Galaxies = new GalaxyDef[0];
         public BiomeDef[] Biomes = new BiomeDef[0];
         public PaletteDef[] Palettes = new PaletteDef[0];
         public RecipeDef[] Recipes = new RecipeDef[0];
@@ -44,7 +44,6 @@ namespace Voidward.Data
         public GameObject RuinPrefab;
         public GameObject CrashedShipPrefab;
         public GameObject TraderStation;
-        public GameObject JumpGate;
         public GameObject LaserBolt;
         public GameObject Missile;
         public GameObject FlakBurst;
@@ -65,7 +64,7 @@ namespace Voidward.Data
         public Material PlanetMaterial;
         public Material OceanMaterial;
         public Material SkyboxMaterial;
-        public Material CollapseMaterial;
+        public Material CollapseMaterial;   // reserved for the Rift (#73)
         public Material AtmosphereMaterial;
         public Material CloudMaterial;
         public Material UnlitMaterial;
@@ -131,11 +130,11 @@ namespace Voidward.Data
             return null;
         }
 
-        public static SectorDef GetSector(int index1Based)
+        public static GalaxyDef GetGalaxy(int index1Based)
         {
             var c = Instance;
             if (c == null) return null;
-            foreach (var s in c.Sectors) if (s != null && s.Index == index1Based) return s;
+            foreach (var s in c.Galaxies) if (s != null && s.Index == index1Based) return s;
             return null;
         }
 

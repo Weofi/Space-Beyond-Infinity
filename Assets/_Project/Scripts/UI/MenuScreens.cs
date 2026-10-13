@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Voidward.Combat;
 using Voidward.Core;
+using Voidward.Data;
 using Voidward.Networking;
 using Voidward.Progression;
 using Voidward.World;
@@ -27,7 +28,7 @@ namespace Voidward.UI
         TextMeshProUGUI joinStatus;
         // lobby
         TextMeshProUGUI lobbyPlayers, lobbyInfo;
-        Button startButton, inviteButton, copyIdButton;
+        Button startButton, continueButton, inviteButton, copyIdButton;
         // hangar
         TextMeshProUGUI stardustLabel;
         RectTransform perkList;
@@ -105,7 +106,7 @@ namespace Voidward.UI
             title.enableVertexGradient = true;
             title.colorGradient = new VertexGradient(Color.white, Color.white, new Color(0.62f, 0.8f, 1f), new Color(0.62f, 0.8f, 1f));
             title.fontSharedMaterial = UIKit.ShadowMaterial;
-            var sub = UIKit.Text(titleBlock, "Outrun the Collapse. Together.", 40, TextAlignmentOptions.TopRight, UIKit.Accent, FontStyles.Bold | FontStyles.UpperCase);
+            var sub = UIKit.Text(titleBlock, "Find the way home. Together.", 40, TextAlignmentOptions.TopRight, UIKit.Accent, FontStyles.Bold | FontStyles.UpperCase);
             UIKit.Place(sub.rectTransform, new Vector2(1, 1), new Vector2(-6, -150), new Vector2(1000, 50), new Vector2(1, 1));
             sub.characterSpacing = 6;
             sub.fontSharedMaterial = UIKit.ShadowMaterial;
@@ -325,12 +326,13 @@ namespace Voidward.UI
             lobbyPlayers = UIKit.Text(listBg, "", 30);
             UIKit.Stretch(lobbyPlayers.rectTransform, 24, 24, 16, 16);
 
-            var tip = UIKit.Text(w, "Every player flies their own ship. Find the derelict <b>Ark</b> to crew a big ship together.", 22, TextAlignmentOptions.Center, UIKit.Accent2);
+            var tip = UIKit.Text(w, "Route home: <b>M33 > M31 > NGC 6822 > Leo I > LMC > Milky Way</b>\nEvery player flies their own ship. Find the derelict <b>Ark</b> to crew a big ship together.", 22, TextAlignmentOptions.Center, UIKit.Accent2);
             UIKit.LayoutElement(tip.gameObject, -1, 60);
 
             var row = UIKit.Row(w, 64);
             row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
             startButton = UIKit.Button(row, "Start Run", () => SessionManager.Instance?.StartRun(), 64, UIKit.Good, 28, Icons.Play);
+            continueButton = UIKit.Button(row, "Continue Run", () => SessionManager.Instance?.ContinueRun(), 64, UIKit.Primary, 26, Icons.Replay);
             inviteButton = UIKit.Button(row, "Invite Friends", () => SessionManager.Instance?.Steam.InviteFriends(), 64, UIKit.Primary, 28, Icons.Invite);
             copyIdButton = UIKit.Button(row, "Copy Lobby ID", CopyLobbyId, 64, UIKit.Secondary, 24);
             var row2 = UIKit.Row(w, 60);
@@ -356,7 +358,8 @@ namespace Voidward.UI
                 : $"Direct IP - others join with <b>{LocalIp()}</b> : {TransportConfig.Port}";
             lobbyInfo.text = info + $"\nShip: <b>{Meta.SelectedShip}</b>   Stardust: <b>{Meta.Data.Stardust}</b>";
             startButton.interactable = nm.IsHost;
-            UIKit.SetLabel(startButton, nm.IsHost ? "Start Run" : "Waiting for host...");
+            UIKit.SetLabel(startButton, nm.IsHost ? (RunSave.Exists ? "New Run" : "Start Run") : "Waiting for host...");
+            continueButton.gameObject.SetActive(nm.IsHost && RunSave.Exists);
             inviteButton.gameObject.SetActive(steam);
             copyIdButton.gameObject.SetActive(steam && lobbyId != 0);
         }
@@ -402,7 +405,7 @@ namespace Voidward.UI
         void RefreshHangar()
         {
             var d = Meta.Data;
-            stardustLabel.text = $"* {d.Stardust} Stardust *   <size=70%><color=#b0b0d0>Runs {d.Runs}  |  Wins {d.Victories}  |  Best sector {d.BestSector}</color></size>";
+            stardustLabel.text = $"* {d.Stardust} Stardust *   <size=70%><color=#b0b0d0>Runs {d.Runs}  |  Homecomings {d.Victories}  |  Best galaxy {d.BestSector}/5</color></size>";
             bool mule = Meta.IsUnlocked(Meta.MuleLicense);
             UIKit.SetLabel(dartButton, (Meta.SelectedShip == ShipClass.Dart ? "> " : "") + "Dart - agile fighter");
             UIKit.SetLabel(muleButton, mule ? (Meta.SelectedShip == ShipClass.Mule ? "> " : "") + "Mule - tough hauler" : "Mule (locked)");
@@ -554,15 +557,15 @@ namespace Voidward.UI
             var s = ui.LastSummary;
             if (s == null) { resultsTitle.text = "RUN OVER"; resultsBody.text = ""; resultsStardust.text = ""; stardustStart = -1f; return; }
             resultsTitle.text = s.Victory
-                ? "DEMO COMPLETE\n<size=55%><color=#ffd8a0>Thanks for playing VOIDWARD!</color></size>"
-                : "RUN OVER\n<size=55%><color=#ffa0b0>" + s.EndReason + "</color></size>";
-            int min = Mathf.FloorToInt(s.RunTimeSeconds / 60f), sec = Mathf.FloorToInt(s.RunTimeSeconds % 60f);
+                ? "HOMECOMING\n<size=55%><color=#ffd8a0>" + s.EndReason + "</color></size>"
+                : "THE LOOP RESETS\n<size=55%><color=#ffa0b0>" + s.EndReason + "</color></size>";
+            var galaxy = ContentCatalog.GetGalaxy(s.GalaxyReached);
             resultsBody.text =
-                $"Sector reached: <b>{s.SectorReached}/3</b>\n" +
+                $"Galaxy reached: <b>{s.GalaxyReached}/{GalaxyDef.Count}{(galaxy != null ? " - " + galaxy.DisplayName : "")}</b>\n" +
                 $"Distance traveled: <b>{s.DistanceTraveled / 1000f:0.0} km</b>\n" +
                 $"Enemies destroyed: <b>{s.Kills}</b>\n" +
                 $"Loot collected: <b>{s.LootCollected}</b>\n" +
-                $"Run time: <b>{min:00}:{sec:00}</b>";
+                $"Run time: <b>{HudView.Clock(s.RunTimeSeconds)}</b>";
             stardustTarget = Mathf.Max(0, s.StardustEarned);
             stardustTotal = Meta.Data.Stardust;
             stardustShown = 0;

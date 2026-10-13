@@ -26,6 +26,8 @@ namespace Voidward.Dev
         Planet,
         /// <summary>Seated, plus a row of test walls (metal, rock, dirt, organic, shield) next to the trader station.</summary>
         Lab,
+        /// <summary>Seated as pilot (like Space) with the galaxy map open (#46).</summary>
+        Galaxy,
     }
 
     /// <summary>
@@ -124,6 +126,7 @@ namespace Voidward.Dev
             {
                 case DevScenario.Planet: yield return PlanetCo(); break;
                 case DevScenario.Lab: BuildLab(); break;
+                case DevScenario.Galaxy: if (Voidward.UI.UIRoot.Instance != null) Voidward.UI.UIRoot.Instance.OpenGalaxyMap(); break;
             }
             Ready = true;
             Log("end quickstart ready " + scenario);
@@ -250,6 +253,59 @@ namespace Voidward.Dev
             m.hideFlags = HideFlags.DontSave;
             return m;
         }
+
+        // ------------------------------------------------------------------ journey (#46)
+
+        static RunManager Run => RunManager.Instance;
+
+        /// <summary>One line about where the crew is: galaxy, system, kind, planets, visited mask, run time.</summary>
+        public static string SystemInfo
+        {
+            get
+            {
+                var rm = Run;
+                if (rm == null || rm.RunSeed.Value == 0) return "no run";
+                var sys = rm.CurrentSystem;
+                var plan = rm.Plan;
+                return $"galaxy {rm.GalaxyIndex.Value} system {rm.SystemIndex.Value}/{plan.Systems.Length} {sys.Kind} '{sys.Name}' planets {PlanetBody.All.Count} visited {rm.VisitedMask.Value} t {rm.RunTime:0}s";
+            }
+        }
+
+        /// <summary>The systems of the current galaxy as "index:Kind" (deterministic from the run seed).</summary>
+        public static string GalaxySystems
+        {
+            get
+            {
+                var rm = Run;
+                if (rm == null || rm.RunSeed.Value == 0) return "no run";
+                var sb = new System.Text.StringBuilder();
+                foreach (var s in rm.Plan.Systems) sb.Append(s.Index).Append(':').Append(s.Kind).Append(' ');
+                return sb.ToString().Trim();
+            }
+        }
+
+        /// <summary>Server: warp the crew to a system of the current galaxy now. Logs "[Dev] end goto ...".</summary>
+        public static void GotoSystem(int system) => GotoGalaxy(Run != null ? Run.GalaxyIndex.Value : 1, system);
+
+        /// <summary>Server: warp the crew straight to galaxy g (1..5), system s. Logs "[Dev] end goto ..." when entered.</summary>
+        public static void GotoGalaxy(int galaxy, int system = 0)
+        {
+            Log("begin goto");
+            if (!IsServer || Run == null) { Log("end goto FAILED: needs the host in a run"); return; }
+            Run.ServerGoto(galaxy, system);
+            DevRunner.Get().Run(GotoCo());
+        }
+
+        static IEnumerator GotoCo()
+        {
+            yield return null;
+            yield return null; // the system visuals rebuild on the next Update
+            Log("end goto " + SystemInfo);
+        }
+
+        /// <summary>Server: write the suspend save now (normally on galaxy entry and when the host leaves).</summary>
+        public static void SaveRun() { if (IsServer && Run != null) { Run.ServerWriteSave(); Log("run saved"); } }
+        public static bool HasRunSave => RunSave.Exists;
 
         // ------------------------------------------------------------------ actions
 

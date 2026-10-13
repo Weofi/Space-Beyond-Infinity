@@ -526,7 +526,6 @@ namespace Voidward.Player
                 // Distant terrain has no streamed colliders; the height field still answers.
                 pos = ground;
             }
-            if (GameState.HasGate && Vector3.Distance(pos, GameState.GatePosition) < 80f) { kind = PingKind.Gate; label = "Jump Gate"; }
             EventBus.RaisePingRequested(pos, kind, label);
             Sfx.PlayUI("ping");
         }

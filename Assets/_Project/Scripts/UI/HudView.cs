@@ -17,9 +17,9 @@ namespace Voidward.UI
 {
     /// <summary>
     /// In-game HUD (#24, DESIGN.md "HUD Layout Specifications", 1080p reference): vitals plate with ghost-fill
-    /// gauges (bottom-left), ship card (bottom-right), icon hotbar (bottom-centre), Collapse threat meter with
-    /// collapse/player/gate pips and a bearing compass with gate/station/Ark/own-ship markers (top-centre),
-    /// objective card (top-left), sector card + toasts with item icons (top-right), ring crosshair with hit
+    /// gauges (bottom-left), ship card (bottom-right), icon hotbar (bottom-centre), system meter (progress
+    /// through the system, galaxy, run clock) and a bearing compass with station/Ark/own-ship markers (top-centre),
+    /// expedition card (top-left), galaxy/system card + toasts with item icons (top-right), ring crosshair with hit
     /// markers and keycap prompt, edge-clamped world markers, boss bar, damage and low-oxygen vignettes.
     /// Damage taken (#43): direction arcs around the crosshair, gauge flash + plate kick, low-health pulse with
     /// heartbeat (on foot) or hull klaxon (seated), shield-collapse alert.
@@ -63,14 +63,14 @@ namespace Voidward.UI
 
         // top-centre: collapse meter + compass
         readonly Image meterFill;
-        readonly RectTransform meterTrack, pipCollapse, pipPlayer, pipGate;
-        readonly TextMeshProUGUI collapseText;
+        readonly RectTransform meterTrack, pipPlayer, pipEnd;
+        readonly TextMeshProUGUI meterText;
         readonly RectTransform compassStrip;
         readonly List<(RectTransform rt, float deg)> compassTicks = new List<(RectTransform, float)>();
         class CompassMark { public RectTransform Rt; public TextMeshProUGUI Icon, Dist; }
         readonly Dictionary<string, CompassMark> compassMarks = new Dictionary<string, CompassMark>();
-        int layoutSeed;
-        float sectorStartX, sectorEndX = 1f;
+        int layoutKey = int.MinValue;
+        float systemStartX, systemEndX = 1f;
 
         // boss
         readonly RectTransform bossPanel;
@@ -98,7 +98,7 @@ namespace Voidward.UI
         readonly CrewHud crew;
 
         // world markers
-        readonly HudMarker gateMarker, stationMarker, arkMarker, shipMarker;
+        readonly HudMarker stationMarker, arkMarker, shipMarker;
         readonly HudMarker[] bossMarkers = new HudMarker[4];
         readonly List<HudMarker> pingMarkers = new List<HudMarker>();
         readonly List<HudMarker> siteMarkers = new List<HudMarker>();
@@ -128,7 +128,6 @@ namespace Voidward.UI
             markerLayer = UIKit.Rect(root, "Markers");
             UIKit.Stretch(markerLayer);
             damageArcs = new DamageIndicator(root);
-            gateMarker = new HudMarker(markerLayer);
             stationMarker = new HudMarker(markerLayer);
             arkMarker = new HudMarker(markerLayer);
             shipMarker = new HudMarker(markerLayer);
@@ -232,8 +231,8 @@ namespace Voidward.UI
             prompt.characterSpacing = 2f;
             UIKit.Stretch(prompt.rectTransform, 12, 12, 0, 0);
 
-            // ---------------------------------------------------------- collapse threat meter (top-centre)
-            var meter = HudKit.Plate(root, "CollapseMeter").rectTransform;
+            // ---------------------------------------------------------- system progress + run clock (top-centre)
+            var meter = HudKit.Plate(root, "SystemMeter").rectTransform;
             UIKit.Place(meter, new Vector2(0.5f, 1), new Vector2(0, -18), new Vector2(480, 62), new Vector2(0.5f, 1));
             var trackImg = UIKit.Image(meter, "Track", HudKit.VoidTrack, false);
             trackImg.sprite = HudKit.Soft; trackImg.type = Image.Type.Sliced;
@@ -241,14 +240,13 @@ namespace Voidward.UI
             UIKit.Place(meterTrack, new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(440, 14), new Vector2(0.5f, 1));
             meterFill = UIKit.Image(meterTrack, "Fill", Color.white, false);
             UIKit.Stretch(meterFill.rectTransform, 1, 1, 1, 1);
-            meterFill.sprite = HudKit.Gradient(HudKit.Violet, HudKit.Crimson);
+            meterFill.sprite = HudKit.Gradient(HudKit.Teal, HudKit.Shield);
             meterFill.type = Image.Type.Filled; meterFill.fillMethod = Image.FillMethod.Horizontal;
-            pipGate = Pip(meterTrack, HudKit.Gold, HudKit.Ring, 18);
-            pipCollapse = Pip(meterTrack, HudKit.Danger, HudKit.Diamond, 16);
+            pipEnd = Pip(meterTrack, HudKit.Gold, HudKit.Ring, 18);
             pipPlayer = Pip(meterTrack, HudKit.Shield, HudKit.Chevron, 14);
-            collapseText = UIKit.Text(meter, "", 19, TextAlignmentOptions.Center, HudKit.Teal, FontStyles.Bold);
-            UIKit.Place(collapseText.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(440, 26), new Vector2(0.5f, 0));
-            collapseText.characterSpacing = 3f;
+            meterText = UIKit.Text(meter, "", 19, TextAlignmentOptions.Center, HudKit.Teal, FontStyles.Bold);
+            UIKit.Place(meterText.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(440, 26), new Vector2(0.5f, 0));
+            meterText.characterSpacing = 3f;
             crew = new CrewHud(root, markerLayer, meterTrack, new Vector2(Edge, Edge + 112 + 14));
 
             // ---------------------------------------------------------- compass (below the meter)
@@ -521,18 +519,20 @@ namespace Voidward.UI
             if (rm != null && pawn != null)
             {
                 UpdateMeter(rm, pawn);
-                var def = ContentCatalog.GetSector(rm.SectorIndex.Value);
-                sectorTitle.text = $"SECTOR {rm.SectorIndex.Value} / 3";
-                sectorName.text = def != null ? def.DisplayName : "";
+                var plan = rm.Plan;
+                var sys = rm.CurrentSystem;
+                sectorTitle.text = $"GALAXY {rm.GalaxyIndex.Value}/{GalaxyDef.Count}  -  SYSTEM {rm.SystemIndex.Value + 1}/{(plan != null ? plan.Systems.Length : 0)}";
+                sectorName.text = sys != null ? sys.Name : "";
                 respawnText.text = HudKit.Num(rm.RespawnsLeft.Value.ToString()) + " <size=70%><color=#94A3B8>RESPAWNS</color></size>";
-                bool jumping = rm.JumpCountdown.Value >= 0f;
-                jumpPlate.gameObject.SetActive(jumping);
-                if (jumping) jumpText.text = "JUMPING IN " + HudKit.Num(Mathf.CeilToInt(rm.JumpCountdown.Value).ToString());
+                bool warping = rm.WarpCountdown.Value >= 0f;
+                jumpPlate.gameObject.SetActive(warping);
+                if (warping) jumpText.text = "WARP IN " + HudKit.Num(Mathf.CeilToInt(rm.WarpCountdown.Value).ToString()) +
+                    $"\n<size=40%><color=#CBD5E1>{rm.WarpLabel(rm.WarpTarget.Value).ToUpperInvariant()}</color></size>";
                 UpdateObjective(pawn);
             }
             else jumpPlate.gameObject.SetActive(false);
 
-            crew.Update(cam, pawn, sectorStartX, sectorEndX - sectorStartX);
+            crew.Update(cam, pawn, systemStartX, systemEndX - systemStartX);
 
             UpdateBoss();
             numbers.Update(cam);
@@ -687,59 +687,59 @@ namespace Voidward.UI
             deathText.text = text;
         }
 
-        // ---------------------------------------------------------------- collapse meter
+        // ---------------------------------------------------------------- system meter
 
+        /// <summary>Progress through the system corridor (arrival -> far end) plus galaxy and run clock.</summary>
         void UpdateMeter(RunManager rm, PlayerPawn pawn)
         {
-            if (rm.SectorSeed.Value != layoutSeed && rm.SectorSeed.Value != 0)
+            int key = GalaxyGenerator.GalaxySeed(rm.RunSeed.Value, rm.GalaxyIndex.Value) ^ (rm.SystemIndex.Value * 7919 + 1);
+            if (key != layoutKey && rm.RunSeed.Value != 0)
             {
-                layoutSeed = rm.SectorSeed.Value;
-                var def = ContentCatalog.GetSector(rm.SectorIndex.Value);
-                var layout = SectorLayout.Build(layoutSeed, def);
-                sectorStartX = layout.StartX - (def != null ? def.CollapseStartOffset : 1200f);
-                sectorEndX = layout.EndX;
+                layoutKey = key;
+                var layout = GalaxyGenerator.Layout(rm.RunSeed.Value, rm.GalaxyIndex.Value, rm.SystemIndex.Value);
+                systemStartX = layout.StartX;
+                systemEndX = layout.EndX;
             }
-            float len = Mathf.Max(1f, sectorEndX - sectorStartX);
-            float cx = GameState.CollapseX;
-            float px = pawn.transform.position.x;
-            float cf = Mathf.Clamp01((cx - sectorStartX) / len);
-            float pf = Mathf.Clamp01((px - sectorStartX) / len);
-            meterFill.fillAmount = cf;
+            float len = Mathf.Max(1f, systemEndX - systemStartX);
+            float pf = Mathf.Clamp01((pawn.transform.position.x - systemStartX) / len);
+            meterFill.fillAmount = pf;
             float w = meterTrack.rect.width;
-            pipCollapse.anchoredPosition = new Vector2(cf * w, 0f);
             pipPlayer.anchoredPosition = new Vector2(pf * w, 13f);
             var np = NetworkPlayer.Local;
             pipPlayer.GetComponent<Image>().color = np != null && NetworkPlayer.All.Count > 1 ? np.CrewColor : HudKit.Shield;
-            pipGate.anchoredPosition = new Vector2(w, 0f);
+            pipEnd.anchoredPosition = new Vector2(w, 0f);
 
-            float dist = Mathf.Max(0f, px - cx);
-            Color c = dist > 1500f ? HudKit.Teal : dist > 800f ? HudKit.Fuel : HudKit.Danger;
-            if (dist <= 800f && Mathf.Repeat(Time.time * 2.5f, 1f) > 0.6f) c = new Color(c.r, c.g, c.b, 0.35f);
-            collapseText.color = c;
-            collapseText.text = cx < -90000f ? "COLLAPSE  --" : "COLLAPSE  " + HudKit.Num(HudKit.F(dist, "N0")) + " m";
+            var def = rm.Plan != null ? rm.Plan.Def : null;
+            meterText.color = HudKit.Teal;
+            meterText.text = (def != null ? def.Designation.ToUpperInvariant() : "") + "   " + HudKit.Num(Clock(rm.RunTime));
+        }
+
+        /// <summary>Run clock text h:mm:ss (or m:ss in the first hour).</summary>
+        public static string Clock(float seconds)
+        {
+            int t = Mathf.Max(0, Mathf.FloorToInt(seconds));
+            return t >= 3600 ? $"{t / 3600}:{t / 60 % 60:00}:{t % 60:00}" : $"{t / 60}:{t % 60:00}";
         }
 
         // ---------------------------------------------------------------- objective
 
         void UpdateObjective(PlayerPawn pawn)
         {
-            var gate = JumpGate.Instance;
-            string text, header = "OBJECTIVE";
-            if (BossBrain.Instance != null || GameState.Objective == "Defeat the Warden")
+            var rm = RunManager.Instance;
+            var sys = rm != null ? rm.CurrentSystem : null;
+            string text, header = "EXPEDITION";
+            string map = $"<size=80%><color=#94A3B8>{Key("M")} galaxy map - warp on when the crew is ready</color></size>";
+            if (BossBrain.Instance != null)
             {
-                header = "FINAL OBJECTIVE";
-                text = BossBrain.Instance != null
-                    ? (BossBrain.Instance.Phase.Value == 1 ? "Destroy the Warden's 3 core pods" : "Destroy the Warden")
-                    : "Fly to the end of the sector and face the Warden";
+                header = "WARDEN";
+                text = BossBrain.Instance.Phase.Value == 1 ? "Destroy the Warden's 3 core pods" : "Destroy the Warden";
             }
-            else if (gate != null)
+            else if (sys != null && sys.Kind == SystemKind.Enclave && GameState.Objective == "Warden enclave")
             {
-                float d = Vector3.Distance(pawn.transform.position, gate.transform.position);
-                text = !gate.Powered
-                    ? $"Bring Energy Cells to the Jump Gate  <color=#F59E0B>{HudKit.Num(gate.CellsInserted.Value + "/" + gate.CellsRequired.Value)}</color>\n<size=80%><color=#94A3B8>{HudKit.Dist(d)} to the gate</color></size>"
-                    : $"Gather everyone at the Jump Gate\n<size=80%><color=#94A3B8>{HudKit.Dist(d)} to the gate</color></size>";
+                header = "WARDEN ENCLAVE";
+                text = "A Warden guards a warp core at the far end of this system\n" + map;
             }
-            else text = string.IsNullOrEmpty(GameState.Objective) ? "Survive" : GameState.Objective;
+            else text = "Explore, salvage and upgrade the ship\n" + map;
             objHeader.text = header;
             objText.text = text;
             bool pilot = pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Role == StationRole.Pilot;
@@ -783,8 +783,6 @@ namespace Voidward.UI
 
         void UpdateMarkers(Camera cam, PlayerPawn pawn)
         {
-            var gate = JumpGate.Instance;
-            gateMarker.Place(cam, markerLayer, gate != null ? gate.transform.position : (Vector3?)null, Icons.Gate, "JUMP GATE", HudKit.Gold, true);
             var st = TraderStation.Instance;
             stationMarker.Place(cam, markerLayer, st != null ? st.transform.position : (Vector3?)null, Icons.Store, "STATION", HudKit.Fuel, false);
             var ark = FindArk();
@@ -906,8 +904,6 @@ namespace Voidward.UI
 
             Vector3 camPos = cam.transform.position;
             var marks = new List<(string id, string glyph, Vector3 pos, Color c)>();
-            var gate = JumpGate.Instance;
-            if (gate != null) marks.Add(("gate", Icons.Gate, gate.transform.position, HudKit.Gold));
             var st = TraderStation.Instance;
             if (st != null) marks.Add(("station", Icons.Store, st.transform.position, HudKit.Fuel));
             var ark = FindArk();
@@ -917,7 +913,6 @@ namespace Voidward.UI
                 marks.Add(("ship", Icons.Ship, own.transform.position, HudKit.Shield));
             var boss = BossBrain.Instance;
             if (boss != null && boss.IsSpawned) marks.Add(("boss", Icons.Danger, boss.transform.position, HudKit.BossTitle));
-            if (GameState.CollapseX > -90000f) marks.Add(("collapse", Icons.Warning, new Vector3(GameState.CollapseX, camPos.y, camPos.z), HudKit.Danger));
             for (int i = 0; i < pings.Count; i++) marks.Add(("ping" + i, Icons.Pin, pings[i].Pos, HudKit.TextHi));
             foreach (var m in crew.Teammates) marks.Add(("crew" + m.Id, m.Down ? Icons.Danger : Icons.Person, m.Pos, m.Down ? HudKit.Danger : m.Color));
 

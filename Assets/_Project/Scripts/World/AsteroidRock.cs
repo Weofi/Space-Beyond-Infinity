@@ -5,7 +5,7 @@ namespace Voidward.World
 {
     /// <summary>
     /// Collider proxy of one asteroid inside a client-local field (built identically on every peer by
-    /// SectorVisuals). Hits are forwarded to the server, which tracks rock HP in RunManager and
+    /// SystemVisuals). Hits are forwarded to the server, which tracks rock HP in RunManager and
     /// replicates destroyed rock ids; every peer then removes the rock from its batched chunk.
     /// </summary>
     public class AsteroidRock : MonoBehaviour, IDamageable, ISurface

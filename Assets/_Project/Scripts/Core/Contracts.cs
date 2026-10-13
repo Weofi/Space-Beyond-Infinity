@@ -93,7 +93,10 @@ namespace Voidward.Core
         /// <summary>A modal UI panel is open — gameplay input (look/fire/interact) is suppressed.</summary>
         public static bool UIOpen;
         public static GamePhase Phase = GamePhase.MainMenu;
-        public static int SectorIndex = 1;
+        /// <summary>1-based galaxy of the journey home (1 = M33 ... 5 = LMC).</summary>
+        public static int GalaxyIndex = 1;
+        /// <summary>0-based star system inside the current galaxy.</summary>
+        public static int SystemIndex;
         /// <summary>Camera shake offset applied by the VFX service to the local view.</summary>
         public static float ShakeIntensity;
         /// <summary>Local camera impulse: FOV offset in degrees (negative = punch in), decays back to 0.</summary>
@@ -103,17 +106,13 @@ namespace Voidward.Core
         public static bool HitStopActive => Time.unscaledTime < HitStopUntil;
         /// <summary>Local weapon recoil 0..~1.5 (viewmodel / seat camera kick), decays back to 0. Already scaled by Screen shake.</summary>
         public static float Recoil;
-        /// <summary>World X of the Collapse front (everything with x below is consumed).</summary>
-        public static float CollapseX = -99999f;
-        public static Vector3 GatePosition;
-        public static bool HasGate;
         public static string Objective = "";
         public static float FieldOfView = 75f;
         /// <summary>The intro camera sequence owns the view; gameplay input is suppressed.</summary>
         public static bool Cinematic;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; SectorIndex = 1; ShakeIntensity = 0f; FovPunch = 0f; HitStopUntil = 0f; Recoil = 0f; CollapseX = -99999f; HasGate = false; Objective = ""; Cinematic = false; }
+        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; GalaxyIndex = 1; SystemIndex = 0; ShakeIntensity = 0f; FovPunch = 0f; HitStopUntil = 0f; Recoil = 0f; Objective = ""; Cinematic = false; }
 
         public static bool GameplayInputAllowed => !UIOpen && !Cinematic && Phase == GamePhase.Playing;
     }

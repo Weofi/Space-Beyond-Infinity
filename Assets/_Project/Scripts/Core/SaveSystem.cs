@@ -40,6 +40,8 @@ namespace Voidward.Core
             return new T();
         }
 
+        public static bool Exists(string key) => File.Exists(PathFor(key));
+
         public static void Delete(string key)
         {
             string p = PathFor(key);

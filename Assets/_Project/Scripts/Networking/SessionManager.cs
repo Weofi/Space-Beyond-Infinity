@@ -32,6 +32,10 @@ namespace Voidward.Networking
         public event Action<ulong> ClientDisconnected;
         /// <summary>Host pressed Start in the lobby — the world run should begin (RunManager listens).</summary>
         public event Action RunStartRequested;
+        /// <summary>Host pressed Continue in the lobby: resume the suspend-saved run (#46).</summary>
+        public event Action RunContinueRequested;
+        /// <summary>Host only, right before the session shuts down (leave or quit): write the suspend save.</summary>
+        public event Action BeforeLeave;
         /// <summary>Host: the server side is up (spawn the game director here).</summary>
         public event Action ServerStarted;
 
@@ -77,6 +81,12 @@ namespace Voidward.Networking
             EventBus.PingRequested -= OnPingRequested;
             EventBus.PhaseChanged -= OnPhaseChanged;
             try { Steam?.Shutdown(); } catch { }
+        }
+
+        void OnApplicationQuit()
+        {
+            var nm = Net;
+            if (nm != null && nm.IsHost) BeforeLeave?.Invoke();
         }
 
         void OnPingRequested(Vector3 pos, PingKind kind, string label) => NetworkPlayer.SendPing(pos, kind, label);
@@ -294,8 +304,9 @@ namespace Voidward.Networking
         public void LeaveGame()
         {
             intentionalShutdown = true;
-            try { Steam.LeaveLobby(); } catch { }
             var nm = Net;
+            if (nm != null && nm.IsHost) BeforeLeave?.Invoke();
+            try { Steam.LeaveLobby(); } catch { }
             if (nm != null && (nm.IsHost || nm.IsClient))
             {
                 UnhookCallbacks(nm);
@@ -315,6 +326,14 @@ namespace Voidward.Networking
                 return;
             }
             RunStartRequested?.Invoke();
+        }
+
+        /// <summary>Host only: resume the suspend-saved run.</summary>
+        public void ContinueRun()
+        {
+            var nm = Net;
+            if (nm == null || !nm.IsHost) return;
+            RunContinueRequested?.Invoke();
         }
     }
 }
