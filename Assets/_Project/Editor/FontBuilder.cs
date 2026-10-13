@@ -38,6 +38,16 @@ namespace Voidward.EditorTools
         {
             var font = AssetDatabase.LoadAssetAtPath<Font>(src);
             if (font == null) { Debug.LogError("[Voidward] Font not found: " + src); return null; }
+            // Re-baking assigns fresh sub-asset fileIDs (material, atlas) and shows up as a git diff on every
+            // content build, so keep the existing asset while it still matches source, size and glyph set.
+            // (Static assets drop sourceFontFile, so compare the serialized source GUID instead.)
+            var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(dst);
+            var srcGuid = existing != null ? new SerializedObject(existing).FindProperty("m_SourceFontFileGUID") : null;
+            if (existing != null && srcGuid != null && srcGuid.stringValue == AssetDatabase.AssetPathToGUID(src)
+                && existing.faceInfo.pointSize == pointSize
+                && existing.atlasPadding == padding && existing.atlasWidth == atlas
+                && existing.characterTable.Count == chars.Length && existing.HasCharacters(chars))
+                return existing;
             AssetDatabase.DeleteAsset(dst);
             var fa = TMP_FontAsset.CreateFontAsset(font, pointSize, padding, GlyphRenderMode.SDFAA, atlas, atlas, AtlasPopulationMode.Dynamic, false);
             fa.name = System.IO.Path.GetFileNameWithoutExtension(dst);
