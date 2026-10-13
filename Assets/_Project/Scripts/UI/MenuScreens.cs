@@ -452,6 +452,11 @@ namespace Voidward.UI
             UIKit.Toggle(content, "VSync", s.VSync, v => { s.VSync = v; s.Save(); });
             SliderRow(content, "Field of view", 60, 100, s.Fov, v => { s.Fov = v; s.Save(); });
 
+            Label(content, "Feedback");
+            SliderRow(content, "Screen shake", 0, 1, s.ScreenShake, v => { s.ScreenShake = v; s.Save(); });
+            SliderRow(content, "Hit-stop", 0, 1, s.HitStop, v => { s.HitStop = v; s.Save(); });
+            UIKit.Toggle(content, "Damage numbers", s.DamageNumbers, v => { s.DamageNumbers = v; s.Save(); });
+
             Label(content, "Audio");
             SliderRow(content, "Master", 0, 1, s.Master, v => { s.Master = v; s.Save(); });
             SliderRow(content, "Music", 0, 1, s.Music, v => { s.Music = v; s.Save(); });

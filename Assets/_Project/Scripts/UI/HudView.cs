@@ -48,6 +48,8 @@ namespace Voidward.UI
         readonly TextMeshProUGUI hitLabel;
         float hitTime = -9f;
         Color hitColor;
+        int hitKind;   // 0 = hit, 1 = crit, 2 = kill, 3 = shielded
+        readonly DamageNumbers numbers;
         readonly RectTransform promptPlate;
         readonly TextMeshProUGUI prompt;
         string promptShown = null;
@@ -124,6 +126,7 @@ namespace Voidward.UI
             arkMarker = new HudMarker(markerLayer);
             shipMarker = new HudMarker(markerLayer);
             for (int i = 0; i < bossMarkers.Length; i++) bossMarkers[i] = new HudMarker(markerLayer);
+            numbers = new DamageNumbers(markerLayer);
 
             // ---------------------------------------------------------- vitals (bottom-left)
             var vit = HudKit.Plate(root, "Vitals").rectTransform;
@@ -355,7 +358,7 @@ namespace Voidward.UI
             EventBus.Notification += OnNotification;
             EventBus.PingCreated += (p, k, l) => { pings.Add(new Ping { Pos = p, Kind = k, Label = l, Until = Time.time + 14f }); Sfx.PlayUI("ping", 0.6f); };
             EventBus.LocalPlayerHurt += i => vignetteAlpha = Mathf.Max(vignetteAlpha, 0.25f + i * 0.5f);
-            HealthComponent.AnyDamagedClient += OnAnyDamaged;
+            FeedbackFx.LocalHitLanded += OnLocalHit;
             HealthComponent.AnyImmuneClient += OnAnyImmune;
             hook = new HealthComponentHook();
         }
@@ -375,12 +378,14 @@ namespace Voidward.UI
 
         static ulong LocalId => NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : 0;
 
-        void OnAnyDamaged(HealthComponent h, DamageInfo info)
+        // Hit marker (#43): white ticks for hits, yellow for crits (weak points), a bigger red X for kills + combo.
+        void OnLocalHit(LocalHit h)
         {
-            if (!info.ByPlayer || info.SourceClientId != LocalId || h == null || h.Team == Team.Players) return;
+            if (hitKind == 2 && !h.Killed && Time.unscaledTime - hitTime < 0.25f) return; // let the kill X finish
             hitTime = Time.unscaledTime;
-            hitColor = info.IsWeakPoint ? HudKit.Fuel : HudKit.Hex(0xF87171);
-            hitLabel.text = !h.IsAlive ? "KILL" : info.IsWeakPoint ? "WEAK POINT" : "";
+            hitKind = h.Killed ? 2 : h.Crit ? 1 : 0;
+            hitColor = h.Killed ? HudKit.Hex(0xF87171) : h.Crit ? HudKit.Fuel : HudKit.TextHi;
+            hitLabel.text = h.Killed ? (h.Combo > 1 ? "KILL  x" + h.Combo : "KILL") : h.Crit ? "WEAK POINT" : "";
             hitLabel.color = hitColor;
         }
 
@@ -388,6 +393,7 @@ namespace Voidward.UI
         {
             if (shooter != LocalId) return;
             hitTime = Time.unscaledTime;
+            hitKind = 3;
             hitColor = HudKit.TextDim;
             hitLabel.text = "SHIELDED";
             hitLabel.color = hitColor;
@@ -507,6 +513,7 @@ namespace Voidward.UI
             crew.Update(cam, pawn, sectorStartX, sectorEndX - sectorStartX);
 
             UpdateBoss();
+            numbers.Update(cam);
             if (cam != null)
             {
                 UpdateMarkers(cam, pawn);
@@ -589,19 +596,25 @@ namespace Voidward.UI
             bool cross = seat == null ? pawn.CurrentSeat == null : seat.Role != StationRole.Engineer;
             crossRing.enabled = crossPip.enabled = cross;
 
-            // Hit marker: 4 diagonal ticks bloom 12 -> 24 px over 80 ms, then fade.
+            // Hit marker: 4 diagonal ticks bloom out over 80 ms, then fade. Crits are longer, kills a big held X.
             float t = Time.unscaledTime - hitTime;
-            bool show = t < 0.35f;
+            bool kill = hitKind == 2, crit = hitKind == 1;
+            float dur = kill ? 0.6f : crit ? 0.42f : 0.35f;
+            bool show = t < dur;
+            Vector2 tick = kill ? new Vector2(4f, 18f) : crit ? new Vector2(3f, 14f) : new Vector2(2.5f, 11f);
+            float r0 = kill ? 30f : 12f, r1 = kill ? 22f : crit ? 27f : 24f;
             for (int i = 0; i < 4; i++)
             {
                 hitTicks[i].enabled = show;
                 if (!show) continue;
-                float r = Mathf.Lerp(12f, 24f, Mathf.Clamp01(t / 0.08f));
+                float r = Mathf.Lerp(r0, r1, Mathf.Clamp01(t / 0.08f));
                 float a = (45f + 90f * i) * Mathf.Deg2Rad;
+                hitTicks[i].rectTransform.sizeDelta = tick;
                 hitTicks[i].rectTransform.anchoredPosition = new Vector2(-Mathf.Sin(a), Mathf.Cos(a)) * r;
-                hitTicks[i].color = new Color(hitColor.r, hitColor.g, hitColor.b, 1f - Mathf.Clamp01((t - 0.12f) / 0.23f));
+                hitTicks[i].color = new Color(hitColor.r, hitColor.g, hitColor.b, 1f - Mathf.Clamp01((t - dur * 0.35f) / (dur * 0.65f)));
             }
-            hitLabel.alpha = show ? 1f - Mathf.Clamp01((t - 0.2f) / 0.15f) : 0f;
+            hitLabel.alpha = show ? 1f - Mathf.Clamp01((t - dur * 0.6f) / (dur * 0.4f)) : 0f;
+            hitLabel.fontSize = kill ? 17f : 13f;
 
             string p = pawn.Prompt;
             if (p != promptShown)

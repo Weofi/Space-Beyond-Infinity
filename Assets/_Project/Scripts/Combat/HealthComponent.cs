@@ -126,6 +126,7 @@ namespace Voidward.Combat
             info.Amount = amount;
             if (amount > 0f)
                 Hp.Value = Mathf.Max(0f, Hp.Value - amount);
+            info.Killed = Hp.Value <= 0f;
             DamagedClientRpc(info);
 
             if (Hp.Value <= 0f)
@@ -176,6 +177,7 @@ namespace Voidward.Combat
         {
             DamagedClient?.Invoke(info);
             AnyDamagedClient?.Invoke(this, info);
+            FeedbackFx.OnDamagedClient(this, info);
         }
 
         /// <summary>Damage whatever IDamageable owns the hit collider, from any peer.</summary>

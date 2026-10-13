@@ -84,6 +84,9 @@ namespace Voidward.Player
         float mineTick;
         float magnetTimer;
         float shakeSeed;
+        bool hitStopHeld;
+        Vector3 hitStopPos;
+        Quaternion hitStopRot;
         IInteractable focused;
         Transform platform;
         Vector3 platformLocalPos;
@@ -223,13 +226,33 @@ namespace Voidward.Player
                 if (IsOwner && cameraPoint != null)
                     cameraPoint.SetPositionAndRotation(CurrentSeat.ViewPoint.position, CurrentSeat.ViewPoint.rotation);
             }
-            if (IsOwner && cameraPoint != null) ApplyShake();
-            if (IsOwner && vcam != null && Mathf.Abs(vcam.Lens.FieldOfView - GameState.FieldOfView) > 0.1f)
+            if (IsOwner && cameraPoint != null) { ApplyShake(); ApplyHitStop(); }
+            float fov = GameState.FieldOfView + GameState.FovPunch;
+            if (IsOwner && vcam != null && Mathf.Abs(vcam.Lens.FieldOfView - fov) > 0.05f)
             {
                 var lens = vcam.Lens;
-                lens.FieldOfView = GameState.FieldOfView;
+                lens.FieldOfView = fov;
                 vcam.Lens = lens;
             }
+        }
+
+        // Local hit-stop (#43): the view holds its pose for a few frames. On foot the whole camera holds; in a
+        // seat only the rotation, so a fast ship never leaves the camera behind. Purely visual, no timeScale.
+        void ApplyHitStop()
+        {
+            if (!GameState.HitStopActive)
+            {
+                if (hitStopHeld && CurrentSeat == null)
+                {
+                    cameraPoint.localPosition = new Vector3(0f, 1.62f, 0f);
+                    cameraPoint.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+                }
+                hitStopHeld = false;
+                return;
+            }
+            if (!hitStopHeld) { hitStopHeld = true; hitStopPos = cameraPoint.position; hitStopRot = cameraPoint.rotation; }
+            if (CurrentSeat == null) cameraPoint.SetPositionAndRotation(hitStopPos, hitStopRot);
+            else cameraPoint.rotation = hitStopRot;
         }
 
         void ApplyShake()

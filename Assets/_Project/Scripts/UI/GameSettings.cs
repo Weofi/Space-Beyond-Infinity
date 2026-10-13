@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using Voidward.Combat;
 using Voidward.Core;
 
 namespace Voidward.UI
@@ -19,6 +20,10 @@ namespace Voidward.UI
         public bool ShipAimAssist = true;
         public bool InvertY;
         public float Fov = 75f;
+        // Game feel (#43): every strong effect can be turned down.
+        public float ScreenShake = 1f;
+        public bool DamageNumbers = true;
+        public float HitStop = 1f;
         public string PlayerName = "";
 
         static GameSettings current;
@@ -47,6 +52,9 @@ namespace Voidward.UI
             VwInput.ShipAimAssist = ShipAimAssist;
             VwInput.InvertY = InvertY;
             GameState.FieldOfView = Fov;
+            Vfx.ShakeScale = Mathf.Clamp01(ScreenShake);
+            FeedbackFx.DamageNumbers = DamageNumbers;
+            FeedbackFx.HitStopScale = Mathf.Clamp01(HitStop);
             Applied?.Invoke();
         }
     }

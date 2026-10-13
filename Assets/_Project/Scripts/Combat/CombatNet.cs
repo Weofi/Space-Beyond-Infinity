@@ -328,16 +328,7 @@ namespace Voidward.Combat
                 RemoveVisual(p);
             }
             var spec = GetSpec(kind);
-            if (spec.Aoe > 0f)
-            {
-                Vfx.Explosion(point, spec.Aoe * 0.6f, spec.Color * 0.5f);
-                Sfx.Play(spec.Aoe > 8f ? "explosion_big" : "explosion", point, 1f, Random.Range(0.9f, 1.1f));
-            }
-            else
-            {
-                Vfx.LaserImpact(point);
-                Sfx.Play("hit", point, 0.6f, Random.Range(0.9f, 1.2f));
-            }
+            FeedbackFx.ProjectileImpact(point, spec.Aoe, spec.Color);
         }
 
         void SimulateVisuals(float dt)
