@@ -7,9 +7,11 @@ using Voidward.AI;
 using Voidward.Combat;
 using Voidward.Core;
 using Voidward.Data;
+using Voidward.Inventory;
 using Voidward.Networking;
 using Voidward.Planet;
 using Voidward.Player;
+using Voidward.Progression;
 using Voidward.Ship;
 using Voidward.World;
 
@@ -364,6 +366,56 @@ namespace Voidward.Dev
         public static void ClearDecals() { if (G.Get<IVfxService>() is VfxManager v) v.ClearDecals(); }
 
         public static int DecalCount => G.Get<IVfxService>() is VfxManager v ? v.DecalCount : 0;
+
+        // ------------------------------------------------------------------ loot & music (#43 part 4)
+
+        /// <summary>One item per rarity: Common, Uncommon, Rare, Epic.</summary>
+        public static readonly string[] RarityItems = { "ore", "cell", "gear_suit_mk2", "gear_suit_mk3" };
+
+        /// <summary>Server: drop an item that pops out of 'from' (like an enemy / crate drop) and lands nearby.</summary>
+        public static WorldPickup DropLoot(string itemId, Vector3 from, int count = 1)
+        {
+            if (!IsServer) { Log("DropLoot needs the host"); return null; }
+            return WorldPickup.SpawnServer(itemId, count, from);
+        }
+
+        /// <summary>Server: drop one item of every rarity from 'from' (beam / colour / landing check).</summary>
+        public static void DropRarityRow(Vector3 from)
+        {
+            foreach (var id in RarityItems) DropLoot(id, from);
+        }
+
+        /// <summary>Live drops, and how many of them the local magnet is pulling in.</summary>
+        public static int LootCount => WorldPickup.All.Count;
+        public static int LootMagnetized { get { int n = 0; foreach (var p in WorldPickup.All) if (p != null && p.Magnetized) n++; return n; } }
+
+        /// <summary>Server: remove every drop.</summary>
+        public static void ClearLoot()
+        {
+            if (!IsServer) return;
+            foreach (var p in WorldPickup.All.ToArray()) if (p != null && p.IsSpawned) p.NetworkObject.Despawn(true);
+        }
+
+        /// <summary>Client: force the music threat level (0..1) and the boss layer for some seconds (level &lt; 0 clears).</summary>
+        public static void SetThreat(float level, bool boss = false, float seconds = 30f) => Threat.Override(level, boss, seconds);
+
+        /// <summary>"threat 0.80 boss False | combat 0.95 bossMix 0.00" (also logged as [Dev] music &lt;tag&gt; ...).</summary>
+        public static string MusicState => $"threat {Threat.Level:0.00} boss {Threat.BossNear} | combat {AudioManager.CombatMix:0.00} bossMix {AudioManager.BossMix:0.00}";
+        public static void LogMusic(string tag) => Log("music " + tag + " " + MusicState);
+
+        /// <summary>Local meta save: add Stardust (perk unlock tests in the Hangar). Call BackupMeta first: this is the real save.</summary>
+        public static void AddStardust(int amount) { Meta.Data.Stardust += amount; Meta.Save(); }
+
+        static string metaBackup;
+        /// <summary>Snapshot the local meta save (Stardust, perks) before a test that changes it; RestoreMeta puts it back.</summary>
+        public static void BackupMeta() => metaBackup = JsonUtility.ToJson(Meta.Data);
+        public static void RestoreMeta()
+        {
+            if (string.IsNullOrEmpty(metaBackup)) { Log("RestoreMeta: no backup"); return; }
+            JsonUtility.FromJsonOverwrite(metaBackup, Meta.Data);
+            Meta.Save();
+            Log("meta restored (stardust " + Meta.Data.Stardust + ")");
+        }
 
         // ------------------------------------------------------------------ shots
 

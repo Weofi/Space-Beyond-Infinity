@@ -16,7 +16,7 @@ namespace Voidward.AI
     /// HP scales with player count.
     /// </summary>
     [RequireComponent(typeof(HealthComponent))]
-    public class BossBrain : NetworkBehaviour
+    public class BossBrain : NetworkBehaviour, IThreatSource
     {
         public HealthComponent[] Pods = new HealthComponent[0];
         public Transform[] Muzzles = new Transform[0];
@@ -39,6 +39,12 @@ namespace Voidward.AI
 
         void Awake() => hull = GetComponent<HealthComponent>();
 
+        // Dynamic music (#43): the boss layer plays while the boss is alive and the listener is in the arena.
+        Vector3 IThreatSource.Position => transform.position;
+        float IThreatSource.Engagement => hull != null && hull.IsAlive ? 1f : 0f;
+        float IThreatSource.ThreatRadius => 1600f;
+        bool IThreatSource.IsBoss => hull != null && hull.IsAlive;
+
         /// <summary>Server: before Spawn().</summary>
         public void Configure(int players, float tier)
         {
@@ -50,6 +56,7 @@ namespace Voidward.AI
         public override void OnNetworkSpawn()
         {
             Instance = this;
+            Threat.Register(this);
             Phase.OnValueChanged += OnPhaseChanged;
             foreach (var p in Pods) if (p) p.HealthChanged += (hp, max) => { if (hp <= 0f) HidePod(p); };
             if (IsServer)
@@ -65,6 +72,7 @@ namespace Voidward.AI
         public override void OnNetworkDespawn()
         {
             if (Instance == this) Instance = null;
+            Threat.Unregister(this);
             Phase.OnValueChanged -= OnPhaseChanged;
             if (IsServer) hull.Died -= OnDied;
         }

@@ -24,6 +24,8 @@ namespace Voidward.Core
         void JumpFlash(Vector3 pos);
         void AtmosphereEntryFlash();
         void PickupSparkle(Vector3 pos, Color tint);
+        /// <summary>Loot pickup / landing burst; tier = rarity 0..3 (rare+ adds a shock ring and a light pop).</summary>
+        void LootSparkle(Vector3 pos, Color tint, float scale, int tier);
         /// <summary>Extra kill burst on top of an explosion: lit debris chunks, hot sparks and a second shock ring.</summary>
         void KillBurst(Vector3 pos, float radius, Color tint);
         /// <summary>Camera shake for the local player, intensity 0..1 (scaled by Vfx.ShakeScale).</summary>
@@ -49,6 +51,7 @@ namespace Voidward.Core
         public static void JumpFlash(Vector3 pos) { if (G.TryGet<IVfxService>(out var v)) v.JumpFlash(pos); }
         public static void AtmosphereEntry() { if (G.TryGet<IVfxService>(out var v)) v.AtmosphereEntryFlash(); }
         public static void PickupSparkle(Vector3 pos, Color tint) { if (G.TryGet<IVfxService>(out var v)) v.PickupSparkle(pos, tint); }
+        public static void LootSparkle(Vector3 pos, Color tint, float scale, int tier) { if (G.TryGet<IVfxService>(out var v)) v.LootSparkle(pos, tint, scale, tier); }
         public static void KillBurst(Vector3 pos, float radius, Color tint) { if (G.TryGet<IVfxService>(out var v)) v.KillBurst(pos, radius, tint); }
         /// <summary>Local camera impulse: short FOV punch (degrees, negative = in) plus a sharp shake.</summary>
         public static void Impulse(float fovDegrees, float shake)

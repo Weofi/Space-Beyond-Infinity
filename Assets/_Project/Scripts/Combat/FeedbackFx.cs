@@ -2,6 +2,7 @@ using System;
 using Unity.Netcode;
 using UnityEngine;
 using Voidward.Core;
+using Voidward.Data;
 
 namespace Voidward.Combat
 {
@@ -20,7 +21,9 @@ namespace Voidward.Combat
     /// Central game-feel service (#43): hit markers, hit sounds, damage numbers, kill feedback, camera impulses,
     /// the local hit-stop, and weapon feedback (muzzle flash + light, recoil, surface impacts, scorch decals). Purely client-side and cosmetic: hooks are the client RPCs of HealthComponent
     /// (damage, kills) and CombatNet (projectile impacts); nothing here touches simulation or Time.timeScale.
-    /// Strength settings (shake, numbers, hit-stop) are pushed in by GameSettings.Apply.
+    /// Part 4: loot (pop-out, landing, rarity pickup bursts), unlock celebration sounds and the combat heat that
+    /// drives the dynamic music (Threat). Strength settings (shake, numbers, hit-stop, reward effects) are pushed
+    /// in by GameSettings.Apply.
     /// </summary>
     public static class FeedbackFx
     {
@@ -30,6 +33,8 @@ namespace Voidward.Combat
         public static float HitStopScale = 1f;
         /// <summary>Player setting: low-health pulse vignette + heartbeat / hull klaxon.</summary>
         public static bool LowHealthWarning = true;
+        /// <summary>Player setting: loot beams, pickup bursts and unlock celebrations, 0..1 (0 = minimal).</summary>
+        public static float RewardFx = 1f;
 
         /// <summary>Local player hit (or killed) an enemy. HUD hit marker + damage numbers listen.</summary>
         public static event Action<LocalHit> LocalHitLanded;
@@ -37,7 +42,8 @@ namespace Voidward.Combat
         const float ComboWindow = 3.5f;
         static int combo;
         static float comboUntil, nextHitSound, streakUntil, nextHurtSound;
-        static int streak;
+        static int streak, pickupStreak;
+        static float pickupStreakUntil, nextLandSound;
 
         /// <summary>Kills in the running combo (0 when the window has expired).</summary>
         public static int Combo => Time.unscaledTime < comboUntil ? combo : 0;
@@ -49,6 +55,7 @@ namespace Voidward.Combat
         {
             LocalHitLanded = null;
             combo = 0; comboUntil = 0f; nextHitSound = 0f; streak = 0; streakUntil = 0f; nextHurtSound = 0f;
+            pickupStreak = 0; pickupStreakUntil = 0f; nextLandSound = 0f;
         }
 
         static ulong LocalId => NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : 0;
@@ -61,6 +68,7 @@ namespace Voidward.Combat
             if (h == null || !info.ByPlayer || h.Team == Team.Players || info.SourceClientId != LocalId) return;
             float now = Time.unscaledTime;
             var hit = new LocalHit { Target = h, Point = info.Point, Amount = info.Amount, Crit = info.IsWeakPoint, Killed = info.Killed };
+            if (h.Team == Team.Pirates || h.Team == Team.Aliens) Threat.Bump(info.Killed ? 0.3f : 0.15f);
 
             if (info.Killed)
             {
@@ -210,6 +218,7 @@ namespace Voidward.Combat
         public static void LocalHurt(float intensity, bool shield)
         {
             intensity = Mathf.Clamp01(intensity);
+            Threat.Bump(0.25f + intensity * 0.3f);
             if (shield) { Vfx.Shake(0.05f + intensity * 0.15f); return; }
             Vfx.Shake(0.12f + intensity * 0.4f);
             float now = Time.unscaledTime;
@@ -240,6 +249,69 @@ namespace Voidward.Combat
             if (ship) Sfx.Play2D("hull_alarm", 0.35f + severity * 0.25f, 1f);
             else Sfx.Play2D("heartbeat", 0.55f + severity * 0.4f, 1f + severity * 0.08f);
         }
+
+        // ------------------------------------------------------------ loot & progress (#43 part 4)
+
+        /// <summary>Every client: a drop pops out of its source (enemy, crate). Little spatial pop, brighter for rare loot.</summary>
+        public static void LootPopped(Vector3 from, Rarity r)
+        {
+            int t = (int)r;
+            Sfx.Play("loot_pop", from, 0.45f + t * 0.1f, UnityEngine.Random.Range(0.94f, 1.08f) + t * 0.05f);
+        }
+
+        /// <summary>Every client: a drop finished its arc. Dust puff + thunk; rare loot chimes, epic loot sparkles.</summary>
+        public static void LootLanded(Vector3 pos, Vector3 up, Rarity r, Color rarityColor)
+        {
+            int t = (int)r;
+            Vfx.Impact(pos, up, SurfaceKind.Dirt, Color.white, 0.22f);
+            float now = Time.unscaledTime;
+            if (now >= nextLandSound || r >= Rarity.Rare)
+            {
+                nextLandSound = now + 0.06f;
+                Sfx.Play(r >= Rarity.Rare ? "loot_land_rare" : "loot_land", pos, 0.55f + t * 0.1f, UnityEngine.Random.Range(0.92f, 1.08f) + (r == Rarity.Epic ? -0.1f : 0f));
+            }
+            float fx = Mathf.Clamp01(RewardFx);
+            if (r == Rarity.Epic && fx > 0f) Vfx.LootSparkle(pos + up * 0.6f, rarityColor.linear, 0.8f * fx, 2);
+        }
+
+        /// <summary>
+        /// Every client, when a drop is collected. Burst in rarity colours (bigger for rarer loot); the collector
+        /// hears a 2D chime per rarity whose pitch climbs while picking up a lot in a row, epic loot adds a gold flash.
+        /// </summary>
+        public static void LootCollected(Vector3 pos, Rarity r, Color itemTint, bool local)
+        {
+            int t = (int)r;
+            float fx = Mathf.Clamp01(RewardFx);
+            Color c = Color.Lerp(itemTint, LootRarity.ColorOf(r), r == Rarity.Common ? 0.2f : 0.7f).linear;
+            if (!local)
+            {
+                Vfx.LootSparkle(pos, c, (0.7f + t * 0.3f) * Mathf.Lerp(0.45f, 1f, fx), fx > 0.3f ? t : Mathf.Min(t, 1));
+                Sfx.Play("pickup", pos, 0.35f, 1f + t * 0.06f);
+                return;
+            }
+            // The collector's burst happens right below the camera: keep it small (no ring / light), the 2D chime
+            // and the HUD notification carry the reward.
+            Vfx.LootSparkle(pos, c, (0.25f + t * 0.08f) * Mathf.Lerp(0.5f, 1f, fx), 0);
+            float now = Time.unscaledTime;
+            pickupStreak = now < pickupStreakUntil ? Mathf.Min(pickupStreak + 1, 7) : 0;
+            pickupStreakUntil = now + 0.9f;
+            string id = r == Rarity.Common ? "pickup" : r == Rarity.Uncommon ? "pickup_uncommon" : r == Rarity.Rare ? "pickup_rare" : "pickup_epic";
+            Sfx.Play2D(id, 0.6f + t * 0.1f, 1f + pickupStreak * 0.06f);
+            if (r == Rarity.Epic && fx > 0f)
+            {
+                Vfx.ScreenFlash(new Color(1f, 0.78f, 0.3f, 0.07f * fx), 0.4f);
+                Vfx.Impulse(-1.5f * fx, 0f);
+            }
+        }
+
+        /// <summary>A perk was unlocked (hangar): rising fanfare. The UI plays the matching card burst.</summary>
+        public static void PerkUnlocked() => Sfx.PlayUI("unlock", 1f);
+
+        /// <summary>Results screen Stardust count-up: one tick per step (pitch climbs with progress 0..1).</summary>
+        public static void StardustTick(float progress01) => Sfx.Play2D("blip", 0.5f, 1.4f + progress01 * 0.8f);
+
+        /// <summary>Count-up finished: chime, plus a sparkle burst in the UI.</summary>
+        public static void StardustDone(int amount) => Sfx.PlayUI(amount > 0 ? "stardust" : "ui_back", 1f);
 
         /// <summary>Local, visual-only hit-stop (camera + effects hold). Scaled by the player setting.</summary>
         public static void HitStop(float seconds)

@@ -82,7 +82,6 @@ namespace Voidward.Player
         float jumpBuffer;
         float toolTimer;
         float mineTick;
-        float magnetTimer;
         float shakeSeed;
         bool hitStopHeld;
         Vector3 hitStopPos;
@@ -213,12 +212,12 @@ namespace Voidward.Player
             UpdateTools(input);
             if (input && VwInput.Pressed(VwInput.Ping)) DoPing();
 
-            magnetTimer -= Time.deltaTime;
-            if (magnetTimer <= 0f)
+            // Loot magnet (#43): drops in range fly into the pawn (WorldPickup animates and requests the pickup).
+            foreach (var p in WorldPickup.All)
             {
-                magnetTimer = 0.25f;
-                foreach (var p in WorldPickup.All)
-                    if (p != null && (p.transform.position - transform.position).sqrMagnitude < 2.4f * 2.4f) p.RequestPickup();
+                if (p == null) continue;
+                float r = p.MagnetRadius;
+                if ((p.transform.position - transform.position).sqrMagnitude < r * r) p.Attract(transform);
             }
         }
 
