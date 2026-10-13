@@ -55,12 +55,21 @@ One issue = one branch = one PR. Don't mix issues.
 - Don't edit C# while Unity is in Play Mode (a domain reload breaks statics).
 - Compile check: read `Logs/Editor.log` after the last "Requested script compilation" and grep `): error CS`.
 - `Unity_RunCommand` returns "Unity not detected" while compiling/reloading → just retry. System.Reflection is not allowed there.
-- Run menu items (`Voidward/Build All Content`, `Voidward/Build/...`) via ManageMenuItem, not RunCommand.
-- Quick play test via RunCommand: `SessionManager.Instance.HostGame()`, then `SessionManager.Instance.StartRun()`. The run intro waits for input the unfocused Game view never gets: skip it with `Voidward.UI.UIRoot.Instance.SkipIntro()`. Screenshot: `ScreenCapture.CaptureScreenshot("/tmp/x.png")` (Windows: a path in the scratchpad/temp dir).
-- MP test (Mac): Editor host + `Builds/macOS-Dev/Voidward.app/Contents/MacOS/Voidward -transport=utp -autojoin=127.0.0.1`; afterwards `pkill -f Voidward.app`.
-- MP test (Windows): Editor host + `Builds/Windows-Dev/Voidward.exe -transport=utp -autojoin=127.0.0.1`; afterwards `Stop-Process -Name Voidward`.
+- Run menu items (`Voidward/Build All Content`, `Voidward/Build/...`) via ManageMenuItem, not RunCommand. Exception: dev builds, see the testing playbook.
+- Never call `AssetDatabase.Refresh`/`ImportAsset` in Play Mode: it can trigger a script recompile + domain reload that breaks the session (UIRoot NREs). Shader tweaks: exit Play Mode first, or check them in Edit Mode (render a quad with the material).
 - Target: zero console errors/warnings from Voidward code. Known foreign noise: AI Inference tensor warnings, PreviewRenderUtility leak.
 - Unity skills (`.agents/skills`, from `Unity-Technologies/skills`, lock: `skills-lock.json`): use them as domain knowledge only. Implement their recommendations in the builder code (`ContentBuilder`/`PrefabBuilder`/`SceneBuilder`) or in runtime code, never as direct edits to generated scenes/prefabs/assets. Update: `npx skills update -p`.
+
+## Testing playbook (dev harness, #65)
+Goal: test the situation, not a whole run, and keep tool output small. Harness = `Scripts/Dev` (`Voidward.Dev`, editor + development builds only).
+- **Pick the cheapest level**: shader/particle look → Edit Mode (render a quad / `DevShots.Shot(name, pose)` works outside Play Mode) or the Lab; gameplay in context → `QuickStart` + a few shots; MP only when RPCs/NetworkVariables/authority changed.
+- **Start** (one RunCommand line from Edit Mode, survives the domain reload): `Voidward.Dev.DevTest.Play(Voidward.Dev.DevScenario.Lab)`; then `bash Tools/Dev/dev-wait.sh quickstart` (no sleeps). Scenarios: `Space` (pilot seat), `Planet` (on foot, sunlit dry ground, blaster, god mode), `Lab` (5 test walls Metal/Rock/Dirt/Organic/Shield next to the trader station, same on every peer). Already playing: `DevTest.QuickStart(...)`. Humans: menu `Voidward/Dev/Play: ...`.
+- **Act**: `DevTest.Fire(kind, from, to)` (server, dmg 0), `Hitscan(from, to)`, `PawnShoot(target, rifle)` + `GroundAhead(dist, side)`, `SpawnEnemy(kind, pos, lookAt)`, `Teleport`, `God`, `ClearDecals`, `DecalCount`; lab: `LabTargets[i]`, `LabGun(i)`, `LabCam`, `LabClose(i)`.
+- **Look**: `DevTest.Sequence("name", seconds, (frame, t) => {...}, new[] { 0.1f, 0.5f, 2f }, DevTest.LabCam)` runs the step every frame and writes ONE contact sheet (640x360 tiles; pose = free camera, omit it for the player's screen incl. HUD) to `%TEMP%/VoidwardDev/name.jpg`; wait with `dev-wait.sh name`. Read sheets instead of many full screenshots. `DevTest.Screen(name)` = single downscaled screen grab.
+- **Log protocol**: every call logs `[Dev] begin <tag>` synchronously and `[Dev] end <tag> ...` (or `FAILED`) when done; `dev-wait.sh <tag> [timeout]` prints the end line (`VW_LOG=<file>` for a client log).
+- **Dev build without log flood**: RunCommand `Voidward.EditorTools.DevBuild.WindowsDevQuiet()` (Mac: `MacDevQuiet()`), returns one line; the menu build via RunCommand returns ~150k chars of foreign shader warnings. `EditorApplication.delayCall` does not fire while the editor is in the background, don't rely on it.
+- **MP**: `DevTest.Play(DevScenario.Lab, 2)` (host waits for 2 players), then `bash Tools/Dev/mp-client.sh lab 3` (dev build with `-autojoin -skipintro -devscenario=lab -devshots=3`; it renders the lab camera every 3 s and logs `[Dev] client1_<t> decals N` into `%TEMP%/VoidwardDev/client.log`). Compare host/client via log lines, look at one client image at most. Stop: `Stop-Process -Name Voidward` / `pkill -f Voidward.app`.
+- Write a test step as a small RunCommand using the harness; if a helper is missing, add it to `DevTest` instead of pasting long ad-hoc scripts.
 
 ## Cross-platform (Mac + Windows)
 - Same Unity version on both machines (`ProjectSettings/ProjectVersion.txt`). Line endings are pinned to LF via `.gitattributes`.

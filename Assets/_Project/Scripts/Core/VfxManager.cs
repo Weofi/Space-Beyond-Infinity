@@ -64,6 +64,9 @@ namespace Voidward.Core
         /// <summary>Live scorch decals (debug / tests).</summary>
         public int DecalCount => decals != null ? decals.LiveCount : 0;
 
+        /// <summary>Hide all scorch decals (dev tests).</summary>
+        public void ClearDecals() => decals?.Clear();
+
         void Update()
         {
             GameState.ShakeIntensity = Mathf.MoveTowards(GameState.ShakeIntensity, 0f, Time.deltaTime * 1.8f);
