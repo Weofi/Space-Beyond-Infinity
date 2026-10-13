@@ -43,13 +43,13 @@ namespace Voidward.Dev
             return cam;
         }
 
-        /// <summary>Render a free camera pose into a new texture (caller owns it).</summary>
-        public static Texture2D Render(DevPose pose, int w = W, int h = H)
+        /// <summary>Render a free camera pose into a new texture (caller owns it). up: camera roll reference (world up by default; pass the local up on planets).</summary>
+        public static Texture2D Render(DevPose pose, int w = W, int h = H, Vector3? up = null)
         {
             var c = ShotCam();
             c.transform.position = pose.Pos;
             var dir = pose.LookAt - pose.Pos;
-            c.transform.rotation = Quaternion.LookRotation(dir.sqrMagnitude > 1e-6f ? dir : Vector3.forward);
+            c.transform.rotation = Quaternion.LookRotation(dir.sqrMagnitude > 1e-6f ? dir : Vector3.forward, up ?? Vector3.up);
             c.fieldOfView = pose.Fov > 1f ? pose.Fov : 50f;
             var rt = RenderTexture.GetTemporary(w, h, 24, RenderTextureFormat.ARGB32);
             c.targetTexture = rt;

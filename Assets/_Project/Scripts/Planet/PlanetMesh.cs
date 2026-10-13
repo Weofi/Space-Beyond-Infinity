@@ -13,6 +13,8 @@ namespace Voidward.Planet
         public Vector3 Origin;
         public Vector3[] Verts, Normals;
         public Vector2[] Uvs;
+        /// <summary>UV1.x = cavity (+ concave, - convex) relative to the vertex spacing, for AO and edge light.</summary>
+        public Vector2[] Uvs2;
         public Bounds Bounds;
         public float MinRadius, MaxRadius;
         /// <summary>Optional surface props for this chunk (positions relative to Origin).</summary>
@@ -125,6 +127,9 @@ namespace Voidward.Planet
             {
                 var normals = new Vector3[verts.Length];
                 var uvs = new Vector2[verts.Length];
+                var uvs2 = new Vector2[verts.Length];
+                float spacing = R * Mathf.PI * 0.5f / (n << level);
+                Vector3 o = data.Origin;
                 for (int j = 0; j <= n; j++)
                     for (int i = 0; i <= n; i++)
                     {
@@ -134,6 +139,10 @@ namespace Voidward.Planet
                         if (Vector3.Dot(nn, dirs[vi]) < 0f) nn = -nn;
                         normals[vi] = nn;
                         uvs[vi] = new Vector2(terrain.GradientCoord(elev[vi]), terrain.RegionAt(dirs[vi]));
+                        // Discrete Laplacian of the radius: how far the neighbours rise above this vertex.
+                        float rc = (pos[c] + o).magnitude;
+                        float avg = ((pos[c + 1] + o).magnitude + (pos[c - 1] + o).magnitude + (pos[c + s] + o).magnitude + (pos[c - s] + o).magnitude) * 0.25f;
+                        uvs2[vi] = new Vector2((avg - rc) / spacing, 0f);
                     }
                 // Skirt: duplicate the boundary loop, pushed toward the planet center.
                 float chunkSize = R * Mathf.PI * 0.5f / (1 << level);
@@ -146,9 +155,11 @@ namespace Voidward.Planet
                     verts[vi] = verts[e] - dirs[e] * depth;
                     normals[vi] = normals[e];
                     uvs[vi] = uvs[e];
+                    uvs2[vi] = uvs2[e];
                 }
                 data.Normals = normals;
                 data.Uvs = uvs;
+                data.Uvs2 = uvs2;
             }
             data.Verts = verts;
             Vector3 min = verts[0], max = verts[0];
@@ -218,6 +229,7 @@ namespace Voidward.Planet
             mesh.SetVertices(d.Verts);
             if (d.Normals != null) mesh.SetNormals(d.Normals);
             if (d.Uvs != null) mesh.SetUVs(0, d.Uvs);
+            if (d.Uvs2 != null) mesh.SetUVs(1, d.Uvs2);
             mesh.SetTriangles(Triangles(d.N, d.ColliderOnly), 0, false);
             mesh.bounds = d.Bounds;
             return mesh;

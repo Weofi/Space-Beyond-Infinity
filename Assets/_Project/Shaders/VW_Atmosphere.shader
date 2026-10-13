@@ -141,6 +141,17 @@ Shader "VOIDWARD/Atmosphere"
                 float coverage = 1.0 - exp(-od * k);
                 float3 avgCol = od > 1e-5 ? colSum / od : 0;
                 float litFrac = od > 1e-5 ? saturate(litSum / od) : 0.0;
+                // Day sky from inside (#70): pale haze at the horizon, deeper and more saturated toward the zenith.
+                float camR = length(ro);
+                if (sky && camR < _AtmoRadius)
+                {
+                    float elev = dot(rd, ro / camR);
+                    float g = smoothstep(-0.04, 0.75, elev);
+                    float3 horizon = lerp(avgCol, _HazeColor.rgb, 0.4) * 1.06;
+                    float lum = dot(avgCol, float3(0.299, 0.587, 0.114));
+                    float3 zenith = lerp(lum.xxx, avgCol, 1.2) * 0.8;
+                    avgCol = lerp(horizon, zenith, g);
+                }
                 // Forward-scatter glow around the sun.
                 float mie = pow(saturate(sunAlign), 12.0) * 0.6 + pow(saturate(sunAlign), 3.0) * 0.15;
                 float3 color = avgCol * coverage * _Strength * (1.0 + mie) * sun.color;
