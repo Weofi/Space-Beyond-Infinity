@@ -60,13 +60,14 @@ Shader "VOIDWARD/Scorch"
                 float n = vnoise(sp) * 0.65 + vnoise(sp * 2.3 + 4.1) * 0.35;
                 // ragged outline + soot splash rays
                 float lump = 0.14 * sin(ang * 5.0 + _Seed * 6.3) + 0.07 * sin(ang * 13.0 - _Seed * 2.1) + (n - 0.5) * 0.3;
-                float soot = 1.0 - smoothstep(0.42, 0.95, d - lump);
-                float rays = pow(saturate(abs(sin(ang * 4.5 + _Seed * 9.1))), 14.0) * (1.0 - smoothstep(0.2, 1.0, d)) * 0.6;
+                float soot = 1.0 - smoothstep(0.15, 0.85, d - lump);
+                // soft splash streaks in the outer soot, never a star: wide lobes, faded at both ends
+                float rays = pow(saturate(abs(sin(ang * 3.5 + _Seed * 9.1))), 4.0) * smoothstep(0.25, 0.55, d) * (1.0 - smoothstep(0.55, 1.0, d)) * 0.15;
                 float core = 1.0 - smoothstep(0.0, 0.42, d + (n - 0.5) * 0.25);
-                float a = saturate(soot * (0.5 + 0.5 * core) + rays * soot) * (0.75 + 0.25 * n) * _Darkness * _Fade;
-                // hot core: bright centre with ember speckles; cools from white-hot through the heat colour to nothing
-                float embers = smoothstep(0.55, 0.85, vnoise(sp * 3.1 - _Seed));
-                float hot = (core * core + embers * soot * 0.35) * _Heat * _Heat;
+                float a = saturate(soot * (0.75 + 0.25 * core) * (0.75 + 0.25 * n) + rays) * _Darkness * _Fade;
+                // hot core: bright centre with fine ember speckles; cools from white-hot through the heat colour to nothing
+                float embers = smoothstep(0.66, 0.8, vnoise(sp * 5.3 - _Seed)) * (1.0 - smoothstep(0.1, 0.6, d));
+                float hot = (core * core * 1.2 + embers * 0.5) * _Heat * _Heat;
                 float3 glow = _HeatColor.rgb * hot + float3(1.0, 0.9, 0.7) * pow(core, 4.0) * _Heat * _Heat * _Heat * 2.0;
                 // fog: the glow fades into fog, the soot loses its darkening with distance
                 float vis = MixFogColor(float3(1, 1, 1), float3(0, 0, 0), IN.fog).r;

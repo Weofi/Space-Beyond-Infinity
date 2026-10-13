@@ -151,7 +151,7 @@ namespace Voidward.Combat
             {
                 Vfx.Impact(point, normal, surface, color, scale);
                 Sfx.Play("hit", point, 0.6f, UnityEngine.Random.Range(0.9f, 1.2f));
-                PlaceScorch(point, normal, surface, 1.1f * scale, Color.Lerp(BurnHeat, color, 0.45f), 1.4f);
+                PlaceScorch(point, normal, surface, 1.1f * scale, Color.Lerp(BurnHeat, color, 0.25f), 1.4f);
             }
         }
 
