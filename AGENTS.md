@@ -47,7 +47,7 @@ Repo: `Weofi/Space-Beyond-Infinity`, default branch `main`. When the user hands 
 2. `git checkout main && git pull`, then create a dedicated branch `issue-<nr>-<short-slug>` (never work on `main`).
 3. Push the branch early and open a **draft PR** against `main` with `Closes #<nr>` in the body (check for a PR template first).
 4. Implement on that branch with small, descriptive commits (`#<nr>: ...`), push regularly.
-5. When done: compile check + play test, update the PR description (changes, test notes, screenshots), mark it ready for review.
+5. When done: compile check + test per the "Testing playbook" (cheapest level first, not a full run), update the PR description (changes, test notes, screenshots), mark it ready for review.
 6. If everything works and the issue is fully done: merge the PR into `main` yourself (user-approved), then `git checkout main && git pull`. If anything is broken or open, don't merge; report back instead.
 One issue = one branch = one PR. Don't mix issues.
 
@@ -70,6 +70,7 @@ Goal: test the situation, not a whole run, and keep tool output small. Harness =
 - **Dev build without log flood**: RunCommand `Voidward.EditorTools.DevBuild.WindowsDevQuiet()` (Mac: `MacDevQuiet()`), returns one line; the menu build via RunCommand returns ~150k chars of foreign shader warnings. `EditorApplication.delayCall` does not fire while the editor is in the background, don't rely on it.
 - **MP**: `DevTest.Play(DevScenario.Lab, 2)` (host waits for 2 players), then `bash Tools/Dev/mp-client.sh lab 3` (dev build with `-autojoin -skipintro -devscenario=lab -devshots=3`; it renders the lab camera every 3 s and logs `[Dev] client1_<t> decals N` into `%TEMP%/VoidwardDev/client.log`). Compare host/client via log lines, look at one client image at most. Stop: `Stop-Process -Name Voidward` / `pkill -f Voidward.app`.
 - Write a test step as a small RunCommand using the harness; if a helper is missing, add it to `DevTest` instead of pasting long ad-hoc scripts.
+- **Keep the harness growing**: when a feature brings its own typical test steps (e.g. spawn a boss phase, open a crate, dock at a station), add them as `DevTest` helpers or a new `DevScenario` in the same PR, so later issues reuse them. Document every new helper, scenario or flag here (one line is enough) - this section is how the next session learns about it.
 
 ## Cross-platform (Mac + Windows)
 - Same Unity version on both machines (`ProjectSettings/ProjectVersion.txt`). Line endings are pinned to LF via `.gitattributes`.
