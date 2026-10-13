@@ -30,8 +30,15 @@ namespace Voidward.EditorTools
             MatPlanet = Mat("VW_Planet", "VOIDWARD/Planet");
             MatPlanet.SetTexture("_DetailTex", detail);
             MatPlanet.SetTexture("_DetailNormal", normal);
+            // Soft lit terrain (#70): explicit, because Mat() keeps values of an existing material.
+            MatPlanet.SetFloat("_Wrap", 0.25f);
+            MatPlanet.SetFloat("_AmbientBoost", 0.45f);
+            MatPlanet.SetFloat("_MacroStrength", 0.22f);
+            MatPlanet.SetFloat("_CavityStrength", 2.5f);
+            MatPlanet.SetFloat("_StrataStrength", 0.14f);
             MatOcean = Mat("VW_Ocean", "VOIDWARD/Ocean");
             MatOcean.SetTexture("_DetailNormal", normal);
+            MatOcean.SetTexture("_DetailTex", detail);
             MatClouds = Mat("VW_Clouds", "VOIDWARD/Clouds");
         }
 
@@ -165,7 +172,7 @@ namespace Voidward.EditorTools
             s.AtmosphereHeight = height; s.AtmosphereDensity = density; s.AtmosphereFalloff = falloff;
         }
 
-        static void Clouds(PlanetShapeDef s, float coverage, string lit, string shade, float scale = 3f, float stretch = 1f, float altitude = 0.55f)
+        static void Clouds(PlanetShapeDef s, float coverage, string lit, string shade, float scale = 3f, float stretch = 1f, float altitude = 0.8f)
         {
             s.CloudCoverage = coverage; s.CloudColor = MathUtils.Hex(lit); s.CloudShadeColor = MathUtils.Hex(shade);
             s.CloudScale = scale; s.CloudStretch = stretch; s.CloudAltitude = altitude;
@@ -258,7 +265,7 @@ namespace Voidward.EditorTools
             s.DetailNormalStrength = 0.7f;
             s.Gloss = 0.05f;
             Atmosphere(s, "#78b4ff", "#ff9a6a", "#a9c8f0", 0.22f, 1.6f, 4f);
-            Clouds(s, 0.42f, "#ffffff", "#9aa8c8");
+            Clouds(s, 0.34f, "#ffffff", "#8f9fc4");
             Environment(s, PlanetDecorStyle.Rocky, 1f, "#6e665e", "#4f7a3a", "#c9b27a", "#ffe08a", PlanetParticles.Dust, new Color(1f, 1f, 0.9f, 0.25f), PlanetWeather.None, "#6a7486", 1f);
         }
 
@@ -288,7 +295,7 @@ namespace Voidward.EditorTools
             s.DetailNormalStrength = 0.6f;
             s.Gloss = 0.05f;
             Atmosphere(s, "#6fb0ff", "#ff9a7a", "#b5d4f5", 0.24f, 1.8f, 4f);
-            Clouds(s, 0.5f, "#ffffff", "#9fb2d0", 2.6f, 1.5f);
+            Clouds(s, 0.4f, "#ffffff", "#93a6c8", 2.6f, 1.5f);
             Environment(s, PlanetDecorStyle.Rocky, 1.2f, "#6e665e", "#3f8e4a", "#e6d59a", "#ffe08a", PlanetParticles.Dust, new Color(1f, 1f, 1f, 0.2f), PlanetWeather.None, "#6a7a90", 1f);
         }
 
@@ -328,7 +335,7 @@ namespace Voidward.EditorTools
             s.DetailNormalStrength = 0.45f;
             s.Gloss = 0.04f;
             Atmosphere(s, "#ffb27a", "#ff6a4a", "#e0a878", 0.2f, 1.4f, 4f);
-            Clouds(s, 0.12f, "#fff2de", "#d9b08f", 2.4f, 2.2f, 0.7f);
+            Clouds(s, 0.12f, "#fff2de", "#d9b08f", 2.4f, 2.2f, 0.88f);
             Environment(s, PlanetDecorStyle.Desert, 1f, "#a8573a", "#6f9e80", "#e0aa70", "#ffd36b",
                 PlanetParticles.Dust, new Color(1f, 0.85f, 0.6f, 0.35f), PlanetWeather.Sandstorm, "#6e5444", 0.9f);
         }
@@ -372,7 +379,7 @@ namespace Voidward.EditorTools
                 s.CliffSlope = new Vector2(0.12f, 0.26f);
                 s.Gloss = 0.15f;
                 Atmosphere(s, "#8ac6ff", "#e59ad9", "#a9cff2", 0.22f, 1.8f, 4f);
-                Clouds(s, 0.35f, "#ffffff", "#9fb0d0", 4f, 1f);
+                Clouds(s, 0.3f, "#ffffff", "#9fb0d0", 4f, 1f);
                 Environment(s, PlanetDecorStyle.Ice, 1f, "#4f5f78", "#9fd6ff", "#6fb5f0", "#9be7ff",
                     PlanetParticles.Snow, new Color(1f, 1f, 1f, 0.8f), PlanetWeather.Blizzard, "#5f6f8a", 1.1f);
             });
@@ -394,16 +401,16 @@ namespace Voidward.EditorTools
                 Canyons(s, 1.4f, 0.09f, 0.05f, 0.25f, 1.5f, 0.7f, 0.5f, rivers: true);                  // river valleys
                 s.OceanCoverage = new Vector2(0.3f, 0.45f);
                 s.OceanFloorDepth = 3f;
-                s.ShallowWater = MathUtils.Hex("#b4f25a");
+                s.ShallowWater = MathUtils.Hex("#8fd16a");
                 s.DeepWater = MathUtils.Hex("#0f3b2c");
-                s.WaterEmission = new Color(0.05f, 0.16f, 0.02f);
+                s.WaterEmission = new Color(0.015f, 0.05f, 0.01f);
                 s.Underwater = Grad((0f, "#1f3a33"), (1f, "#4f7a4a"));
                 s.Land = Grad((0f, "#2c5a48"), (0.25f, "#23784a"), (0.6f, "#3f9e45"), (0.85f, "#8fc94a"), (1f, "#c9e98a"));
                 s.Region = Grad((0f, "#2e6b4f"), (0.5f, "#6a4f8a"), (1f, "#b98fd0"));
                 s.RegionStrength = 0.5f;
                 s.Cliff = Grad((0f, "#2f3d3a"), (0.6f, "#4f5a4c"), (1f, "#6b5a6e"));
-                Atmosphere(s, "#8cff8c", "#ffd36b", "#8fcf74", 0.24f, 2.6f, 3f);
-                Clouds(s, 0.38f, "#e0ffd6", "#7a9a74", 4.5f, 0.6f);
+                Atmosphere(s, "#86cfc8", "#ffd36b", "#c2d99a", 0.24f, 2.1f, 3f);
+                Clouds(s, 0.32f, "#e6f7dc", "#7a9a80", 4.5f, 0.6f);
                 Environment(s, PlanetDecorStyle.Jungle, 1f, "#4a3f4f", "#2f9e5a", "#c86bd8", "#9dff6a",
                     PlanetParticles.Spores, new Color(0.6f, 1f, 0.4f, 0.6f), PlanetWeather.SporeBloom, "#5f7a5c", 0.7f);
             });
@@ -428,9 +435,9 @@ namespace Voidward.EditorTools
                 s.HasOcean = true;
                 s.OceanCoverage = new Vector2(0.06f, 0.12f);
                 s.OceanFloorDepth = 1f;
-                s.ShallowWater = MathUtils.Hex("#7ff0ff");
-                s.DeepWater = MathUtils.Hex("#2a4fd0");
-                s.WaterEmission = new Color(0.1f, 0.45f, 0.7f);
+                s.ShallowWater = MathUtils.Hex("#4cc4e6");
+                s.DeepWater = MathUtils.Hex("#1d3596");
+                s.WaterEmission = new Color(0.02f, 0.08f, 0.14f);
                 s.WaterDepth = 3f;
                 s.Land = Grad((0f, "#232a5a"), (0.4f, "#3b4f9e"), (0.7f, "#5f63bc"), (1f, "#968fdc"));
                 s.Region = Grad((0f, "#4a2f78"), (0.5f, "#7a4fa8"), (1f, "#d29ae6"));
@@ -460,10 +467,11 @@ namespace Voidward.EditorTools
                 Canyons(s, 1.8f, 0.04f, 0.03f, 0.3f, 2.5f, 0.65f, 0.55f, rivers: true);                     // lava channels
                 s.OceanCoverage = new Vector2(0.12f, 0.22f);
                 s.OceanFloorDepth = 1f;
+                s.Lava = true;
                 s.ShallowWater = MathUtils.Hex("#ff5a1a");
                 s.DeepWater = MathUtils.Hex("#a0200a");
                 s.WaterDepth = 2.5f;
-                s.WaterEmission = new Color(1.5f, 0.28f, 0.05f);
+                s.WaterEmission = new Color(2.4f, 2.4f, 2.4f); // lava glow intensity (tinted by the shallow/deep colors)
                 s.WaterGloss = 0.3f;
                 s.WaveStrength = 0.3f;
                 s.Underwater = Grad((0f, "#3a1a14"), (1f, "#5a2a1a"));
@@ -472,8 +480,8 @@ namespace Voidward.EditorTools
                 s.RegionStrength = 0.35f;
                 s.Cliff = Grad((0f, "#1a1618"), (1f, "#3a3034"));
                 s.CraterCount = 12;
-                Atmosphere(s, "#ff8a5c", "#ff5030", "#8a5a50", 0.22f, 2.2f, 3.5f);
-                Clouds(s, 0.3f, "#8a7f84", "#3a3034", 3.2f, 0.8f, 0.45f);
+                Atmosphere(s, "#f0907a", "#ff5a3a", "#8a6058", 0.22f, 1.7f, 3.5f);
+                Clouds(s, 0.26f, "#8a7f84", "#3a3034", 3.2f, 0.8f, 0.7f);
                 Environment(s, PlanetDecorStyle.Volcanic, 1f, "#2b2629", "#4a3f3c", "#7a5a50", "#ff7a2a",
                     PlanetParticles.Ash, new Color(1f, 0.55f, 0.25f, 0.6f), PlanetWeather.AshFall, "#735450", 0.6f);
             });

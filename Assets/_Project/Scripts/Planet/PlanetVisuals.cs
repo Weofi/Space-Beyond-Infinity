@@ -125,6 +125,10 @@ namespace Voidward.Planet
         static readonly int SeedId = Shader.PropertyToID("_Seed");
         static readonly int HazeId = Shader.PropertyToID("_HazeColor");
         static readonly int PlanetCenterId = Shader.PropertyToID("_PlanetCenter");
+        static readonly int SkyColorId = Shader.PropertyToID("_SkyColor");
+        static readonly int HorizonColorId = Shader.PropertyToID("_HorizonColor");
+        static readonly int HasSkyId = Shader.PropertyToID("_HasSky");
+        static readonly int LavaId = Shader.PropertyToID("_Lava");
 
         void OnEnable() => All.Add(this);
         void OnDisable() => All.Remove(this);
@@ -204,6 +208,12 @@ namespace Voidward.Planet
             oceanMat.SetFloat(GlossId, s.WaterGloss);
             oceanMat.SetFloat(WaveId, s.WaveStrength);
             if (s.DetailNormal != null) oceanMat.SetTexture(DetailNormalId, s.DetailNormal);
+            if (s.DetailTexture != null) oceanMat.SetTexture(DetailTexId, s.DetailTexture);
+            // The sea reflects this planet's sky, not the space skybox.
+            oceanMat.SetColor(SkyColorId, s.AtmosphereColor);
+            oceanMat.SetColor(HorizonColorId, Color.Lerp(s.HazeColor, Color.white, 0.25f));
+            oceanMat.SetFloat(HasSkyId, s.HasAtmosphere ? 1f : 0f);
+            oceanMat.SetFloat(LavaId, s.Lava ? 1f : 0f);
             // Before the atmosphere shell (which hazes the sea through the ground sphere).
             oceanMat.renderQueue = 2850;
             oceanMesh = PlanetMesh.BuildSphere(Terrain.SeaRadius, 96, "PlanetOcean");
