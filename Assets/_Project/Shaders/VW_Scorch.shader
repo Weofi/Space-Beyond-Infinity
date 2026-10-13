@@ -59,14 +59,14 @@ Shader "VOIDWARD/Scorch"
                 float2 sp = c * 7.0 + _Seed * 13.7;
                 float n = vnoise(sp) * 0.65 + vnoise(sp * 2.3 + 4.1) * 0.35;
                 // ragged outline + soot splash rays
-                float lump = 0.14 * sin(ang * 5.0 + _Seed * 6.3) + 0.07 * sin(ang * 13.0 - _Seed * 2.1) + (n - 0.5) * 0.3;
-                float soot = 1.0 - smoothstep(0.15, 0.85, d - lump);
-                // soft splash streaks in the outer soot, never a star: wide lobes, faded at both ends
-                float rays = pow(saturate(abs(sin(ang * 3.5 + _Seed * 9.1))), 4.0) * smoothstep(0.25, 0.55, d) * (1.0 - smoothstep(0.55, 1.0, d)) * 0.15;
+                float lump = 0.07 * sin(ang * 3.0 + _Seed * 6.3) + 0.04 * sin(ang * 7.0 - _Seed * 2.1) + (n - 0.5) * 0.35;
+                // irregular soot blot: blotchy noise edge, darker charred ring around the (melted) centre
+                float soot = 1.0 - smoothstep(0.3, 0.8, d - lump);
                 float core = 1.0 - smoothstep(0.0, 0.42, d + (n - 0.5) * 0.25);
-                float a = saturate(soot * (0.75 + 0.25 * core) * (0.75 + 0.25 * n) + rays) * _Darkness * _Fade;
-                // hot core: bright centre with fine ember speckles; cools from white-hot through the heat colour to nothing
-                float embers = smoothstep(0.66, 0.8, vnoise(sp * 5.3 - _Seed)) * (1.0 - smoothstep(0.1, 0.6, d));
+                float ring = smoothstep(0.08, 0.3, d) * (1.0 - smoothstep(0.3, 0.6, d - lump * 0.5));
+                float a = saturate(soot * (0.6 + 0.25 * core + 0.3 * ring) * (0.7 + 0.3 * n)) * _Darkness * _Fade;
+                // hot core: bright centre with soft ember speckles; cools from white-hot through the heat colour to nothing
+                float embers = smoothstep(0.55, 0.9, vnoise(sp * 4.0 - _Seed) * vnoise(sp * 1.7 + _Seed)) * (1.0 - smoothstep(0.1, 0.6, d));
                 float hot = (core * core * 1.2 + embers * 0.5) * _Heat * _Heat;
                 float3 glow = _HeatColor.rgb * hot + float3(1.0, 0.9, 0.7) * pow(core, 4.0) * _Heat * _Heat * _Heat * 2.0;
                 // fog: the glow fades into fog, the soot loses its darkening with distance
