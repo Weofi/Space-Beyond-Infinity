@@ -1,12 +1,103 @@
 # Game Design: VOIDWARD
 
-VOIDWARD is a 1-4 player co-op space roguelite vertical slice. Players flee an encroaching cosmic collapse, navigate three distinct sectors, touch down on stylized spherical mini-planets to scavenge and mine, engage hostile ships and creatures, upgrade ship systems, and breach the final sector gate. This document defines the design specifications across UI Design, Asset Design, and Game Feedback.
+VOIDWARD is a 1-4 player co-op space roguelite vertical slice. A routine moon mission falls into a wormhole; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. Death sends the crew back to the wormhole exit in a time loop, memories intact. This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
+
+**Source of truth for gameplay decisions:** GitHub issue #72 (gameplan), with #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue, loop, homecoming), #49 (home ship). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates, Stardust), it is marked *(legacy)* and will be replaced by the issue that migrates it.
 
 Key dependencies between domains:
-- UI accent colors and HUD styling derive directly from sector color palettes defined in Asset Design.
+- UI accent colors and HUD styling derive directly from galaxy color palettes defined in Asset Design.
 - Diegetic cockpit dashboards and holographic station consoles bridge physical Asset Design and tactile UI interaction.
-- The Collapse threat pacing integrates the HUD distance meter, screen-space chromatic distortion, environmental lighting degradation, and escalating multi-tier audio alarms.
+- The Home ETA is the central progress readout: every fitted part lowers it visibly (HUD, galaxy map, home ship dashboard).
+- System pressure comes from the alien alert level (HUD meter, music threat, spawns); the Rift (former Collapse) only drives the finale.
 - Every element is tagged as either `(core)` for the lean playable vertical slice or `(optional)` for secondary expansion.
+
+---
+
+## Gameplan: The Journey Home (#72)
+
+### Pillars
+1. **The way home is always visible:** the Home ETA shows how long the flight home takes with the current drive. Every new part lowers it measurably.
+2. **Explore for tech:** planets are expeditions. What the crew needs is down there, and it is guarded.
+3. **Travel is gameplay:** no portals, no travel cutscenes. Reaching the next galaxy is a physical warp flight with long empty stretches and obstacles (asteroids, debris, anomalies). The pilot controls the pace (warp throttle); a better drive is really faster, but high speed has to be mastered. Landing and combat handle the same at every tier (#73).
+4. **Roguelite:** death = back to the start of the loop; knowledge and unlocks stay.
+5. **Co-op crew:** roles on the home ship (pilot, engineer, gunner); land, carry and fight together.
+
+### Route (fixed order, content per loop from the seed)
+| # | Galaxy | Distance to Sol | Character | Best drive found there |
+|---|---|---|---|---|
+| 1 | Triangulum (M33) | 2.73 M ly | wormhole exit, temperate, calm start | Mk II |
+| 2 | Andromeda (M31) | 2.54 M ly | huge, dense, many biomes, swarm aliens | Mk III |
+| 3 | NGC 6822 (Barnard's Galaxy) | 1.6 M ly | dwarf galaxy, nebulae and star birth, crystal beings | Mk IV |
+| 4 | Leo I | 0.82 M ly | ancient, star-poor, dark, void creatures | Mk V |
+| 5 | Large Magellanic Cloud | 0.16 M ly | Milky Way fills the sky, home of the Wardens, hardest enemies | Home Drive |
+| Goal | Milky Way -> Sol | 0 | finale: flight home (~5 min) and landing | - |
+
+Target run length ~2.5-3 h (per galaxy ~20-25 min exploring + ~8-12 min warp flight). Suspend save on entering each galaxy (one run slot, deleted on death).
+
+### Home ETA & drive tiers (real flight minutes, balancing in #73)
+| Drive | Found in | -> next galaxy | skip one galaxy | straight home |
+|---|---|---|---|---|
+| Mk I (mission ship) | start | ~8-12 min | ~45 min | ~40 h |
+| Mk II | M33 | ~8-12 min | ~45 min | ~10 h |
+| Mk III | M31 | ~8-12 min | ~45 min | ~2.5 h |
+| Mk IV | NGC 6822 | ~8-12 min | ~45 min | ~50 min |
+| Mk V | Leo I | ~8-12 min | - | ~20 min |
+| Home Drive | LMC | - | - | ~5 min |
+
+Times assume a fitting build and good flying; poor navigation/cooling forces braking (intended grind). Skipping a galaxy costs much more flight time and exotic matter. Any drive can theoretically fly home (Mk I ~40 h, achievement "The Long Way").
+
+### Core loop per galaxy
+1. **Arrival** by warp flight at the galaxy's edge -> galaxy map with 4-6 systems.
+2. **Approach a system** (short in-galaxy warp), scan from orbit: resources, wrecks, ruins, threat.
+3. **Expedition:** land, explore, mine, find drive parts, exotic matter, tech and blueprints, fight fauna/aliens. The **alert level** rises the longer and louder the crew stays.
+4. **Back on board:** fit parts, craft, choose upgrades -> the ETA drops.
+5. **Decision:** keep searching (better core, more fuel, assault the Warden enclave) or warp to the next galaxy (or skip one with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
+
+System types: planetary system, asteroid/wreck field, anomaly, Warden enclave (guardian boss + best warp core, #42), nomad meeting point (trade, optional), empty space with an event.
+
+### Endings, death and the loop
+- **Homecoming:** flight home done, Sol reached, Earth/Moon approached and landed, all flown by the crew. Score = run time.
+- **Death:** crew wipe or home ship destroyed -> the time loop resets the run. A downed player is revived by the crew; otherwise they wake in a cryo pod on board (costs a scarce resource) and their carried loot stays where they fell. Solo: 1 cryo charge as a safety net.
+- The wormhole is a natural phenomenon, not a villain. Each loop reshuffles the galaxies (new seed). Lore: crew logbook, radio echoes from earlier loops, alien ruins, codex entries.
+- **The Rift** (former Collapse): the wormhole pulls at the crew. No permanent chaser per system; it is the climax of the finale (flight home = escape from the Rift) and a rare hazard.
+
+### Enemies: nature and aliens only
+No pirates, no humans. Fauna (#39) is neutral to predatory and guards nests and resources. Each galaxy has its own alien ecosystem (#51: swarm, crystal beings, void creatures ...). The **Wardens** are an ancient biomechanical species hoarding warp cores and tech; one enclave per galaxy guards the best drive core (#42). Optional trade with neutral alien nomads for salvage.
+
+### Meta: Logbook of the Loop (#47)
+Codex, memories (unlocks for the pools), start options, flat perks, skill tree (#59), after the first homecoming **wormhole tiers** (difficulty modifiers like the Heat system in Hades) and leaderboard (#48).
+
+### Glossary (UI and code)
+German terms are the design language (issues, discussion), English terms are used in the UI and in code. Existing code keeps its old names until the issue that migrates the system renames it; new code uses the new names.
+
+| Design (DE) | UI (EN) | Code | Replaces |
+|---|---|---|---|
+| Heimflug-ETA | Home ETA | `HomeEta` | Collapse distance meter |
+| Warp-Flug | Warp flight | `WarpFlight` | Jump Gate jump |
+| Warp-Antrieb (Mk I-V, Heimantrieb) | Warp drive (Mk I-V, Home Drive) | `WarpDriveDef`, `DriveTier` | Engine modules for travel |
+| Warp-Kern | Warp core | `WarpCore` | - |
+| Galaxie | Galaxy | `GalaxyDef`, `GalaxyIndex` | Sector (`SectorDef`) |
+| System | System | `StarSystemDef`, `SystemIndex` | Sector layout |
+| Galaxie-Karte | Galaxy map | `GalaxyMapView` | Sector route preview |
+| Expedition | Expedition | - | - |
+| Alarmstufe | Alert level | `AlertLevel` | Collapse pressure |
+| Bergungsgut | Salvage | `Salvage` | Credits |
+| Exotische Materie | Exotic matter | `ExoticMatter` | Energy Cells (as travel resource) |
+| Waechter | Wardens | `Warden` | The Warden (single boss) |
+| Riss | The Rift | `Rift` | The Collapse |
+| Schleife | Loop | `Loop`, `LoopIndex` | Run (meta view) |
+| Erinnerungsfragmente | Memory fragments | `Memories` | Stardust |
+| Logbuch der Schleife | Logbook | `Logbook` | Hangar |
+| Heimatschiff | Home ship | `HomeShip` | Ark |
+| Heimkehr | Homecoming | `Homecoming` | Demo Complete / victory |
+| Kryo-Kapsel | Cryo pod | `CryoPod` | Team respawns |
+
+Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; the UI language stays English.
+
+### Names
+- **Mission:** *SELENE-4*, a routine lunar supply and survey mission.
+- **Home ship:** *Nostos* (Greek for "homecoming"), the mission's long-range transport; the Ark hull becomes the Nostos (#49).
+- **Crew callsigns** (player slots 1-4, matching ping colors): *Vega* (P1, blue), *Lyra* (P2, green), *Altair* (P3, yellow), *Deneb* (P4, magenta) - stars of the Summer Triangle and its neighbourhood, visible from home. Steam/player names stay visible next to them.
 
 ---
 
@@ -15,19 +106,20 @@ Key dependencies between domains:
 ### Screen Inventory & Flows
 
 ```
-[Main Menu] ---> [Lobby] ---> [Hangar] ---> [Sector 1..3 Gameplay HUD] ---> [Game Over]
-      |                                              |                            |
-  [Settings]                                     [Pause]                  [Demo Complete]
+[Main Menu] ---> [Lobby] ---> [Logbook] ---> [Prologue] ---> [Galaxy 1..5 HUD / Galaxy Map] ---> [Loop Reset]
+      |                                                               |                            |
+  [Settings]                                                      [Pause]                     [Homecoming]
 ```
 
 - **Main Menu (core):** Title banner, Host Game, Join Game (Direct IP / Steam Session Code), Settings, Quit. Clean centered stack with a live backdrop of a sector nebula and rotating low-poly asteroid.
-- **Lobby (core):** Player roster card (1-4 slots with avatar color, ready state, selected starting role: Pilot, Turret, Engineer), ship selection carousel (Dart, Mule, Ark), sector route preview, Launch button (unlocked when all players ready).
-- **Hangar (core):** Inter-run meta-progression hub. Stardust balance indicator, ship frame unlock tree, starting module loadout sockets, "Initiate Run" airlock trigger.
+- **Lobby (core):** Player roster card (1-4 slots with avatar color, callsign, ready state, selected starting role: Pilot, Gunner, Engineer), route preview (M33 -> Sol), loop counter, Launch button (unlocked when all players ready). Continue Run when a suspend save exists (host).
+- **Logbook (core, formerly Hangar):** Inter-loop meta-progression hub (#47). Memory fragment balance, codex, unlocks, start options, perks.
+- **Galaxy Map (core):** Systems of the current galaxy with type, threat and scan info, Home ETA, exotic matter and range; select the next in-galaxy warp or the warp to the next galaxy (#46).
 - **HUD (core):** Persistent contextual gameplay overlay supporting both on-foot and ship flight contexts.
 - **Pause Menu (core):** Modal overlay pausing single-player or providing an in-game options sheet in co-op. Resume, Settings, Abandon Run (with confirmation dialogue).
 - **Settings (core):** Tabbed overlay (Audio, Video, Controls). Sliders for Master/Music/SFX; toggles for Fullscreen, V-Sync, Bloom; slider for FOV (70-100); mouse sensitivity slider with Invert Y toggle; full input rebind table.
-- **Game Over (core):** Post-run debrief panel. Failure cause banner ("Consumed by Collapse", "Hull Breached", "Suffocated"), run statistics (distance fled, sectors traversed, enemies eliminated, loot collected), calculated Stardust reward, "Return to Hangar" button.
-- **Demo Complete (core):** Victory debrief displayed upon defeating the Sector 3 Boss Gate. Run summary stats, bonus Stardust allocation, celebratory palette glow, "Return to Hangar" button.
+- **Loop Reset (core, formerly Game Over):** Debrief when the crew dies. Cause banner ("Crew lost", "Nostos destroyed"), run statistics (galaxies reached, best drive, run time, enemies, loot), memory fragments gained, transition back to the wormhole exit.
+- **Homecoming (core, formerly Demo Complete):** Shown after landing at home. Run time (score), summary stats, bonus memory fragments, wormhole tier unlock.
 
 ### HUD Layout Specifications (1080p Reference)
 
@@ -42,7 +134,8 @@ Key dependencies between domains:
   - Resting state: Dark slate `#0E1420E6`, 1px border `#334155`.
   - Active selection state: Border expands to 2px with bright Cyan glow `#38BDF8`, slot background lifts to `#1E293B`.
   - Slot numerals: 12pt bold tabular digit pinned to top-left corner (`#94A3B8`). Tool/item icon centered (32 x 32px). Quantity badge pinned to bottom-right (14pt bold `#F8FAFC`).
-- **The Collapse Threat Meter (Top-Center: Anchor (Center, 1036px)) (core):**
+- **Home ETA & Alert Level (Top-Center) (core):** Replaces the Collapse meter. Home ETA readout (e.g. `HOME ETA 2H 31M`, tabular, ticks down with a gold flash whenever a fitted part lowers it), current galaxy + system name, and the system alert level as a 5-step meter (teal -> amber -> red). The Rift meter below is only shown in the finale.
+- **The Collapse Threat Meter *(legacy, becomes the Rift meter in the finale)* (Top-Center: Anchor (Center, 1036px)) (core):**
   - Primary tension anchor: 440 x 28px horizontal meter framed in `#0E1420EE`.
   - Background track: Dark void purple `#180D2E`.
   - Threat fill: Deep gradient from Menacing Violet `#7C3AED` to Void Crimson `#DC2626`.
@@ -51,7 +144,7 @@ Key dependencies between domains:
   - Distance threshold tinting: Safe (>1500m) muted teal `#2DD4BF`, Caution (800-1500m) amber `#FBBF24`, Danger (<800m) flashing red `#EF4444` at 2.5 Hz.
 - **Compass & Waypoint Strip (Top-Center: Anchor (Center, 984px)) (core):**
   - Horizontal bearing strip: 500 x 22px. Subtle degree ticks with cardinal points (N, E, S, W) in 12pt bold `#94A3B8`.
-  - Embedded dynamic markers: Jump Gate (Golden Ring icon `#F59E0B`), active player pings (colored chevrons), landed ship beacon (Cyan ship icon `#38BDF8`).
+  - Embedded dynamic markers: warp target / objective (Golden Ring icon `#F59E0B`), active player pings (colored chevrons), landed ship beacon (Cyan ship icon `#38BDF8`).
 - **Crosshair & Reticle (Screen Center: 960 x 540px) (core):**
   - On-foot / flight reticle: Minimal 24 x 24px ring `#E2E8F066` with 2px static center pip.
   - Hit confirmation marker: 4 diagonal ticks (`#F87171`) blooming outward from 12px to 24px radius over 80ms before fading. Critical/weak-point hits bloom in Gold `#FBBF24`.
@@ -88,9 +181,10 @@ Key dependencies between domains:
   - Oxygen: `#06B6D4` (pure cyan) | Depleted: `#08232ACC`
   - Fuel / Thrust: `#FBBF24` (warm solar amber) | Depleted: `#2B1F05CC`
   - Danger / Alert / Hostile: `#EF4444` (bright coral red) | Critical: `#7F1D1D`
-  - Stardust Currency (Meta): `#C084FC` (pastel neon violet)
-  - Scrap / Mineral Credits: `#FCD34D` (soft golden pyrite)
-- **Sector UI Accent Triads:**
+  - Memory Fragments (Meta, formerly Stardust): `#C084FC` (pastel neon violet)
+  - Salvage (Run, formerly Credits): `#FCD34D` (soft golden pyrite)
+  - Exotic Matter (warp fuel): `#2DD4BF` (teal) - proposal, final with #73
+- **Sector UI Accent Triads *(legacy, to be redefined per galaxy in #46)*:**
   - **Sector 1 (Verdant Drift):** Primary Mint `#34D399`, Secondary Teal `#0F766E`, Accent Sunlight `#FBBF24`.
   - **Sector 2 (Ember Reach):** Primary Coral `#FB923C`, Secondary Terracotta `#9A3412`, Accent Flare Yellow `#FDE047`.
   - **Sector 3 (Umbral Deep):** Primary Violet `#A855F7`, Secondary Deep Indigo `#4338CA`, Accent Electric Cyan `#22D3EE`.
@@ -149,7 +243,10 @@ Key dependencies between domains:
 
 ### Enemy Visual Identity & Silhouettes
 
-- **Pirate Faction (Mechanical, Angular, Hostile):**
+New direction (#72, #51): only nature and aliens. The pirate faction below is *(legacy)*: its archetypes are rebuilt as alien craft (biomechanical hulls instead of salvage metal). Each galaxy gets its own alien ecosystem; the Wardens are the ancient biomechanical guardian species.
+
+
+- **Pirate Faction *(legacy, replaced by alien craft in #51)* (Mechanical, Angular, Hostile):**
   - Design Motif: Aggressive wedge forms, exposed heat sinks, jagged armor plates, rusted industrial salvage look.
   - Palette: Matte obsidian steel `#18181B`, dark rust brown `#78350F`, glaring red sensor slits and thruster plumes `#EF4444`.
   - Archetypes:
@@ -164,7 +261,7 @@ Key dependencies between domains:
     - *Spitter (core):* 2.4m tall tripod alien with an inflatable throat sac. Rears back and launches glowing parabolic acid mortar orbs.
     - *Flying Critter (optional):* 2.0m wingspan manta-form gliding through planetary atmospheres, swooping on grounded players.
     - *Nest Guardian (optional):* 5.2m hulking armored carapace beast that guards planetary hives. Features heavy frontal armor plates and vulnerable glowing rear egg sacs.
-- **Void Mothership Boss (Sector 3 Climax) (core):**
+- **Void Mothership Boss *(legacy: becomes the Warden enclave guardian per galaxy, #42)* (core):**
   - Silhouette: Colossal 110m fractured geometric monolith floating in zero gravity directly before the final Jump Gate.
   - Architecture: Asymmetrical crystalline dreadnought constructed from interlocking obsidian fragments orbiting a central core.
   - Weak-Point Power Cores: 3 distinct glowing spherical reactors (Port Generator, Starboard Generator, Central Core) measuring 6m in diameter.
@@ -210,8 +307,8 @@ Key dependencies between domains:
   - *Alien Nest:* 4m bulbous fleshy pod `#4C1D95` embedded in soil, surrounded by 3-4 destroyable eggs that hatch Crawlers if disturbed.
   - *Crashed Scout Ship:* Fractured Dart fuselage partially embedded in a crater, smoking engine bay, salvageable cockpit crate.
 - **Stations & Megastructures (core):**
-  - *Trader Station (core):* 140m rotating toroidal ring station stationed at the mid-point of Sectors 1 and 2. Features external docking clamp beacons and an illuminated interior landing bay with friendly teal beacon arrays `#2DD4BF`.
-  - *Jump Gate (core):* Massive 85m polygonal ring positioned at the sector terminus. Composed of dark alloy pylons surrounding a swirling, opaque hyperspace energy membrane. Features 4 socket pedestals for inserting gathered Energy Cells.
+  - *Trader Station (core, becomes the alien nomad meeting point):* 140m rotating toroidal ring station stationed at the mid-point of Sectors 1 and 2. Features external docking clamp beacons and an illuminated interior landing bay with friendly teal beacon arrays `#2DD4BF`.
+  - *Jump Gate (legacy, removed in #46 - travel is by own warp drive):* Massive 85m polygonal ring positioned at the sector terminus. Composed of dark alloy pylons surrounding a swirling, opaque hyperspace energy membrane. Features 4 socket pedestals for inserting gathered Energy Cells.
   - *Precursor Monolith (optional):* 15m solitary geometric spire etched with glowing cyan runic grooves, granting sector map reveals or meta currency.
 
 ### Visual Effects (VFX) Direction
@@ -222,7 +319,8 @@ Key dependencies between domains:
 - **Explosions (core):** Instantaneous flash of a 24-faceted icosahedron sphere (0-60ms), instantly popping into 12-16 spinning flat triangular fragments that decelerate with air resistance while fading.
 - **Shield Impacts (core):** Hexagonal wireframe grid dome illuminating momentarily at the point of hit, rippling outward over a 1.2m radius and fading within 180ms.
 - **Atmospheric Re-entry (core):** Sweeping pastel plasma compression ribbons wrapping around the forward contours of the ship hull when entering a planet's gravity envelope at speed.
-- **Hyperspace Jump (core):** Full-screen brilliant white-lavender flash (`#EDE9FE`, 120ms duration) that snaps into radial warp velocity streaks before dropping players into the next sector.
+- **Warp Flight (core):** Warp tunnel streaks scaling with warp throttle, hull vibration and heat shimmer at high warp, obstacle silhouettes readable far ahead (#73).
+- **Hyperspace Jump (legacy, becomes the warp entry/exit flash):** Full-screen brilliant white-lavender flash (`#EDE9FE`, 120ms duration) that snaps into radial warp velocity streaks before dropping players into the next sector.
 
 ---
 
@@ -230,7 +328,7 @@ Key dependencies between domains:
 
 ### Genre Profile: High-Energy Survival Hybrid
 
-VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impactful weapon discharge, tight zero-g boost mechanics) with crushing environmental suspense (the encroaching Collapse, depleting oxygen supplies, and high-stakes co-op multi-station management). Feedback is immediate, high-contrast, and strictly informative.
+VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impactful weapon discharge, tight zero-g boost mechanics) with expedition suspense (a rising alien alert level, depleting oxygen supplies, long warp flights that must be mastered, and high-stakes co-op multi-station management) and the steady reward of a Home ETA that keeps shrinking. Feedback is immediate, high-contrast, and strictly informative.
 
 ### Interaction Map
 
@@ -247,11 +345,12 @@ VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impac
 | **Shield Depletion** | core | Heavy | Omnidirectional camera shudder 0.1m, decay 200ms | — | — | Full shield dome shatters into fading hexagonal glass shards | High-voltage electric crackle + sudden muffled low-pass filter | Sustained double buzz | High-priority danger signal warning player that hull is exposed |
 | **Hull Damage Taken** | core | Heavy | Hard directional shake toward incoming fire, decay 300ms | — | — | Screen-space crimson vignette flash, cockpit warning sirens flash red | Metallic hull tear + urgent two-tone alarm klaxon | Heavy jolt | Instantly directs player spatial awareness to the threat vector |
 | **Low Oxygen (<20%)** | core | Critical | Subtle rhythmic camera pulse synced to heartbeat | — | — | Tunnel-vision black/cyan vignette constricting at 1.0 Hz | Deep muffled biological heartbeat + heavy labored breathing | Throbbing low-frequency pulse | Evokes claustrophobia and urgent survival panic |
-| **Collapse Proximity (<800m)**| core | Critical | Persistent low-amplitude micro-tremor, intensity scales | — | — | Horizon blackens with violet electrical tendrils, screen edges warp | Deep subterranean 40Hz void rumble + cosmic static hiss | Continuous low hum | Relentless physical pressure driving players toward the Jump Gate |
+| **Rift Proximity (finale; legacy: Collapse <800m)**| core | Critical | Persistent low-amplitude micro-tremor, intensity scales | — | — | Horizon blackens with violet electrical tendrils, screen edges warp | Deep subterranean 40Hz void rumble + cosmic static hiss | Continuous low hum | Relentless physical pressure during the escape home |
 | **Ship Planetary Landing** | core | Medium | Vertical bounce 0.15m downward, rebound settle 350ms | — | Landing struts compress 30%, slowly expand | Radial ring of surface dust particles billows outward | Deep cushioned pneumatic thud + gravel crunch | Solid low thud | Communicates the physical mass and touchdown stability of the vessel |
-| **Jump Gate Warp Activation** | core | Critical | Violent camera shake ramping over 4s to maximum | 0.05s freeze frame on transition | Ship vibrates violently, then streaks forward | Gate energy membrane flares to pure white lavender | Rising turbine crescendo snapping into absolute silence | Maximum rumble ramping to sudden cut | Climactic sector finale signaling escape from the Collapse |
+| **Warp Engage (legacy: Jump Gate activation)** | core | Critical | Violent camera shake ramping over 4s to maximum | 0.05s freeze frame on transition | Ship vibrates violently, then streaks forward | Warp field flares to pure white lavender | Rising turbine crescendo snapping into absolute silence | Maximum rumble ramping to sudden cut | Climactic departure for the next galaxy |
 | **Station Seat Enter/Exit** | core | Light | Smooth camera blend into cockpit perspective (250ms) | — | Player hands grip controls | Diegetic console boots up, glowing vector readouts ignite | Heavy pneumatic chair latch + cockpit boot chime | Light click | Establishes transition between player pawn and ship pilot agency |
 | **Co-op Ping Placed** | core | Light | — | — | — | 3D colored beacon pillars drop from sky, minimap pip pulses | Crisp spatialized two-tone chirp (1200Hz -> 1600Hz) | Subtle pip | Effortless non-verbal team coordination |
+| **Home ETA Drops** | core | Medium | - | - | ETA readout pops 12% and ticks down | Gold flash on the ETA, drive core glows on the dashboard | Rising two-note chime + low engine purr | Light pulse | The central progress reward: every part brings home closer |
 | **Crafting / Upgrade Done** | core | Medium | — | — | UI card pops 10% overshoot, settles over 150ms | Golden starburst particle shower over module socket | Harmonious major chord chime + mechanical latch | — | Satisfying reward confirmation for progression investment |
 
 ### Multi-Step Event Sequences
@@ -264,7 +363,7 @@ VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impac
   5. *Magnet Pull (600ms):* Nuggets activate homing trajectory toward player vacuum radius.
   6. *Inventory Slotting (850ms):* Nuggets reach player; soft chime plays, hotbar icon pulses 15% scale with green flash.
 
-- **Jump Gate Charge & Sector Warp Sequence:**
+- **Jump Gate Charge & Sector Warp Sequence *(legacy, replaced by warp flight #73)*:**
   1. *Cell Insertion (0-2s):* Player slots required Energy Cells into gate pylons. Pylon conduits illuminate sequentially with ascending chimes.
   2. *Membrane Ignition (2.0s):* Center ring ignites into a swirling pastel violet energy vortex. Ambient music drops to a muffled low-pass filter.
   3. *Charge Crescendo (2.0s - 4.8s):* Gate generates a massive gravitational pull. Ship engine pitch rises exponentially. Camera shake intensifies linearly from 0.05m to 0.25m amplitude.
@@ -281,14 +380,14 @@ VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impac
 
 ### Audio System Direction & Alarm Taxonomy
 
-- **Sector Music & Environmental Ambience:**
+- **Galaxy Music & Environmental Ambience (sector moods below are legacy, to be mapped onto the 5 galaxies):**
   - *Sector 1 (Verdant Drift):* Bright, exploratory synth bed in C Major. Shimmering high-register arpeggios, gentle crystalline wind chimes, peaceful low sub-bass drone. Communicates fresh beginnings and accessible scavenging.
   - *Sector 2 (Ember Reach):* Warm, tense analog pads in A Minor. Mid-tempo industrial percussion pulse, low drone of stellar solar winds, strained harmonic resonance. Communicates industrial urgency and rising pressure.
   - *Sector 3 (Umbral Deep):* Cold, ominous void drone in D Minor. Irregular metallic groans, dissonant high-frequency shimmer, deep rhythmic heartbeat rhythm. Communicates lethal cosmic hostility and impending climax.
 - **Alarm Taxonomy (Strict Sensory Separation):**
   - *Low Oxygen Alarm:* Rhythmic biological double-thud heartbeat (1.0 Hz, 80Hz center) coupled with player breathing and a gentle high-register vital monitor blip. Non-mechanical, purely physiological.
   - *Hull Critical Alarm (<25% HP):* High-urgency mechanical two-tone klaxon (780Hz alternating with 960Hz at 3.0 Hz cadence). Plays directly through cockpit speakers with an assertive stereo pan.
-  - *Collapse Proximity Warning (<800m):* Ominous low-frequency seismic hum (35-55Hz) that vibrates continuously, punctuated by intermittent electrical crackle and rising metallic groaning.
+  - *Rift Proximity Warning (finale; legacy Collapse <800m):* Ominous low-frequency seismic hum (35-55Hz) that vibrates continuously, punctuated by intermittent electrical crackle and rising metallic groaning.
   - *Shield Depleted Alert:* Single descending electrical zap (1200Hz down to 200Hz over 180ms) followed by an urgent buzz, signalling immediate vulnerability.
 - **Weapon & Impact Sound Design:**
   - *Mining Laser / Pick:* High-clarity ceramic "clink" with subtle harmonic ring. Randomized pitch variance (±12%) on every stroke to prevent acoustic fatigue.
@@ -300,15 +399,15 @@ VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impac
   - *Button Confirm / Engage:* Crisp tactile switch thud with a slight warm harmonic chime (520Hz, 45ms).
   - *Cancel / Backout:* Descending muted wood-click (480Hz down to 240Hz, 30ms).
   - *Loot Collect / Cha-Ching:* Two-note bright bell arpeggio (C6 to G6, 80ms) evoking positive arcade gratification.
-  - *Stardust Meta Accrual:* Ascending multi-tonal crystal cascade (3 notes, 120ms total).
+  - *Memory Fragment Accrual (formerly Stardust):* Ascending multi-tonal crystal cascade (3 notes, 120ms total).
 
 ### Co-op Communication Affordances (Ping System)
 
 - **Ping Taxonomy, Colors & Glyphs:**
   - **Look / Move Marker (core):** Slate White `#E2E8F0`. Four-point diamond pip. Audio: Neutral two-tone blip (900Hz). Used for general coordination and navigation waypoints.
-  - **Enemy / Danger Threat (core):** Aggressive Red `#EF4444`. Inverted triangle with center exclamation pip. Audio: Sharp urgent double-beep (1100Hz / 1400Hz). Placed on hostile ships, spitters, or pirate ambushes.
+  - **Enemy / Danger Threat (core):** Aggressive Red `#EF4444`. Inverted triangle with center exclamation pip. Audio: Sharp urgent double-beep (1100Hz / 1400Hz). Placed on hostile craft, spitters, or alien ambushes.
   - **Loot / Resource Deposit (core):** Luminous Cyan `#38BDF8`. Hexagonal container glyph. Audio: Cheerful high-register chime (1300Hz). Placed on unmined ore nodes, loot crates, or dropped modules.
-  - **Jump Gate / Mission Objective (core):** Solar Amber `#F59E0B`. Circular ring glyph with four ray pips. Audio: Resonant brassy ping (600Hz). Placed on the gate terminal or trader dock.
+  - **Objective / Warp Target (core):** Solar Amber `#F59E0B`. Circular ring glyph with four ray pips. Audio: Resonant brassy ping (600Hz). Placed on a warp core, an enclave or the nomad dock.
 - **In-World Affordances:**
   - Placing a ping drops a vertical translucent light beacon column from the sky (0.5m radius, 12m height) lasting 6.0 seconds.
   - Screen-edge clamping: When a ping target is off-camera, the glyph clamps to the screen perimeter with an orienting directional arrow and live distance readout in meters.
