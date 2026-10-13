@@ -1,11 +1,21 @@
 # VOIDWARD — co-op space roguelite (vertical-slice demo)
 
-> *Outrun the Collapse. Together.*
+> *Find the way home. Together.*
 
-A first-person co-op space roguelite for 1–4 players: fly your own ship along a three-sector route,
-land on kilometre-scale miniature planets, mine, loot and fight, upgrade ship and gear, crew a big co-op ship,
-and keep ahead of **The Collapse** — an expanding black hole that consumes everything behind you.
-Power the Jump Gates, cross three sectors and defeat **The Warden** to escape.
+A first-person co-op space roguelite for 1–4 players. A routine **moon mission** falls into a
+**wormhole** and the crew wakes up in the **Triangulum Galaxy (M33)** — 2.73 million light-years from
+home. Explore alien planets, mine, loot and fight for drive parts, exotic matter and alien tech,
+upgrade the ship and above all its **warp drive**, and fly galaxy by galaxy through the Local Group
+back to the Milky Way. The **Home ETA** always shows how long the flight home would take with the
+current drive. Die, and the wormhole's **time loop** wakes you at its exit again — with your memories.
+
+Route: M33 → Andromeda (M31) → NGC 6822 → Leo I → Large Magellanic Cloud → home flight to Sol.
+Two endings only: **Homecoming** or **death** (= the loop resets). Target run length ~2.5–3 h.
+
+> **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
+> through 3 sectors, power Jump Gates, defeat the Warden"). The playable build still runs the old
+> loop until the foundation issues land (#46 run structure, #73 warp drive, #74 prologue/loop/homecoming,
+> #49 home ship). Section 3 describes both: the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
 the Input System, Cinemachine 3 and TextMeshPro. All art, audio and music are procedural
@@ -76,6 +86,28 @@ ship stays in the world. If the host quits, clients return to the main menu with
 
 ## 3. How to play
 
+### Target design (gameplan #72)
+
+**Loop per galaxy:** arrive by warp flight → galaxy map with 4–6 systems → short warp to a system,
+scan from orbit → **expedition**: land, explore, mine, find drive parts, exotic matter and blueprints,
+fight fauna and aliens while the system's **alert level** rises → back on board: fit parts, craft,
+upgrade → the Home ETA drops → keep searching or warp on to the next galaxy (one-way).
+
+* **Travel is gameplay:** no portals, no cutscenes. Warp flights are flown by the pilot with a warp
+  throttle, through long empty stretches and obstacles (asteroids, debris, anomalies). A better drive
+  is really faster; landing and combat handle the same at every tier (#73).
+* **Drive tiers:** Mk I (mission ship) → Mk II (M33) → Mk III (M31) → Mk IV (NGC 6822) → Mk V (Leo I)
+  → Home Drive (LMC, ~5 min home). One drive realistically reaches the next galaxy; skipping one costs
+  much more flight time and exotic matter.
+* **Enemies:** nature and aliens only (no pirates): fauna, an alien ecosystem per galaxy and the
+  **Wardens**, an ancient biomechanical species that guards warp cores in its enclaves.
+* **Death:** a downed player is revived by the crew or wakes in a cryo pod on board. Crew wipe or the
+  home ship destroyed → the time loop resets the run to M33. Meta progression = the **Logbook of the
+  Loop** (memory fragments, codex, unlocks).
+* **The Rift** (formerly the Collapse) only appears in the finale: the flight home is an escape from it.
+
+### Currently playable build (old loop, being migrated)
+
 **Loop:** travel → scan/ping → land or dock → explore, mine & loot → fight → back to the ship →
 upgrade/craft → stay ahead of the Collapse → insert Energy Cells into the Jump Gate → jump →
 … → sector 3 boss.
@@ -92,14 +124,17 @@ upgrade/craft → stay ahead of the Collapse → insert Energy Cells into the Ju
 * **The Ark** — a derelict capital ship near the start of sector 1. Bring 8 Scrap and restore its
   power. It has Pilot, 2 Turret (flak/laser) and Engineer stations, a fabricator, a big hold,
   big shields and a walkable interior with its own gravity. Players can walk around inside it while
-  it flies.
+  it flies. (Becomes the home ship in the new design, #49.)
 * **Trader stations**: buy modules/gear/cells/fuel, sell resources, repair & refuel (60 cr).
-* **Events**: meteor showers, distress signals (salvage + pirates), solar flares (shields
+  (Become optional alien nomad traders, paid in salvage.)
+* **Events**: meteor showers, distress signals (salvage + hostiles), solar flares (shields
   offline, radiation in the open).
 * **Boss — The Warden**: destroy its three glowing core pods (weak points) to drop its shield,
   then destroy the hull. It spawns drone waves and enrages below 40 %. HP scales with player count.
+  (Becomes a Warden enclave guardian per galaxy, #42.)
 * **Meta progression**: every run awards *Stardust* (distance, kills, sectors, victory).
   Spend it in the **Hangar** on perks, the Mule ship and starting modules (saved locally).
+  (Becomes memory fragments / the Logbook, #47.)
 
 ### Controls (rebindable in Settings)
 
@@ -138,12 +173,14 @@ push the Collapse back, spawn boss (sector 3), trigger an event, refill ship. FP
   crash sites, hives, resource fields or supply caches. The HUD labels sites on approach.
 * **Enemies (7 + boss):** Pirate Fighter, Swarm Drone, Pirate Gunship (sector 2+), Crawler,
   Spitter, Skyskate (flying critter), Nest Guardian, **The Warden** (3-phase boss with weak points).
+  The pirate ships are being rebuilt as alien enemies (#51).
 * **Modules (23):** Engine Mk I–III (+Ark drive), Laser Mk I–III, Missile Pod Mk I–II,
   Flak Mk I–II, Shield Mk I–III, Hull Mk I–III, Cargo Mk I–II, Scanner Mk I–II, Fuel Tank Mk I–II.
 * **Gear (9):** Suit Mk II/III, Oxygen Tank Mk II/III, Jetpack Mk II/III, Drill Mk II/III, Pulse Rifle.
 * **Resources:** Ore, Crystal, Scrap, Fuel, Energy Cells, Credits. 17 crafting recipes.
-* **Sectors:** Pastel Drift → Verdigris Expanse → Ember Maw (+ boss), each with its own palette,
-  hazards, enemy mix, Collapse speed and difficulty tier.
+* **Sectors (current build):** Pastel Drift → Verdigris Expanse → Ember Maw (+ boss), each with its own
+  palette, hazards, enemy mix, Collapse speed and difficulty tier. Replaced by the 5 galaxies of the
+  Local Group with 4–6 systems each (#46).
 
 ---
 
