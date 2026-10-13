@@ -497,7 +497,12 @@ namespace Voidward.UI
 
             UpdateLowHealth(pawn, seatShip);
             vignetteAlpha = Mathf.MoveTowards(vignetteAlpha, 0f, Time.deltaTime * 1.4f);
-            vignette.color = new Color(0.86f, 0.15f, 0.15f, Mathf.Max(vignetteAlpha, lowHealthPulse));
+            // Hurt flash = bright red. The low-health pulse is a near-black red at high alpha: UI blends in linear
+            // space, so it acts like darkening the edges and reads about the same on sunlit sand and in deep space
+            // (a brighter red glows over space and vanishes over bright planets).
+            vignette.color = vignetteAlpha >= lowHealthPulse
+                ? new Color(0.86f, 0.15f, 0.15f, vignetteAlpha)
+                : new Color(0.3f, 0.01f, 0.02f, lowHealthPulse);
             damageArcs.Update(cam, seatShip != null);
             vitalsKick = Kick(vitalsPlate, vitalsPlateHome, vitalsKick);
             shipKick = Kick(shipPlate, shipPlateHome, shipKick);
@@ -1044,8 +1049,11 @@ namespace Voidward.UI
             else hullGauge.Flash(HudKit.Danger, 0.6f + k);
             shipKick = Mathf.Max(shipKick, shield ? 0.35f : 0.4f + k * 0.6f);
             if (!shield) EventBus.RaiseLocalPlayerHurt(k * 0.6f);
-            damageArcs.Add(Camera.main, SourceOf(i, ship.transform.position), shield ? HudKit.Shield : HudKit.Danger, k, true);
+            damageArcs.Add(Camera.main, SourceOf(i, ship.transform.position), shield ? ShieldArc : HudKit.Danger, k, true);
         }
+
+        /// <summary>Paler than the shield gauge so the arc still reads against blue planets and nebulae.</summary>
+        static readonly Color ShieldArc = new Color(0.7f, 0.92f, 1f);
 
         void OnShieldBroken(ShipCore ship)
         {
@@ -1095,7 +1103,7 @@ namespace Voidward.UI
             // Pulse peaks on the beat and decays until the next one.
             float phase = 1f - Mathf.Clamp01(lowHealthBeat / period);
             float beat = Mathf.Exp(-phase * 5f);
-            lowHealthPulse = (0.12f + 0.2f * severity) + beat * (0.12f + 0.16f * severity);
+            lowHealthPulse = ((0.25f + 0.25f * severity) + beat * (0.15f + 0.15f * severity)) * (ship ? 0.5f : 1f);
         }
 
         /// <summary>Decaying jitter on a HUD plate (scaled by Screen shake). Returns the decayed kick.</summary>

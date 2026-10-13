@@ -228,7 +228,7 @@ namespace Voidward.Combat
         /// <summary>The local player's ship lost its shield: blue screen flash, hard shake, 2D crack on top.</summary>
         public static void LocalShieldBroken()
         {
-            Vfx.ScreenFlash(new Color(0.35f, 0.75f, 1f, 0.3f * Mathf.Clamp01(Vfx.ShakeScale + 0.3f)), 0.6f);
+            Vfx.ScreenFlash(new Color(0.35f, 0.75f, 1f, 0.16f), 0.45f);
             Vfx.Shake(0.45f);
             Sfx.Play2D("shield_break", 0.8f, 1f);
         }

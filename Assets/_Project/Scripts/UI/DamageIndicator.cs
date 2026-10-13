@@ -15,7 +15,7 @@ namespace Voidward.UI
     {
         class Arc
         {
-            public Image Img;
+            public Image Img, Shadow;
             public Vector3 Source;
             public Color Color;
             public float Born, Strength;
@@ -59,6 +59,7 @@ namespace Voidward.UI
             arc.Born = now;
             arc.Strength = Mathf.Clamp01(strength);
             arc.Img.gameObject.SetActive(true);
+            arc.Shadow.gameObject.SetActive(true);
             live.Add(arc);
         }
 
@@ -72,22 +73,31 @@ namespace Voidward.UI
                 if (age >= Life || cam == null)
                 {
                     a.Img.gameObject.SetActive(false);
+                    a.Shadow.gameObject.SetActive(false);
                     pool.Push(a);
                     live.RemoveAt(i);
                     continue;
                 }
                 float angle = AngleOf(cam, a.Source, seated);
-                var rt = a.Img.rectTransform;
                 float pop = 1f + 0.25f * Mathf.Clamp01(1f - age / 0.12f);
                 float r = Radius + 18f * a.Strength;
-                rt.anchoredPosition = new Vector2(Mathf.Sin(angle * Mathf.Deg2Rad), Mathf.Cos(angle * Mathf.Deg2Rad)) * r;
-                rt.localEulerAngles = new Vector3(0f, 0f, -angle);
-                rt.sizeDelta = new Vector2(150f + 70f * a.Strength, 44f + 14f * a.Strength) * pop;
+                var pos = new Vector2(Mathf.Sin(angle * Mathf.Deg2Rad), Mathf.Cos(angle * Mathf.Deg2Rad)) * r;
+                var size = new Vector2(190f + 80f * a.Strength, 58f + 16f * a.Strength) * pop;
                 float fade = 1f - Mathf.Clamp01((age - Life * 0.45f) / (Life * 0.55f));
+                Pose(a.Img.rectTransform, pos, angle, size);
+                Pose(a.Shadow.rectTransform, pos - pos.normalized * 2f, angle, size * 1.06f);
                 var c = a.Color;
-                c.a = (0.55f + 0.4f * a.Strength) * fade;
+                c.a = (0.7f + 0.3f * a.Strength) * fade;
                 a.Img.color = c;
+                a.Shadow.color = new Color(0f, 0f, 0f, 0.45f * fade);
             }
+        }
+
+        static void Pose(RectTransform rt, Vector2 pos, float angle, Vector2 size)
+        {
+            rt.anchoredPosition = pos;
+            rt.localEulerAngles = new Vector3(0f, 0f, -angle);
+            rt.sizeDelta = size;
         }
 
         /// <summary>Clockwise degrees from screen-up towards the source.</summary>
@@ -103,13 +113,20 @@ namespace Voidward.UI
 
         Arc Create()
         {
-            var img = UIKit.Image(layer, "Arc", Color.white, false);
+            // Dark underlay first so the coloured arc still reads on snow, sun glare and white hulls.
+            var shadow = ArcImage("ArcShadow");
+            return new Arc { Img = ArcImage("Arc"), Shadow = shadow };
+        }
+
+        Image ArcImage(string name)
+        {
+            var img = UIKit.Image(layer, name, Color.white, false);
             img.sprite = sprite != null ? sprite : (sprite = MakeArc());
             img.raycastTarget = false;
             var rt = img.rectTransform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            return new Arc { Img = img };
+            return img;
         }
 
         /// <summary>Crescent bowed outwards (towards +Y): bright outer edge, soft inner glow, tapered ends.</summary>
@@ -127,9 +144,9 @@ namespace Voidward.UI
                     float ang = Mathf.Abs(Mathf.Atan2(p.x, p.y)) / (W * 0.5f / R);
                     float taper = Mathf.Clamp01((1f - ang) / 0.45f);
                     taper *= taper;
-                    float edge = Mathf.Clamp01(1f - Mathf.Abs(dist + 3f) / 4f);          // crisp rim
-                    float glow = Mathf.Clamp01(1f + dist / 30f) * (dist < 0f ? 1f : 0f); // fades inwards
-                    float a = Mathf.Max(edge, glow * glow * 0.55f) * taper;
+                    float edge = Mathf.Clamp01(1.4f - Mathf.Abs(dist + 6f) / 6f);        // solid rim
+                    float glow = Mathf.Clamp01(1f + dist / 34f) * (dist < 0f ? 1f : 0f); // fades inwards
+                    float a = Mathf.Max(edge, glow * glow * 0.7f) * taper;
                     tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
                 }
             tex.Apply();

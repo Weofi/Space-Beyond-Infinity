@@ -324,6 +324,43 @@ namespace Voidward.Dev
         /// <summary>Server: god mode on/off (no damage, no oxygen loss).</summary>
         public static void God(bool on) { if (IsServer) CheatManager.GodMode = on; }
 
+        /// <summary>
+        /// Server: hit the local pawn for 'amount' from an attacker in world direction 'from' (relative to the pawn),
+        /// bypassing god mode for this one hit. Drives the damage-taken HUD (arc, flash, low-health pulse).
+        /// </summary>
+        public static void HurtPawn(float amount, Vector3 from)
+        {
+            var p = Pawn;
+            if (!IsServer || p == null) { Log("HurtPawn needs the host + a pawn"); return; }
+            HurtServer(p.Health, p.transform.position + p.transform.up * 1f, from, amount);
+        }
+
+        /// <summary>Server: hit the local player's ship (shield absorbs first, like a real shot) from world direction 'from'.</summary>
+        public static void HurtShip(float amount, Vector3 from)
+        {
+            var s = Ship;
+            if (!IsServer || s == null) { Log("HurtShip needs the host + a ship"); return; }
+            HurtServer(s.Hull, s.transform.position + from.normalized * 2f, from, amount);
+        }
+
+        static void HurtServer(HealthComponent h, Vector3 point, Vector3 from, float amount)
+        {
+            bool god = CheatManager.GodMode;
+            CheatManager.GodMode = false;
+            h.ApplyDamage(new DamageInfo { Amount = amount, Type = DamageType.Kinetic, Point = point, Direction = -from.normalized });
+            CheatManager.GodMode = god;
+        }
+
+        /// <summary>Server: set the local pawn's health (0..1 of max) and, if any, the ship shield (0..1 of max).</summary>
+        public static void SetVitals(float health, float shield = -1f)
+        {
+            if (!IsServer) return;
+            var p = Pawn;
+            if (p != null) p.Health.Hp.Value = Mathf.Max(1f, p.Health.MaxHp.Value * Mathf.Clamp01(health));
+            var s = Ship;
+            if (s != null && shield >= 0f) s.Shield.Value = s.Stats.MaxShield * Mathf.Clamp01(shield);
+        }
+
         public static void ClearDecals() { if (G.Get<IVfxService>() is VfxManager v) v.ClearDecals(); }
 
         public static int DecalCount => G.Get<IVfxService>() is VfxManager v ? v.DecalCount : 0;

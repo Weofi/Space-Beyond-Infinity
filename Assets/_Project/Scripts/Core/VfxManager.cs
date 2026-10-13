@@ -422,11 +422,11 @@ namespace Voidward.Core
         public void ShieldBreak(Vector3 pos, float radius)
         {
             float r = Mathf.Max(2f, radius);
-            Emit(Kind.Shield, pos, 60, r * 1.6f, 0.4f, 1.3f, 0.7f, new Color(0.5f, 1.6f, 3f), r * 0.8f);
-            Emit(Kind.Spark, pos, 40, r * 3f, 0.05f, 0.12f, 0.6f, new Color(0.8f, 2f, 3.2f), r * 0.6f, 1f);
+            // Shards start on the bubble surface and fly outwards, so a cockpit camera inside it stays clear.
+            Emit(Kind.Shield, pos, 36, r * 1.4f, 0.12f, 0.35f, 0.6f, new Color(0.5f, 1.6f, 3f), r * 1.1f);
+            Emit(Kind.Spark, pos, 40, r * 3f, 0.04f, 0.09f, 0.6f, new Color(0.8f, 2f, 3.2f), r * 1.1f, 1f);
             Emit(Kind.Shock, pos, 1, 0f, r * 2.6f, r * 3f, 0.45f, new Color(0.4f, 1.2f, 2.4f), 0.01f, 0.6f);
-            Emit(Kind.Flash, pos, 1, 0f, r * 1.4f, r * 1.6f, 0.12f, new Color(1f, 2.4f, 4f), 0.01f, 0.4f);
-            FlashLight(pos, new Color(0.45f, 0.75f, 1f), 10f, r * 4f, 0.25f);
+            FlashLight(pos, new Color(0.45f, 0.75f, 1f), 8f, r * 4f, 0.25f);
         }
 
         // Explicit: the class already has a static ScreenFlash event (UIRoot draws it).
