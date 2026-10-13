@@ -283,8 +283,8 @@ namespace Voidward.World
         // ---------------------------------------------------------------- journey on the sky
 
         const float SkyDistance = 15000f; // inside the 20 km far plane, beyond everything in a system
-        public static readonly Vector3 DestinationDir = new Vector3(1f, 0.16f, -0.42f).normalized;
-        static readonly Vector3 MilkyWayDir = new Vector3(1f, 0.38f, 0.52f).normalized;
+        public static readonly Vector3 DestinationDir = new Vector3(1f, 0.55f, -0.18f).normalized; // high on the sky, above the planet corridor
+        public static readonly Vector3 MilkyWayDir = new Vector3(0.8f, 1f, 0.35f).normalized;
         // Apparent diameter in degrees per galaxy (index 1..5): the destination comes closer, the Milky Way grows.
         static readonly float[] DestinationSize = { 0f, 9f, 6f, 7f, 13f, 0f };
         static readonly float[] MilkyWaySize = { 0f, 2.5f, 3f, 4.5f, 9f, 42f };
@@ -310,7 +310,7 @@ namespace Voidward.World
         Transform SkyGalaxy(string name, Material mat, int arms, Color tint, int seed, Quaternion rot)
         {
             var rng = new System.Random(seed);
-            const int dots = 1400;
+            const int dots = 2800;
             var verts = new List<Vector3>(dots * 4);
             var cols = new List<Color>(dots * 4);
             var uvs = new List<Vector2>(dots * 4);
@@ -318,14 +318,15 @@ namespace Voidward.World
             Color core = new Color(1f, 0.93f, 0.8f);
             for (int i = 0; i < dots; i++)
             {
-                bool bulge = i < 160;
+                bool bulge = i < 260;
+                bool glow = i < 14; // a few large faint dots: the soft core glow
                 float t = bulge ? Mathf.Pow((float)rng.NextDouble(), 2f) * 0.22f : 0.08f + 0.92f * Mathf.Pow((float)rng.NextDouble(), 0.8f);
                 float ang = bulge ? (float)rng.NextDouble() * Mathf.PI * 2f : (rng.Next(arms) * Mathf.PI * 2f / arms) + t * 4.2f;
                 float spread = bulge ? 0f : 0.05f + 0.16f * t;
                 Vector2 pos = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * t + new Vector2(Gauss(rng), Gauss(rng)) * spread;
-                float size = bulge ? 0.07f + 0.08f * (float)rng.NextDouble() : 0.025f + 0.05f * (float)rng.NextDouble();
+                float size = glow ? 0.25f + 0.2f * (float)rng.NextDouble() : bulge ? 0.035f + 0.05f * (float)rng.NextDouble() : 0.012f + 0.03f * (float)rng.NextDouble();
                 Color c = Color.Lerp(core, tint, Mathf.Clamp01(t * 1.6f));
-                c.a = bulge ? 0.35f : Mathf.Lerp(0.3f, 0.08f, t);
+                c.a = glow ? 0.07f : bulge ? 0.22f : Mathf.Lerp(0.22f, 0.06f, t);
                 int b0 = verts.Count;
                 verts.Add(new Vector3(pos.x - size, pos.y - size, 0f)); verts.Add(new Vector3(pos.x + size, pos.y - size, 0f));
                 verts.Add(new Vector3(pos.x + size, pos.y + size, 0f)); verts.Add(new Vector3(pos.x - size, pos.y + size, 0f));

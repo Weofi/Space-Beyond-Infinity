@@ -13,9 +13,9 @@ Route: M33 → Andromeda (M31) → NGC 6822 → Leo I → Large Magellanic Cloud
 Two endings only: **Homecoming** or **death** (= the loop resets). Target run length ~2.5–3 h.
 
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
-> through 3 sectors, power Jump Gates, defeat the Warden"). The playable build still runs the old
-> loop until the foundation issues land (#46 run structure, #73 warp drive, #74 prologue/loop/homecoming,
-> #49 home ship). Section 3 describes both: the target design and what is playable today.
+> through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
+> galaxy map, suspend save) is playable; still to come are the flown warp drive (#73), prologue/loop/homecoming
+> (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
 the Input System, Cinemachine 3 and TextMeshPro. All art, audio and music are procedural
@@ -79,7 +79,7 @@ the Editor and release players); build ↔ build and Editor ↔ Multiplayer Play
 4. PC 2: accept the invite (the game joins automatically) or **Join Game ▸ Refresh ▸ Join**.
 5. Host: **Start Run**.
 
-Late joiners are dropped into the running sector with a fresh ship. If a client disconnects, its
+Late joiners are dropped into the running system with a fresh ship. If a client disconnects, its
 ship stays in the world. If the host quits, clients return to the main menu with a notification.
 
 ---
@@ -106,33 +106,37 @@ upgrade → the Home ETA drops → keep searching or warp on to the next galaxy 
   Loop** (memory fragments, codex, unlocks).
 * **The Rift** (formerly the Collapse) only appears in the finale: the flight home is an escape from it.
 
-### Currently playable build (old loop, being migrated)
+### Currently playable build
 
-**Loop:** travel → scan/ping → land or dock → explore, mine & loot → fight → back to the ship →
-upgrade/craft → stay ahead of the Collapse → insert Energy Cells into the Jump Gate → jump →
-… → sector 3 boss.
+**Loop:** wake up at the *Wormhole Exit* in M33 → explore the system (scan/ping, land, mine, loot, fight)
+→ back to the ship, upgrade/craft → open the **galaxy map (M)** → as pilot, warp to another system of the
+galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud: **fly home** (homecoming).
 
-* The **Collapse** advances along the route (HUD top-right shows its distance). Anything it
-  reaches takes heavy damage; players killed by it are *lost* for the rest of the run.
-* Each sector's **Jump Gate** needs Energy Cells (2 / 3). Fly close with cells in your backpack or
-  ship cargo and they are inserted automatically (or use the socket under the gate on foot).
-  Then everyone alive must gather near the gate → 6 s countdown → jump.
+* **Galaxies & systems:** 5 galaxies (M33, M31, NGC 6822, Leo I, LMC), each with 4-6 systems generated
+  from the run seed: planetary systems, asteroid & wreck fields, anomalies (frequent flares/meteors),
+  nomad meeting points (trader), empty space (distress signals) and one **Warden enclave** per galaxy.
+  Enemies, loot tier and events get harder from galaxy to galaxy. The sky shows the journey: the next
+  galaxy and the Milky Way grow along the route.
+* **Warping (placeholder until the flown warp of #73):** the pilot sets a course on the galaxy map, after
+  a 5 s countdown the whole crew warps. Systems of a galaxy can be revisited (their crates stay looted);
+  the warp to the next galaxy is one-way. There are no mandatory objectives.
+* **Warden enclave:** fly to the far end of the enclave system to wake its Warden: destroy its three
+  glowing core pods (weak points) to drop its shield, then the hull. It drops a hoard of top-tier crates.
 * **Oxygen** drains outside ships and outside breathable atmospheres (Ice and Crystal worlds are
   breathable). Ships, the Ark interior and station pads refill it.
-* **Team respawns**: 4 per run (+1 per jump). Respawn happens at your ship (or any ship).
-  Lose your ship and you get a replacement Dart after 20 s.
-* **The Ark** — a derelict capital ship near the start of sector 1. Bring 8 Scrap and restore its
+* **Team respawns**: 4 per run (+1 per new galaxy). Respawn happens at your ship (or any ship).
+  Lose your ship and you get a replacement Dart after 20 s. If the whole crew is lost, the loop resets.
+* **The Ark** — a derelict capital ship near the wormhole exit. Bring 8 Scrap and restore its
   power. It has Pilot, 2 Turret (flak/laser) and Engineer stations, a fabricator, a big hold,
   big shields and a walkable interior with its own gravity. Players can walk around inside it while
   it flies. (Becomes the home ship in the new design, #49.)
-* **Trader stations**: buy modules/gear/cells/fuel, sell resources, repair & refuel (60 cr).
-  (Become optional alien nomad traders, paid in salvage.)
+* **Trader stations** (wormhole exit and nomad systems): buy modules/gear/cells/fuel, sell resources,
+  repair & refuel (60 cr).
 * **Events**: meteor showers, distress signals (salvage + hostiles), solar flares (shields
   offline, radiation in the open).
-* **Boss — The Warden**: destroy its three glowing core pods (weak points) to drop its shield,
-  then destroy the hull. It spawns drone waves and enrages below 40 %. HP scales with player count.
-  (Becomes a Warden enclave guardian per galaxy, #42.)
-* **Meta progression**: every run awards *Stardust* (distance, kills, sectors, victory).
+* **Suspend save:** the host's run is saved when entering a galaxy and when leaving the session; *Continue
+  Run* in the lobby resumes it (players are matched by name). The save is deleted when the run ends.
+* **Meta progression**: every run awards *Stardust* (distance, kills, galaxies, homecoming).
   Spend it in the **Hangar** on perks, the Mule ship and starting modules (saved locally).
   (Becomes memory fragments / the Logbook, #47.)
 
@@ -150,13 +154,14 @@ upgrade/craft → stay ahead of the Collapse → insert Energy Cells into the Ju
 | Interact / enter-exit seat | F | F (leave seat) |
 | Tools | 1 Drill · 2 Blaster · 3 Rifle · 4 Medkit | – |
 | Inventory / ship / crafting | Tab | Tab |
+| Galaxy map (warp course) | M | M |
 | Ping (enemy / loot / look) | T or MMB | T |
 | Helmet flashlight on/off | L | – (ship headlights turn on automatically) |
 | Pause | Esc | Esc |
 | Debug cheats | F1 | F1 |
 
-**F1 cheats** (host-authoritative): god mode, give resources + credits, skip sector, spawn enemy,
-push the Collapse back, spawn boss (sector 3), trigger an event, refill ship. FPS counter included.
+**F1 cheats** (host-authoritative): god mode, give resources + credits, warp to the next system, spawn enemy,
+warp to the next galaxy, wake a Warden nearby, trigger an event, refill ship. FPS counter included.
 
 ---
 
@@ -171,16 +176,16 @@ push the Collapse back, spawn boss (sector 3), trigger an event, refill ship. FP
   and landmark set pieces (arches, giant crystals, elder trees, monolith rings, colossal bones...).
   Each planet has 6-8 **sites** - flattened landing clearings next to landforms holding ruins,
   crash sites, hives, resource fields or supply caches. The HUD labels sites on approach.
-* **Enemies (7 + boss):** Pirate Fighter, Swarm Drone, Pirate Gunship (sector 2+), Crawler,
+* **Enemies (7 + boss):** Pirate Fighter, Swarm Drone, Pirate Gunship (Andromeda+), Crawler,
   Spitter, Skyskate (flying critter), Nest Guardian, **The Warden** (3-phase boss with weak points).
   The pirate ships are being rebuilt as alien enemies (#51).
 * **Modules (23):** Engine Mk I–III (+Ark drive), Laser Mk I–III, Missile Pod Mk I–II,
   Flak Mk I–II, Shield Mk I–III, Hull Mk I–III, Cargo Mk I–II, Scanner Mk I–II, Fuel Tank Mk I–II.
 * **Gear (9):** Suit Mk II/III, Oxygen Tank Mk II/III, Jetpack Mk II/III, Drill Mk II/III, Pulse Rifle.
 * **Resources:** Ore, Crystal, Scrap, Fuel, Energy Cells, Credits. 17 crafting recipes.
-* **Sectors (current build):** Pastel Drift → Verdigris Expanse → Ember Maw (+ boss), each with its own
-  palette, hazards, enemy mix, Collapse speed and difficulty tier. Replaced by the 5 galaxies of the
-  Local Group with 4–6 systems each (#46).
+* **Galaxies:** Triangulum (M33) → Andromeda (M31) → Barnard's Galaxy (NGC 6822) → Leo I → Large
+  Magellanic Cloud → home, each with its own palette, biome pool, enemy mix and difficulty/loot tier,
+  and 4–6 seeded systems.
 
 ---
 
@@ -201,13 +206,14 @@ Assets/_Project/
     Ship/         ShipCore (stats/modules/shields/fuel/weapons), ShipFlight, ShipSeat, terminals, dashboard
     Player/       PlayerPawn (FPS controller, EVA, seats, tools, oxygen, interaction, pings)
     AI/           EnemyBrain (state machine), AlienNest, BossBrain, EnemyFactory
-    World/        RunManager (run/sector flow, Collapse, gate, events, spawns, stats), SectorLayout,
-                  SectorVisuals (client-local asteroids/palette), JumpGate, TraderStation
+    World/        RunManager (run flow, galaxies/systems, warp, suspend save, stats), GalaxyGenerator (seeded
+                  galaxy plans), SystemDirector (system content, spawns, events, Warden enclave), SystemLayout,
+                  SystemVisuals (client-local asteroids/palette/journey sky), RunState/RunSave, TraderStation
     Progression/  Meta (Stardust, perks, loadout, local save)
     UI/           code-built uGUI/TMP screens (menu, lobby, hangar, settings, HUD, inventory, trade…)
   Editor/         ContentBuilder (data, materials), PrefabBuilder (meshes, prefabs), SceneBuilder
   Shaders/        ToonFlat (flat/toon), Planet, Ocean, Atmosphere (scattering), Clouds, NebulaSkybox,
-                  Collapse, Glass, Unlit, AdditiveParticle
+                  Collapse (kept for the Rift, #73), Glass, Unlit, AdditiveParticle
 ```
 
 Assembly definitions keep the graph acyclic (Core ← Data ← Combat/Inventory/Planet ← Ship ← Player
@@ -215,7 +221,7 @@ Assembly definitions keep the graph acyclic (Core ← Data ← Combat/Inventory/
 
 **Networking model**
 * Server-authoritative gameplay: damage, loot, inventory, crafting, trading, AI, spawning, oxygen,
-  respawns, Collapse and jumps all run on the host. Clients send requests via RPCs.
+  respawns, warps and the suspend save all run on the host. Clients send requests via RPCs.
 * Movement: player pawns and piloted ships use **owner-authoritative NetworkTransforms** — the
   owner simulates locally (instant, prediction-like response) and everyone else interpolates.
   Taking the pilot seat transfers ship ownership to that client; leaving returns it to the server.
@@ -223,8 +229,8 @@ Assembly definitions keep the graph acyclic (Core ← Data ← Combat/Inventory/
   the server resolves hits and reports impacts.
 * Procedural content is **seeded**: only seeds and a few parameters are synced; planets
   (geometry + colliders), asteroid fields and trader stock are generated identically on every peer.
-* **Floating origin:** every sector is generated around the world origin and all ships/players are
-  re-based on each jump (`NetTeleport`, routed to whoever owns the transform), so coordinates stay
+* **Floating origin:** every system is generated around the world origin and all ships/players are
+  re-based on each warp (`NetTeleport`, routed to whoever owns the transform), so coordinates stay
   within ~8 km (including the kilometre-scale planets) and precise in multiplayer.
 * Seats do not re-parent network objects: pawns poll the seat registry and follow the seat
   locally; players walking inside the moving Ark are carried by a moving-platform step.
@@ -232,7 +238,7 @@ Assembly definitions keep the graph acyclic (Core ← Data ← Combat/Inventory/
 **Performance:** planets are six quadtrees of terrain chunks built on worker threads (finer near
 the camera, horizon-culled, skirts hide LOD seams); colliders are streamed only around pawns and
 ships; props are generated per chunk. Asteroid fields are batched into a few meshes,
-VFX/projectile visuals/audio sources are pooled, and only active sector content exists at any time.
+VFX/projectile visuals/audio sources are pooled, and only the active system's content exists at any time.
 
 ---
 

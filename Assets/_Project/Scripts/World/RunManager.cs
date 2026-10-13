@@ -295,12 +295,19 @@ namespace Voidward.World
             EnterSystem(save.Galaxy, save.System, false);
             VisitedMask.Value = save.VisitedMask | (1 << save.System);
 
+            // Match players by name; each saved entry is handed out once (two players may share a name).
+            var players = new List<PlayerSave>(save.Players);
+            var ships = save.Ships.FindAll(s => s.Class != ShipClass.Ark);
             int slot = 0;
             foreach (var pawn in PlayerPawn.All)
             {
                 if (pawn == null) continue;
                 string name = NameOf(pawn.OwnerClientId);
-                SetupPlayer(pawn, slot++, true, save.Players.Find(p => p.Name == name), save.Ships.Find(s => s.Owner == name && s.Class != ShipClass.Ark));
+                var ps = players.Find(p => p.Name == name);
+                var ss = ships.Find(s => s.Owner == name);
+                players.Remove(ps);
+                ships.Remove(ss);
+                SetupPlayer(pawn, slot++, true, ps, ss);
             }
             var arkSave = save.Ships.Find(s => s.Class == ShipClass.Ark);
             if (arkSave != null && !arkSave.Derelict) RestoreArk(arkSave);

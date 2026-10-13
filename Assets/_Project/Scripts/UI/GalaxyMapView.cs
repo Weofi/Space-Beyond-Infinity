@@ -23,6 +23,7 @@ namespace Voidward.UI
         readonly TextMeshProUGUI header, route;
         RectTransform body;
         int selected = -1;
+        int shownSystem = -1;
         bool confirmGalaxy;
         float timer;
 
@@ -30,7 +31,7 @@ namespace Voidward.UI
 
         public GalaxyMapView(RectTransform root)
         {
-            panel = UIKit.Panel(root, "GalaxyMapPanel");
+            panel = UIKit.Panel(root, "GalaxyMapPanel", new Color(0.03f, 0.06f, 0.13f, 0.97f));
             UIKit.Place(panel, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1500, 860));
             UIKit.VLayout(panel.gameObject, 10, 22);
             var top = UIKit.Row(panel, 56);
@@ -48,6 +49,7 @@ namespace Voidward.UI
             var rm = RunManager.Instance;
             if (rm == null || rm.RunSeed.Value == 0) return;
             selected = rm.SystemIndex.Value;
+            shownSystem = rm.GalaxyIndex.Value * 16 + rm.SystemIndex.Value;
             confirmGalaxy = false;
             panel.gameObject.SetActive(true);
             timer = 0f;
@@ -81,6 +83,9 @@ namespace Voidward.UI
         {
             var plan = rm.Plan;
             var def = plan.Def;
+            // After a warp the map follows the crew.
+            int here = rm.GalaxyIndex.Value * 16 + rm.SystemIndex.Value;
+            if (here != shownSystem) { shownSystem = here; selected = rm.SystemIndex.Value; confirmGalaxy = false; }
             int g = rm.GalaxyIndex.Value;
             header.text = $"{RunManager.GalaxyTitle(def)}   <size=70%><color=#94A3B8>{(def != null ? def.DistanceMly.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "?")} M ly from home  |  run {HudView.Clock(rm.RunTime)}</color></size>";
             var sb = new System.Text.StringBuilder("ROUTE   ");
@@ -100,7 +105,7 @@ namespace Voidward.UI
             UIKit.HLayout(body.gameObject, 22, 0, TextAnchor.UpperLeft);
 
             // ------------------------------------------------ map
-            var mapWrap = UIKit.Panel(body, "Map", new Color(0.01f, 0.02f, 0.05f, 0.9f));
+            var mapWrap = UIKit.Panel(body, "Map", new Color(0.008f, 0.014f, 0.035f, 0.98f));
             UIKit.LayoutElement(mapWrap.gameObject, MapSize.x + 40f, MapSize.y + 40f);
             var map = UIKit.Rect(mapWrap, "Area");
             UIKit.Place(map, new Vector2(0.5f, 0.5f), Vector2.zero, MapSize);
