@@ -28,8 +28,11 @@ namespace Voidward.Ship
     /// weapons. Server-authoritative; the pilot only sends input/fire requests.
     /// </summary>
     [RequireComponent(typeof(HealthComponent))]
-    public class ShipCore : NetworkBehaviour
+    public class ShipCore : NetworkBehaviour, ISurface
     {
+        /// <summary>Impact effects: shots spark off the shield bubble while it holds, then scorch the hull.</summary>
+        public SurfaceKind Surface => Shield.Value > 0.5f && !ShieldsOffline.Value ? SurfaceKind.Shield : SurfaceKind.Metal;
+
         public const ulong NoPlayer = ulong.MaxValue;
         public const int ModuleSlotCount = 10;
         /// <summary>Pilot aim assist cone (degrees) without a Targeting module.</summary>
@@ -274,6 +277,19 @@ namespace Voidward.Ship
             int tier = slot == 0 ? s.TierA : s.TierB;
             localNextFire[slot] = Time.time + Cooldown(kind, tier) / Mathf.Max(0.3f, s.RateMult) * 0.9f;
             FireServerRpc(slot, aimDir);
+            FeedbackFx.LocalRecoil(Recoil(kind));
+        }
+
+        /// <summary>Local camera kick per shot (#43), scaled by the Screen shake setting in FeedbackFx.</summary>
+        public static float Recoil(WeaponKind k)
+        {
+            switch (k)
+            {
+                case WeaponKind.Laser: return 0.16f;
+                case WeaponKind.Flak: return 0.35f;
+                case WeaponKind.Missile: return 0.6f;
+                default: return 0f;
+            }
         }
 
         readonly float[] localNextFire = new float[2];

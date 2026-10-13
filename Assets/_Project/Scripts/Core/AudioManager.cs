@@ -126,7 +126,7 @@ namespace Voidward.Core
         {
             engineKeepAlive -= Time.unscaledDeltaTime;
             float t = engineKeepAlive > 0f ? engineTarget : 0f;
-            float targetVol = engineKeepAlive > 0f ? (0.12f + t * 0.35f) * SfxVolume : 0f;
+            float targetVol = engineKeepAlive > 0f ? (0.04f + t * 0.35f) * SfxVolume : 0f;
             engine.volume = Mathf.MoveTowards(engine.volume, targetVol, Time.unscaledDeltaTime * 1.5f);
             engine.pitch = Mathf.Lerp(engine.pitch, 0.7f + t * 0.7f, Time.unscaledDeltaTime * 3f);
 
@@ -214,8 +214,9 @@ namespace Voidward.Core
             clips["blip"] = Make("blip", 0.035f, (t, u, r) => Sq(1150f, t) * 0.12f * Env(u, 0.05f));
             clips["highlight"] = Make("highlight", 0.6f, (t, u, r) => (Sin(u < 0.25f ? 988f : 1480f, t) * 0.28f + Sin(2960f, t) * 0.06f) * Env(u, 0.01f));
             clips["rumble"] = Make("rumble", 3f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.012f); return (lp * 2.6f + Sin(32f + Sin(0.7f, t) * 3f, t) * 0.4f) * Mathf.Sin(Mathf.PI * u); }, 14);
-            float e1 = 0f;
-            clips["engine"] = Make("engine", 2f, (t, u, r) => { e1 = Mathf.Lerp(e1, Noise(r), 0.06f); return e1 * 0.9f + Sin(55f, t) * 0.25f + Sin(110f, t) * 0.12f; }, 10);
+            // Tonal hum without a noise bed (the old filtered-noise loop read as constant hiss in space).
+            // All partials complete whole cycles in 2 s, so the loop is seamless.
+            clips["engine"] = Make("engine", 2f, (t, u, r) => (Sin(55f, t) * 0.32f + Sin(55.5f, t) * 0.2f + Sin(110f, t) * 0.14f + Sin(165f, t) * 0.05f) * (0.85f + 0.15f * Sin(1f, t)), 10);
         }
 
         static readonly float[][] Scales =

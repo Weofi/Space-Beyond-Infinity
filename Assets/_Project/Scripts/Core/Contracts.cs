@@ -39,6 +39,17 @@ namespace Voidward.Core
     }
 
     /// <summary>
+    /// Optional on hittable objects (ships, stations, planets, asteroids): which impact effect a shot gets.
+    /// Looked up with GetComponentInParent; objects without one fall back to their team (see FeedbackFx.SurfaceOf).
+    /// The component's transform also anchors scorch decals, so they ride along with moving ships.
+    /// </summary>
+    public interface ISurface
+    {
+        SurfaceKind Surface { get; }
+        Transform transform { get; }
+    }
+
+    /// <summary>
     /// The agent performing an interaction (the player pawn). Defined in Core so
     /// interactables never depend on the Player assembly.
     /// </summary>
@@ -90,6 +101,8 @@ namespace Voidward.Core
         /// <summary>Local, purely visual hit-stop: camera and effects hold until this unscaled time (never Time.timeScale).</summary>
         public static float HitStopUntil;
         public static bool HitStopActive => Time.unscaledTime < HitStopUntil;
+        /// <summary>Local weapon recoil 0..~1.5 (viewmodel / seat camera kick), decays back to 0. Already scaled by Screen shake.</summary>
+        public static float Recoil;
         /// <summary>World X of the Collapse front (everything with x below is consumed).</summary>
         public static float CollapseX = -99999f;
         public static Vector3 GatePosition;
@@ -100,7 +113,7 @@ namespace Voidward.Core
         public static bool Cinematic;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; SectorIndex = 1; ShakeIntensity = 0f; FovPunch = 0f; HitStopUntil = 0f; CollapseX = -99999f; HasGate = false; Objective = ""; Cinematic = false; }
+        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; SectorIndex = 1; ShakeIntensity = 0f; FovPunch = 0f; HitStopUntil = 0f; Recoil = 0f; CollapseX = -99999f; HasGate = false; Objective = ""; Cinematic = false; }
 
         public static bool GameplayInputAllowed => !UIOpen && !Cinematic && Phase == GamePhase.Playing;
     }

@@ -9,6 +9,8 @@ namespace Voidward.Core
     /// explosions = flash core + fireball + stretched spark streaks + shock ring + smoke + lit debris chunks;
     /// impacts (lasers, mining) = sparks + glow + dust. Additive layers share ParticleMaterial, smoke uses an
     /// alpha-blended material, debris renders a small rock mesh with the lit toon material.
+    /// Weapon feedback (#43): directional muzzle flashes with a short pooled point light, surface-aware impacts
+    /// (metal sparks, rock chips, dirt, alien goo, shield) and pooled scorch decals (DecalPool).
     /// </summary>
     public class VfxManager : MonoBehaviour, IVfxService
     {
@@ -16,6 +18,7 @@ namespace Voidward.Core
         public Material SmokeMaterial;
         public Material DebrisMaterial;
         public Mesh DebrisMesh;
+        public Material DecalMaterial;
 
         /// <summary>UI listens: full-screen flash (color, seconds).</summary>
         public static event Action<Color, float> ScreenFlash;
@@ -23,10 +26,18 @@ namespace Voidward.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => ScreenFlash = null;
 
-        enum Kind { Flash, Fireball, Spark, Shock, Smoke, Debris, Shield, Sparkle, Muzzle }
+        enum Kind { Flash, Fireball, Spark, Shock, Smoke, Debris, Shield, Sparkle, Muzzle, SparkCone, Chips, Dust, Goo }
         readonly Dictionary<Kind, Queue<ParticleSystem>> pools = new Dictionary<Kind, Queue<ParticleSystem>>();
         readonly List<(ParticleSystem ps, Kind k, float until)> active = new List<(ParticleSystem, Kind, float)>();
         bool frozen;
+        DecalPool decals;
+
+        // Short-lived point lights (muzzle flashes, impacts): a small ring, the oldest is reused.
+        const int MaxLights = 10;
+        readonly Light[] lights = new Light[MaxLights];
+        readonly float[] lightStart = new float[MaxLights], lightLife = new float[MaxLights], lightPeak = new float[MaxLights];
+        int nextLight;
+        float nextImpactLight;
 
         void Awake()
         {
@@ -34,17 +45,33 @@ namespace Voidward.Core
             G.Register<IVfxService>(this);
             DontDestroyOnLoad(gameObject);
             foreach (Kind k in Enum.GetValues(typeof(Kind))) pools[k] = new Queue<ParticleSystem>();
+            decals = new DecalPool(DecalMaterial, transform);
+            EventBus.SectorStarted += OnSectorStarted;
+            EventBus.PhaseChanged += OnPhaseChanged;
         }
 
         void OnDestroy()
         {
+            EventBus.SectorStarted -= OnSectorStarted;
+            EventBus.PhaseChanged -= OnPhaseChanged;
             if (ReferenceEquals(G.Get<IVfxService>(), this)) G.Unregister<IVfxService>();
         }
+
+        // The floating origin moves on every jump: marks anchored to the world (far terrain) would end up wrong.
+        void OnSectorStarted(int sector) => decals?.Clear();
+        void OnPhaseChanged(GamePhase phase) { if (phase != GamePhase.Playing && phase != GamePhase.Paused) decals?.Clear(); }
+
+        /// <summary>Live scorch decals (debug / tests).</summary>
+        public int DecalCount => decals != null ? decals.LiveCount : 0;
 
         void Update()
         {
             GameState.ShakeIntensity = Mathf.MoveTowards(GameState.ShakeIntensity, 0f, Time.deltaTime * 1.8f);
             GameState.FovPunch = Mathf.MoveTowards(GameState.FovPunch, 0f, Time.unscaledDeltaTime * 14f);
+            // Recoil springs back fast (exponential), so sustained fire reads as a jitter, not a drift.
+            GameState.Recoil = GameState.Recoil > 0.002f ? GameState.Recoil * Mathf.Exp(-16f * Time.unscaledDeltaTime) : 0f;
+            decals?.Tick();
+            UpdateLights();
             // Local hit-stop: freeze the running effects for a few frames (impact frame), never Time.timeScale.
             bool hold = GameState.HitStopActive;
             if (hold != frozen)
@@ -61,6 +88,45 @@ namespace Voidward.Core
                 e.ps.gameObject.SetActive(false);
                 pools[e.k].Enqueue(e.ps);
             }
+        }
+
+        void UpdateLights()
+        {
+            float now = Time.time;
+            for (int i = 0; i < MaxLights; i++)
+            {
+                var l = lights[i];
+                if (l == null || !l.enabled) continue;
+                float t = (now - lightStart[i]) / lightLife[i];
+                if (t >= 1f) { l.enabled = false; continue; }
+                float k = 1f - t;
+                l.intensity = lightPeak[i] * k * k;
+            }
+        }
+
+        /// <summary>Brief point light at pos (HDR tint is normalised to a light colour), fading out over life seconds.</summary>
+        void FlashLight(Vector3 pos, Color tint, float intensity, float range, float life)
+        {
+            int i = nextLight;
+            nextLight = (nextLight + 1) % MaxLights;
+            var l = lights[i];
+            if (l == null)
+            {
+                var go = new GameObject("vfx_Light");
+                go.transform.SetParent(transform, false);
+                l = lights[i] = go.AddComponent<Light>();
+                l.type = LightType.Point;
+                l.shadows = LightShadows.None;
+            }
+            float m = Mathf.Max(1f, tint.maxColorComponent);
+            l.color = new Color(tint.r / m, tint.g / m, tint.b / m, 1f);
+            l.transform.position = pos;
+            l.range = range;
+            l.intensity = intensity;
+            l.enabled = true;
+            lightStart[i] = Time.time;
+            lightLife[i] = Mathf.Max(0.02f, life);
+            lightPeak[i] = intensity;
         }
 
         ParticleSystem Get(Kind k)
@@ -145,7 +211,44 @@ namespace Voidward.Core
                     dampSm.enabled = true; dampSm.dampen = 0.08f; dampSm.limit = 0f;
                     r.sortingFudge = 10f;
                     break;
+                case Kind.Muzzle:
+                case Kind.SparkCone:
+                    // Directional streaks: emitted along the effect's forward (muzzle direction / surface normal).
+                    shape.shapeType = ParticleSystemShapeType.Cone;
+                    shape.angle = k == Kind.Muzzle ? 9f : 55f;
+                    shape.radius = 0.02f;
+                    r.renderMode = ParticleSystemRenderMode.Stretch;
+                    r.velocityScale = k == Kind.Muzzle ? 0.03f : 0.05f;
+                    r.lengthScale = k == Kind.Muzzle ? 2.2f : 1.4f;
+                    size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0.15f));
+                    col.color = k == Kind.Muzzle ? Fade(Color.white, Color.white) : Fade(Color.white, new Color(1f, 0.5f, 0.2f), 0f, 0.4f);
+                    var dampC = ps.limitVelocityOverLifetime;
+                    dampC.enabled = true; dampC.dampen = k == Kind.Muzzle ? 0.2f : 0.07f; dampC.limit = 0f;
+                    break;
+                case Kind.Dust:
+                case Kind.Goo:
+                    if (SmokeMaterial != null) r.sharedMaterial = SmokeMaterial;
+                    shape.shapeType = ParticleSystemShapeType.Cone;
+                    shape.angle = k == Kind.Dust ? 40f : 50f;
+                    shape.radius = 0.08f;
+                    main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                    if (k == Kind.Dust)
+                    {
+                        size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.3f), new Keyframe(1f, 1.6f)));
+                        col.color = Fade(Color.white, Color.white, 0f, 0.15f);
+                    }
+                    else
+                    {
+                        size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(0.7f, 0.9f), new Keyframe(1f, 0.2f)));
+                        col.color = Fade(Color.white, new Color(0.7f, 0.8f, 0.6f), 0f, 0.6f);
+                    }
+                    var dampG = ps.limitVelocityOverLifetime;
+                    dampG.enabled = true; dampG.dampen = k == Kind.Dust ? 0.1f : 0.04f; dampG.limit = 0f;
+                    r.sortingFudge = 10f;
+                    break;
+                case Kind.Chips:
                 case Kind.Debris:
+                    if (k == Kind.Chips) { shape.shapeType = ParticleSystemShapeType.Cone; shape.angle = 45f; shape.radius = 0.05f; }
                     if (DebrisMesh != null && DebrisMaterial != null)
                     {
                         r.renderMode = ParticleSystemRenderMode.Mesh;
@@ -169,10 +272,12 @@ namespace Voidward.Core
             return ps;
         }
 
-        void Emit(Kind k, Vector3 pos, int count, float speed, float sizeMin, float sizeMax, float life, Color c, float radius = 0.1f, float duration = 3f)
+        ParticleSystem Emit(Kind k, Vector3 pos, int count, float speed, float sizeMin, float sizeMax, float life, Color c, float radius = 0.1f, float duration = 3f, Quaternion? rot = null)
         {
             var ps = Get(k);
-            ps.transform.position = pos;
+            ps.transform.SetPositionAndRotation(pos, rot ?? Quaternion.identity);
+            var force = ps.forceOverLifetime;
+            if (force.enabled) force.enabled = false; // pooled: only Settle() turns it on for this burst
             var main = ps.main;
             main.startSpeed = new ParticleSystem.MinMaxCurve(speed * 0.4f, speed);
             main.startSize = new ParticleSystem.MinMaxCurve(sizeMin, sizeMax);
@@ -183,6 +288,17 @@ namespace Voidward.Core
             if (!ps.isPlaying) ps.Play();
             ps.Emit(count);
             active.Add((ps, k, Time.time + Mathf.Max(duration, life + 0.2f)));
+            return ps;
+        }
+
+        /// <summary>Pull an effect's particles back towards the surface they flew off (chips and goo fall back down).</summary>
+        static void Settle(ParticleSystem ps, Vector3 normal, float accel)
+        {
+            var f = ps.forceOverLifetime;
+            f.enabled = accel > 0f;
+            f.space = ParticleSystemSimulationSpace.World;
+            Vector3 a = -normal * accel;
+            f.x = a.x; f.y = a.y; f.z = a.z;
         }
 
         public void Explosion(Vector3 pos, float radius, Color tint)
@@ -213,10 +329,77 @@ namespace Voidward.Core
             Emit(Kind.Flash, pos, 1, 0f, radius * 1.4f, radius * 1.6f, 0.1f, new Color(3f, 3f, 3f), 0.01f, 0.4f);
         }
 
-        public void MuzzleFlash(Vector3 pos, Vector3 dir)
+        public void MuzzleFlash(Vector3 pos, Vector3 dir, Color tint, float scale)
         {
-            Emit(Kind.Muzzle, pos, 4, 3f, 0.2f, 0.5f, 0.12f, new Color(2f, 1.8f, 1.2f));
-            Emit(Kind.Spark, pos, 3, 10f, 0.03f, 0.06f, 0.15f, new Color(2.4f, 2f, 1.4f), 0.05f, 0.5f);
+            if (dir.sqrMagnitude < 1e-4f) dir = Vector3.forward;
+            dir.Normalize();
+            scale = Mathf.Clamp(scale, 0.1f, 3f);
+            var rot = Quaternion.LookRotation(dir);
+            Color hot = Color.Lerp(tint, new Color(3f, 3f, 3f), 0.4f);
+            // hot core bloom, a tight cone of flame streaks, a few sparks and a light that lights up the hull / hands
+            Emit(Kind.Flash, pos + dir * (0.15f * scale), 1, 0f, 0.9f * scale, 1.3f * scale, 0.06f, hot, 0.01f, 0.3f);
+            Emit(Kind.Muzzle, pos, 6, 28f * scale, 0.16f * scale, 0.32f * scale, 0.08f, hot, 0.02f, 0.4f, rot);
+            Emit(Kind.SparkCone, pos, 3 + Mathf.RoundToInt(2f * scale), 14f * scale + 4f, 0.02f, 0.03f + 0.04f * scale, 0.18f, tint * 1.2f, 0.03f, 0.5f, rot);
+            FlashLight(pos + dir * (0.3f * scale), tint, Mathf.Lerp(4f, 40f, Mathf.Clamp01(scale)), Mathf.Lerp(5f, 22f, Mathf.Clamp01(scale)), 0.07f);
+        }
+
+        public void Impact(Vector3 pos, Vector3 normal, SurfaceKind surface, Color tint, float scale)
+        {
+            if (normal.sqrMagnitude < 0.01f) normal = UnityEngine.Random.onUnitSphere;
+            normal.Normalize();
+            float s = Mathf.Clamp(scale, 0.2f, 3f);
+            var rot = Quaternion.LookRotation(normal);
+            Vector3 lift = pos + normal * 0.08f;
+            if (surface != SurfaceKind.Organic)
+                Emit(Kind.Flash, lift, 1, 0f, 0.5f * s, 0.8f * s, 0.07f, tint * 0.9f, 0.01f, 0.3f);
+            switch (surface)
+            {
+                case SurfaceKind.Metal:
+                    // bright, long-lived spark spray + a wisp of smoke, lights the hull for a moment
+                    Emit(Kind.SparkCone, lift, 5 + Mathf.RoundToInt(11f * s), 18f * s + 4f, 0.03f, 0.07f, 0.55f, new Color(3f, 2.1f, 1.1f), 0.05f, 1f, rot);
+                    Emit(Kind.Smoke, lift + normal * 0.2f, 2, 0.8f, 0.3f * s, 0.6f * s, 1f, new Color(0.35f, 0.35f, 0.38f, 0.35f), 0.1f, 1.2f);
+                    ImpactLight(lift + normal * 0.4f, new Color(1f, 0.72f, 0.42f), s);
+                    break;
+                case SurfaceKind.Rock:
+                    Emit(Kind.SparkCone, lift, 3 + Mathf.RoundToInt(3f * s), 10f * s + 3f, 0.025f, 0.06f, 0.35f, new Color(2.6f, 1.6f, 0.8f), 0.05f, 1f, rot);
+                    Settle(Emit(Kind.Chips, lift, 2 + Mathf.RoundToInt(4f * s), 7f * s + 2f, 0.05f * s, 0.13f * s, 1.3f, new Color(0.46f, 0.44f, 0.43f), 0.05f, 1.6f, rot), normal, 9f);
+                    Emit(Kind.Dust, lift, 2 + Mathf.RoundToInt(s), 2.5f * s + 0.5f, 0.4f * s, 0.9f * s, 1.6f, new Color(0.52f, 0.5f, 0.48f, 0.45f), 0.08f, 2f, rot);
+                    ImpactLight(lift + normal * 0.4f, tint, s * 0.6f);
+                    break;
+                case SurfaceKind.Dirt:
+                    Settle(Emit(Kind.Dust, lift, 3 + Mathf.RoundToInt(2f * s), 4f * s + 0.5f, 0.6f * s, 1.3f * s, 2f, new Color(0.55f, 0.49f, 0.41f, 0.5f), 0.1f, 2.4f, rot), normal, 1.5f);
+                    Settle(Emit(Kind.Chips, lift, 3 + Mathf.RoundToInt(3f * s), 6f * s + 2f, 0.04f * s, 0.11f * s, 1.2f, new Color(0.3f, 0.26f, 0.22f), 0.05f, 1.5f, rot), normal, 12f);
+                    Emit(Kind.SparkCone, lift, 2 + Mathf.RoundToInt(2f * s), 8f * s + 2f, 0.02f, 0.05f, 0.3f, new Color(2.6f, 1.6f, 0.8f), 0.05f, 1f, rot);
+                    ImpactLight(lift + normal * 0.4f, tint, s * 0.6f);
+                    break;
+                case SurfaceKind.Organic:
+                    // alien ichor: glowing droplets that splash out and drip back, a little green mist
+                    Settle(Emit(Kind.Goo, lift, 4 + Mathf.RoundToInt(8f * s), 6f * s + 1.5f, 0.06f * s, 0.16f * s, 0.8f, new Color(0.62f, 1f, 0.28f, 0.9f), 0.05f, 1.2f, rot), normal, 10f);
+                    Emit(Kind.Dust, lift, 2, 1.5f, 0.3f * s, 0.6f * s, 0.9f, new Color(0.45f, 0.75f, 0.25f, 0.35f), 0.08f, 1.2f, rot);
+                    Emit(Kind.Spark, lift, 3, 4f, 0.03f, 0.06f, 0.3f, new Color(1.2f, 2.6f, 0.6f), 0.05f, 0.6f);
+                    break;
+                case SurfaceKind.Shield:
+                    Emit(Kind.SparkCone, lift, 4 + Mathf.RoundToInt(4f * s), 12f * s + 3f, 0.03f, 0.06f, 0.3f, new Color(0.6f, 1.8f, 3f), 0.05f, 0.8f, rot);
+                    ImpactLight(lift, new Color(0.5f, 0.8f, 1f), s);
+                    break;
+                default:
+                    Emit(Kind.Spark, pos, 9, 9f, 0.03f, 0.08f, 0.4f, tint, 0.05f, 1f);
+                    Emit(Kind.Smoke, pos, 2, 0.8f, 0.25f, 0.45f, 0.9f, new Color(0.45f, 0.45f, 0.5f, 0.35f), 0.1f, 1.2f);
+                    break;
+            }
+        }
+
+        // Impact lights are throttled: a hail of laser bolts must not flicker every light in the pool.
+        void ImpactLight(Vector3 pos, Color tint, float s)
+        {
+            if (Time.time < nextImpactLight) return;
+            nextImpactLight = Time.time + 0.035f;
+            FlashLight(pos, tint, 6f * s, 4f + 4f * s, 0.09f);
+        }
+
+        public void Scorch(Vector3 pos, Vector3 normal, Transform parent, float size, Color heat, float cool)
+        {
+            decals?.Place(pos, normal, parent, size, heat, cool);
         }
 
         // Laser hits and the mining drill: hot spark streaks, a small glow and a puff of dust/chips.

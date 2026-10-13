@@ -9,8 +9,10 @@ namespace Voidward.Inventory
     /// Mineable deposit (ore, crystal, scrap, fuel). The mining tool calls MineServerRpc while the
     /// beam is on it; progress converts to items in the miner's inventory.
     /// </summary>
-    public class ResourceNode : NetworkBehaviour
+    public class ResourceNode : NetworkBehaviour, ISurface
     {
+        public SurfaceKind Surface => SurfaceKind.Rock;
+
         public NetworkVariable<int> KindIndex = new NetworkVariable<int>((int)ScatterKind.OreNode);
         public NetworkVariable<int> Remaining = new NetworkVariable<int>(8);
 

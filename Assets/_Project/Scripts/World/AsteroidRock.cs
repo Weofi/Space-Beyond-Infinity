@@ -8,8 +8,10 @@ namespace Voidward.World
     /// SectorVisuals). Hits are forwarded to the server, which tracks rock HP in RunManager and
     /// replicates destroyed rock ids; every peer then removes the rock from its batched chunk.
     /// </summary>
-    public class AsteroidRock : MonoBehaviour, IDamageable
+    public class AsteroidRock : MonoBehaviour, IDamageable, ISurface
     {
+        public SurfaceKind Surface => SurfaceKind.Rock;
+
         public int Id;
         public float Radius;
 

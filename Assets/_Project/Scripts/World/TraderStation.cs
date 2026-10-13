@@ -12,8 +12,10 @@ namespace Voidward.World
     /// Trader / repair station. Stock is generated deterministically from the synced seed and
     /// sector so every client shows the same list; all transactions run on the server.
     /// </summary>
-    public class TraderStation : NetworkBehaviour, IInteractable
+    public class TraderStation : NetworkBehaviour, IInteractable, ISurface
     {
+        public SurfaceKind Surface => SurfaceKind.Metal;
+
         public const float UseRange = 70f;
         public const float SellRatio = 0.5f;
         public const int ServiceCost = 60;

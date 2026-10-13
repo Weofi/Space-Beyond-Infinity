@@ -12,8 +12,11 @@ namespace Voidward.Planet
     /// worker threads), collider tiles streamed around <see cref="TerrainAnchor"/>s, per-chunk props, landmark set
     /// pieces, ocean, atmosphere and cloud shells. Not networked; every input is deterministic.
     /// </summary>
-    public class PlanetVisuals : MonoBehaviour
+    public class PlanetVisuals : MonoBehaviour, ISurface
     {
+        /// <summary>Terrain, landmarks and decor colliders all live below this object: shots kick up dirt.</summary>
+        public SurfaceKind Surface => SurfaceKind.Dirt;
+
         [Tooltip("Optional: build automatically on Start (menu backdrop, previews).")]
         [SerializeField] bool buildOnStart;
         [SerializeField] PlanetShapeDef shape;

@@ -120,24 +120,34 @@ namespace Voidward.Combat
             Fire(kind, pos, dir, Mathf.Clamp(dmg, 0f, 60f), Team.Players, rp.Receive.SenderClientId, true);
         }
 
-        /// <summary>Client: show a hitscan tracer to everybody else.</summary>
-        public void Tracer(Vector3 from, Vector3 to, Color c)
+        /// <summary>
+        /// Client: show a hitscan shot to everybody else: tracer, muzzle flash and (surface != None) the impact
+        /// with its burn mark. The shooter plays all of it locally right away.
+        /// </summary>
+        public void Tracer(Vector3 from, Vector3 to, Color c, Vector3 normal = default, SurfaceKind surface = SurfaceKind.None)
         {
-            DrawTracer(from, to, c);
-            if (IsSpawned) TracerServerRpc(from, to, c);
+            ShowHitscan(from, to, c, normal, surface);
+            if (IsSpawned) TracerServerRpc(from, to, c, normal, surface);
         }
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-        void TracerServerRpc(Vector3 from, Vector3 to, Color c, RpcParams rp = default)
+        void TracerServerRpc(Vector3 from, Vector3 to, Color c, Vector3 normal, SurfaceKind surface, RpcParams rp = default)
         {
-            TracerClientRpc(from, to, c, rp.Receive.SenderClientId);
+            TracerClientRpc(from, to, c, normal, surface, rp.Receive.SenderClientId);
         }
 
         [ClientRpc]
-        void TracerClientRpc(Vector3 from, Vector3 to, Color c, ulong exclude)
+        void TracerClientRpc(Vector3 from, Vector3 to, Color c, Vector3 normal, SurfaceKind surface, ulong exclude)
         {
             if (NetworkManager.LocalClientId == exclude) return;
+            ShowHitscan(from, to, c, normal, surface);
+        }
+
+        void ShowHitscan(Vector3 from, Vector3 to, Color c, Vector3 normal, SurfaceKind surface)
+        {
             DrawTracer(from, to, c);
+            FeedbackFx.WeaponFired(from, to - from, c, 0.3f);
+            FeedbackFx.HitscanImpact(to, normal, surface, c);
         }
 
         void DrawTracer(Vector3 from, Vector3 to, Color c)
@@ -180,6 +190,8 @@ namespace Voidward.Combat
 
                 bool done = false;
                 Vector3 impact = p.Pos + p.Dir * step;
+                Vector3 normal = Vector3.zero;
+                SurfaceKind surface = SurfaceKind.None;
 
                 // proximity fuse (flak)
                 if (p.Kind == ProjectileKind.Flak && p.Age > 0.15f && EnemyNear(p.Pos, 6f * p.ProxMult, p.Team))
@@ -204,11 +216,13 @@ namespace Voidward.Combat
                             best = hit.distance;
                             bestCol = hit.collider;
                             impact = hit.distance > 0f ? hit.point : p.Pos;
+                            normal = hit.distance > 0f ? hit.normal : -p.Dir;
                         }
                     }
                     if (bestCol != null)
                     {
                         done = true;
+                        surface = FeedbackFx.SurfaceOf(bestCol);
                         if (p.Spec.Aoe <= 0f)
                             DamageCollider(bestCol, impact, p);
                     }
@@ -225,7 +239,7 @@ namespace Voidward.Combat
                 {
                     if (p.Spec.Aoe > 0f) Explode(impact, p);
                     serverProjs.RemoveAt(i);
-                    ImpactClientRpc(p.Id, impact, p.Kind);
+                    ImpactClientRpc(p.Id, impact, normal, p.Kind, surface);
                 }
                 else p.Pos += p.Dir * step;
             }
@@ -317,19 +331,49 @@ namespace Voidward.Combat
             visualProjs.Add(p);
             visualById[id] = p;
             if (!string.IsNullOrEmpty(spec.Sfx)) Sfx.Play(spec.Sfx, pos, 0.8f, Random.Range(0.92f, 1.08f));
-            if (kind != ProjectileKind.Meteor) Vfx.MuzzleFlash(pos, dir);
+            if (kind != ProjectileKind.Meteor) FeedbackFx.WeaponFired(pos - dir * MuzzleBack(kind), dir, spec.Color, MuzzleScale(kind));
         }
 
         [ClientRpc]
-        void ImpactClientRpc(int id, Vector3 point, ProjectileKind kind)
+        void ImpactClientRpc(int id, Vector3 point, Vector3 normal, ProjectileKind kind, SurfaceKind surface)
         {
             if (visualById.TryGetValue(id, out var p))
             {
                 RemoveVisual(p);
             }
             var spec = GetSpec(kind);
-            FeedbackFx.ProjectileImpact(point, spec.Aoe, spec.Color);
+            FeedbackFx.ProjectileImpact(point, normal, surface, spec.Aoe, spec.Color, ImpactScale(kind), kind == ProjectileKind.Spit);
         }
+
+        /// <summary>Size of the muzzle flash per projectile kind (1 = ship gun).</summary>
+        static float MuzzleScale(ProjectileKind k)
+        {
+            switch (k)
+            {
+                case ProjectileKind.Blaster: return 0.35f;
+                case ProjectileKind.Spit: return 0.5f;
+                case ProjectileKind.Missile: return 1.15f;
+                case ProjectileKind.Flak: return 1.3f;
+                case ProjectileKind.EnemyLaser: return 0.9f;
+                case ProjectileKind.BossOrb: return 2f;
+                default: return 1f;
+            }
+        }
+
+        /// <summary>Size of the hit sparks / burn mark of a non-explosive projectile.</summary>
+        static float ImpactScale(ProjectileKind k)
+        {
+            switch (k)
+            {
+                case ProjectileKind.Blaster: return 0.5f;
+                case ProjectileKind.EnemyLaser: return 0.85f;
+                default: return 1f;
+            }
+        }
+
+        /// <summary>Ship guns spawn their projectile 1.5 m ahead of the muzzle (ShipCore): flash at the barrel instead.</summary>
+        static float MuzzleBack(ProjectileKind k) =>
+            k == ProjectileKind.LaserBolt || k == ProjectileKind.Missile || k == ProjectileKind.Flak ? 1.5f : 0f;
 
         void SimulateVisuals(float dt)
         {

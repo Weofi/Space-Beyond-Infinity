@@ -21,6 +21,9 @@ namespace Voidward.Core
 
     public enum DamageType { Energy, Kinetic, Explosive, Mining, Collapse, Environmental }
 
+    /// <summary>What a shot hit, for impact effects and scorch decals (#43). Purely cosmetic.</summary>
+    public enum SurfaceKind : byte { None, Rock, Dirt, Metal, Organic, Shield }
+
     /// <summary>Faction used by combat. Same-team damage is ignored.</summary>
     public enum Team { Players, Pirates, Aliens, Neutral }
 

@@ -127,6 +127,7 @@ namespace Voidward.EditorTools
             vfx.ParticleMaterial = MatParticle;
             vfx.SmokeMaterial = Mat("VW_Smoke", "VOIDWARD/AlphaParticle");
             vfx.DebrisMaterial = MatToon;
+            vfx.DecalMaterial = Mat("VW_Scorch", "VOIDWARD/Scorch");
             var chip = new MeshBuilder();
             chip.Surface(0.25f);
             chip.AddRock(Matrix4x4.identity, 0.5f, 7, Color.white);

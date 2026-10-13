@@ -241,6 +241,7 @@ namespace Voidward.Ship
             {
                 localFireTime = Time.time + ShipCore.Cooldown(TurretWeapon, 2) * 0.9f;
                 TurretFireServerRpc(dir);
+                FeedbackFx.LocalRecoil(ShipCore.Recoil(TurretWeapon));
             }
         }
 
