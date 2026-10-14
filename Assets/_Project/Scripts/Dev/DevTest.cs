@@ -475,8 +475,29 @@ namespace Voidward.Dev
                     s.GetComponent<NetTeleport>().ServerTeleport(new Vector3(0f, y, z), Quaternion.LookRotation(WarpBubble.Axis));
         }
 
-        /// <summary>Server, lead pilot: drop out at the signal in range, or resume the warp (as the [G] key).</summary>
-        public static void WarpDropOut() { if (Flight != null) WarpBubble.PilotDropOut = true; }
+        /// <summary>Server: drop out at the signal in range, or start the resume countdown (as the lead pilot's [G] key).</summary>
+        public static void WarpDropOut()
+        {
+            if (!IsServer || Flight == null || !Flight.Active.Value) { Log("WarpDropOut FAILED: no warp flight"); return; }
+            Flight.ServerDevDropOut();
+            Log("warp dropout " + WarpInfo);
+        }
+
+        /// <summary>Server: jump the bubble just before the next interceptor patrol (it spawns ~1.2 km ahead once the bubble moves).</summary>
+        public static void WarpPatrolAhead()
+        {
+            var f = Flight;
+            var r = f != null ? f.Route : null;
+            if (!IsServer || r == null) { Log("WarpPatrolAhead FAILED: no warp flight"); return; }
+            for (int c = WarpRoute.ChunkOf(f.Progress.Value + 1300f) + 1; c * WarpRoute.ChunkLength < r.Length; c++)
+            {
+                if (!r.PatrolIn(c, out _, out int galaxy)) continue;
+                f.ServerSetProgress(c * WarpRoute.ChunkLength - 1250f);
+                Log($"warp patrol chunk {c} galaxy {galaxy} | " + WarpInfo);
+                return;
+            }
+            Log("WarpPatrolAhead FAILED: no patrol ahead");
+        }
 
         /// <summary>"1 -> 2 | 34.2/225.0 km 15% GALAXY HALO | throttle 0.60 heat 0.12 cruise True stall False hot False | lead 12 hazard -1 | out False | exotic 7.2 | scan 655".</summary>
         public static string WarpInfo

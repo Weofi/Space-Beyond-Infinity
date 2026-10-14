@@ -686,6 +686,12 @@ namespace Voidward.World
             lastPatrolChunk = WarpRoute.ChunkOf(Progress.Value + 1200f);
         }
 
+        /// <summary>Server, dev: drop out at the signal in range, or start the resume countdown (as the lead pilot's [G]).</summary>
+        public void ServerDevDropOut()
+        {
+            if (IsServer && Active.Value) ServerDropOut(NetworkManager.ServerClientId);
+        }
+
         /// <summary>Server, dev: set the throttle directly (and hold it with cruise control when asked).</summary>
         public void ServerSetThrottle(float t, bool cruise)
         {
