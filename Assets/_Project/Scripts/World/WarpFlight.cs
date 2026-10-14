@@ -506,11 +506,13 @@ namespace Voidward.World
                 float bonus = Mathf.Min(r.Length * 0.03f, 20000f);
                 Progress.Value = Mathf.Min(r.Length - 1f, Progress.Value + bonus);
                 rm.Announce($"SLINGSHOT! +{bonus / 1000f:0.0} km", "jump_gate");
+                Debug.Log($"[Warp] slingshot {o.Id} +{bonus:0} m");
                 ImpactClientRpc(ship.transform.position, (int)o.Kind, true);
                 return;
             }
 
             float dmg = o.ImpactDamage * (0.25f + 0.75f * t);
+            Debug.Log($"[Warp] impact {o.Kind} {o.Id} ship {shipId}{(lead ? " (lead)" : "")} throttle {t:0.00} dmg {dmg:0}");
             ship.Hull.ApplyDamage(new DamageInfo { Amount = dmg, Type = DamageType.Kinetic, Point = ship.transform.position + WarpBubble.Axis * 4f, Direction = -WarpBubble.Axis });
             ImpactClientRpc(ship.transform.position + WarpBubble.Axis * 6f, (int)o.Kind, false);
             if (o.Kind == WarpHazard.Debris || (o.Kind == WarpHazard.Rock && o.Radius < 14f)) Destroyed.Add(o.Id);

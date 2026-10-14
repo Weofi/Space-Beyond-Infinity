@@ -854,6 +854,7 @@ namespace Voidward.UI
             objText.text = text;
             bool pilot = pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Role == StationRole.Pilot;
             string hint = lead ? Key("W") + Key("S") + " THROTTLE    " + Key("X") + " CUT    " + Key("C") + " CRUISE    " + Key("G") + " DROP OUT    " + Key("LMB") + " FIRE"
+                : pilot && WarpBubble.Flying ? Key("LMB") + " " + Key("RMB") + " FIRE    " + Key("F") + " LEAVE"
                 : pilot ? Key("LMB") + " " + Key("RMB") + " FIRE    " + Key("SHIFT") + " BOOST    " + Key("X") + " BRAKE    " + Key("F") + " LEAVE" : "";
             objHint.text = hint;
             objHint.gameObject.SetActive(hint.Length > 0);

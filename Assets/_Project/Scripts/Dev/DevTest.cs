@@ -465,6 +465,16 @@ namespace Voidward.Dev
             f.ServerSetThrottle(throttle, cruise);
         }
 
+        /// <summary>Server: move the lead ship sideways to (y, z) in the corridor (it keeps that lane without pilot input).</summary>
+        public static void WarpLeadTo(float y, float z)
+        {
+            var f = Flight;
+            if (!IsServer || f == null || !f.Active.Value) { Log("WarpLeadTo FAILED: no warp flight"); return; }
+            foreach (var s in ShipCore.All)
+                if (s != null && s.NetworkObjectId == f.Lead.Value)
+                    s.GetComponent<NetTeleport>().ServerTeleport(new Vector3(0f, y, z), Quaternion.LookRotation(WarpBubble.Axis));
+        }
+
         /// <summary>Server, lead pilot: drop out at the signal in range, or resume the warp (as the [G] key).</summary>
         public static void WarpDropOut() { if (Flight != null) WarpBubble.PilotDropOut = true; }
 
