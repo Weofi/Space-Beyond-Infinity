@@ -70,6 +70,8 @@ namespace Voidward.World
         public float EtaTo(int to) => DriveMath.Minutes(Stats, Galaxy, to);
         public static float EtaTo(DriveStats s, int to) => DriveMath.Minutes(s, Galaxy, to);
         public static int FuelTo(int to) => DriveMath.Fuel(Def, Galaxy, to);
+        /// <summary>Flight minutes of a warp to another system of this galaxy (#80).</summary>
+        public float HopMinutes => DriveMath.HopMinutes(Def, Stats);
 
         /// <summary>Exotic Matter needed to reach `to` is in the tank (or the tank could hold it at all).</summary>
         public bool HasFuelFor(int to) => Exotic.Value + 0.001f >= FuelTo(to);
@@ -79,6 +81,7 @@ namespace Voidward.World
 
         void Update()
         {
+            WarpBubble.CoreTier = TierOf(DriveSlot.Core);
             etaTimer -= Time.deltaTime;
             if (etaTimer > 0f) return;
             etaTimer = 0.5f;

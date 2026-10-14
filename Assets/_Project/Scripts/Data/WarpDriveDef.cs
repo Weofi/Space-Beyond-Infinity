@@ -35,6 +35,14 @@ namespace Voidward.Data
         [Tooltip("Exotic Matter in the tank at the start of a loop.")]
         public int StartExotic = 4;
 
+        [Header("In-galaxy travel (#80)")]
+        [Tooltip("System cruise speed per core tier (m/s): flying between the planets of a system.")]
+        public float[] CruiseSpeed = { 1000f, 1400f, 1800f, 2200f, 2600f, 3000f };
+        [Tooltip("Minutes of a warp between two systems of a galaxy with a balanced Mk I drive.")]
+        public float HopMinutes = 1.5f;
+        [Tooltip("System warps shrink with core speed ^ this (gentler than galaxy legs: Mk VI is ~7x, not 240x faster).")]
+        public float HopSpeedExponent = 0.35f;
+
         /// <summary>Build factor of a balanced drive (nav and cooling at the core's tier).</summary>
         public float BalancedFactor => FieldShare / Mathf.Max(0.01f, NavMatched) + (1f - FieldShare);
     }

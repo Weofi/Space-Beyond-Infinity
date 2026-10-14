@@ -15,7 +15,7 @@ Two endings only: **Homecoming** or **death** (= the loop resets). Target run le
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
 > galaxy map, suspend save), the crew warp drive with Home ETA (#78) and the flown warp between galaxies (#79) are
-> playable; still to come are system cruise and in-galaxy warp (#80), the home-flight finale (#81), prologue/loop/homecoming
+> playable, as are system cruise and the flown in-galaxy warp (#80); still to come are the home-flight finale (#81), prologue/loop/homecoming
 > (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
@@ -125,8 +125,17 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
   compass, cockpit NAV, galaxy map) shows the real flight time home and drops with every better part; each
   backpack part shows its ETA change. Warden enclaves guard the best core of their galaxy; crates, wrecks,
   anomalies, crystal veins, alien nests and Nomad traders give Exotic Matter, nav/cooling/tank parts.
-* **Warping:** the pilot sets a course on the galaxy map, after a 5 s countdown the whole crew warps. Warps to
-  another system of the galaxy are still instant (#80). Systems can be revisited (their crates stay looted).
+* **Warping:** the pilot sets a course on the galaxy map, after a 5 s countdown the whole crew warps. A warp to
+  another system of the galaxy (#80) is a short flown **system warp** (1:30 with a Mk I drive, ~13 s with the Home
+  Drive, no Exotic Matter) through thinner fields; it ends at the edge of the target system. Systems can be
+  revisited (their crates stay looted). **Gravity and combat lock:** no warp (and no cruise) inside a planet's
+  gravity field or while enemies engage you. **Interdiction:** enemy hits on the lead ship or interceptors next to
+  it stop the warp bubble until they are dealt with.
+* **System cruise (#80):** as pilot, hold **C** for 2 s to spool up, then the ship cruises at 1-3 km/s (by the warp
+  core's tier) where the nose points. X, S or C drop back to normal flight; hits (interdiction), enemies engaging
+  and obstacles ahead end it. Towards a planet the drive eases off and hands over to normal flight at the edge of
+  its gravity field (about radius + 1 km), ready to land. Normal flight and landing feel the same with any drive;
+  engine modules add at most +30 % thrust/top speed.
 * **Warp flight between galaxies (#79):** the warp to the next galaxy is one-way, burns Exotic Matter along the
   route and is **flown** (~10 min with the core found in that galaxy). The pilot who set the course leads the
   **warp bubble**: W/S = warp throttle, X = cut, the nose steers the bubble sideways; every other ship holds its
@@ -173,6 +182,7 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
 | Sprint / boost | Shift | Shift |
 | Brake | X (EVA) | X (in a warp: cut the warp throttle) |
 | Warp throttle (lead pilot, #79) | – | W / S |
+| System cruise (hold to spool up, press to drop out, #80) | – | C |
 | Warp cruise control / drop out at a signal | – | C / G |
 | Fire / alt-fire | LMB / RMB | weapon 1 / weapon 2 |
 | Interact / enter-exit seat | F | F (leave seat) |

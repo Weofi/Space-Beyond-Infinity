@@ -46,6 +46,18 @@ namespace Voidward.Core
         public static float Level { get; private set; }
         public static bool BossNear { get; private set; }
 
+        /// <summary>An engaged enemy (chasing / attacking) or a boss within `radius` of a position (combat lock of cruise and warp, #80).</summary>
+        public static bool EngagedNear(Vector3 pos, float radius)
+        {
+            for (int i = sources.Count - 1; i >= 0; i--)
+            {
+                var s = sources[i];
+                if (s == null || (s is Object o && o == null)) continue;
+                if ((s.IsBoss || s.Engagement > 0.5f) && (s.Position - pos).sqrMagnitude < radius * radius) return true;
+            }
+            return false;
+        }
+
         /// <summary>Recompute around the listener (AudioManager, a few times per second).</summary>
         public static void Evaluate(Vector3 listener, float dt)
         {

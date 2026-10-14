@@ -394,6 +394,10 @@ namespace Voidward.EditorTools
             d.FieldShare = 0.3f; d.NavMatched = 0.6f; d.NavStep = 0.12f; d.NavMin = 0.12f; d.CoolingStep = 0.15f; d.CoolingMin = 0.35f;
             d.SkipFuelSurcharge = 0.25f;
             d.StartExotic = 4;
+            // #80: system cruise 1-3 km/s, system warps 1:30 (Mk I) ... ~13 s (Home Drive).
+            d.CruiseSpeed = new[] { 1000f, 1400f, 1800f, 2200f, 2600f, 3000f };
+            d.HopMinutes = 1.5f;
+            d.HopSpeedExponent = 0.35f;
             EditorUtility.SetDirty(d);
             return d;
         }

@@ -531,7 +531,8 @@ namespace Voidward.UI
                 if (wf != null && WarpBubble.Active)
                 {
                     sectorTitle.text = $"WARP FLIGHT  -  {Mathf.RoundToInt(wf.Progress01 * 100f)}%";
-                    sectorName.text = rm.WarpLabel(wf.To.Value == rm.GalaxyIndex.Value + 1 ? RunManager.WarpNextGalaxy : RunManager.WarpSkipGalaxy);
+                    sectorName.text = wf.IsHop ? rm.WarpLabel(wf.TargetSystem.Value)
+                        : rm.WarpLabel(wf.To.Value == rm.GalaxyIndex.Value + 1 ? RunManager.WarpNextGalaxy : RunManager.WarpSkipGalaxy);
                 }
                 else
                 {
@@ -691,6 +692,16 @@ namespace Voidward.UI
                 return;
             }
             float spd = ship.Flight != null ? ship.Flight.Speed : 0f;
+            var cruise = ship.Flight != null ? ship.Flight.Cruise : CruiseMode.Off;
+            if (cruise != CruiseMode.Off)
+            {
+                // System cruise (#80): the bar is the spool-up, then the share of the drive's cruise speed.
+                float top = ShipFlight.CruiseTopSpeed;
+                speedFill.fillAmount = cruise == CruiseMode.Spooling ? ship.Flight.CruiseSpool01 : Mathf.Clamp01(spd / Mathf.Max(1f, top));
+                speedFill.color = HudKit.Teal;
+                speedText.text = cruise == CruiseMode.Spooling ? "SPOOL" : HudKit.Num(HudKit.F(spd, "0"));
+                return;
+            }
             speedFill.fillAmount = s.MaxSpeed > 0f ? Mathf.Clamp01(spd / (s.MaxSpeed * 1.6f)) : 0f;
             speedFill.color = spd > s.MaxSpeed * 1.02f ? HudKit.Fuel : HudKit.TextHi;
             speedText.text = HudKit.Num(HudKit.F(spd, "0"));
@@ -775,7 +786,7 @@ namespace Voidward.UI
             pipEnd.anchoredPosition = new Vector2(w, 0f);
             var zone = r.ZoneAt(f.LocalProgress, out _);
             meterText.color = zone == WarpZone.Void ? HudKit.Energy : HudKit.Fuel;
-            meterText.text = $"{Short(f.From.Value)} > {Short(f.To.Value)}   {WarpRoute.ZoneLabel(zone)}";
+            meterText.text = f.IsHop ? $"SYSTEM WARP   {r.ZoneName(zone)}" : $"{Short(f.From.Value)} > {Short(f.To.Value)}   {r.ZoneName(zone)}";
 
             etaTimer -= Time.deltaTime;
             if (etaTimer > 0f) return;
@@ -787,7 +798,7 @@ namespace Voidward.UI
             sb.Append($"THROTTLE <color=#F8FAFC>{Mathf.RoundToInt(throttle * 100f)}%</color>   ");
             sb.Append($"HEAT <color={(heat > 0.75f ? "#EF4444" : heat > 0.5f ? "#FBBF24" : "#F8FAFC")}>{Mathf.RoundToInt(heat * 100f)}%</color>   ");
             sb.Append($"ETA <color=#F59E0B>{DriveMath.Eta(secs / 60f)}</color>   ");
-            if (drive != null) sb.Append($"EXOTIC <color=#C4A5FF>{Mathf.FloorToInt(drive.Exotic.Value)}/{drive.Capacity}</color>   ");
+            if (drive != null && !f.IsHop) sb.Append($"EXOTIC <color=#C4A5FF>{Mathf.FloorToInt(drive.Exotic.Value)}/{drive.Capacity}</color>   ");
             if (f.Cruise.Value) sb.Append("<color=#2DD4BF>CRUISE</color>");
             if (f.NextSignal(out var sig) && !f.DroppedOut.Value)
             {
@@ -812,6 +823,12 @@ namespace Voidward.UI
             if (f.Hazard.Value >= 0 && f.Throttle.Value > 0.05f && Mathf.Repeat(Time.time, 0.5f) < 0.32f)
                 return "<size=55%><color=#FBBF24>OBSTACLE AHEAD</color></size>";
             return null;
+        }
+
+        static CruiseMode CruiseOf(PlayerPawn pawn)
+        {
+            var seat = pawn.CurrentShipSeat;
+            return seat != null && seat.Ship != null && seat.Ship.Flight != null ? seat.Ship.Flight.Cruise : CruiseMode.Off;
         }
 
         /// <summary>Run clock text h:mm:ss (or m:ss in the first hour).</summary>
@@ -855,7 +872,8 @@ namespace Voidward.UI
             bool pilot = pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Role == StationRole.Pilot;
             string hint = lead ? Key("W") + Key("S") + " THROTTLE    " + Key("X") + " CUT    " + Key("C") + " CRUISE    " + Key("G") + " DROP OUT    " + Key("LMB") + " FIRE"
                 : pilot && WarpBubble.Flying ? Key("LMB") + " " + Key("RMB") + " FIRE    " + Key("F") + " LEAVE"
-                : pilot ? Key("LMB") + " " + Key("RMB") + " FIRE    " + Key("SHIFT") + " BOOST    " + Key("X") + " BRAKE    " + Key("F") + " LEAVE" : "";
+                : pilot && CruiseOf(pawn) == CruiseMode.Cruising ? Key("MOUSE") + " STEER    " + Key("X") + " " + Key("S") + " " + Key("C") + " DROP TO NORMAL FLIGHT"
+                : pilot ? Key("LMB") + " " + Key("RMB") + " FIRE    " + Key("SHIFT") + " BOOST    " + Key("X") + " BRAKE    " + Key("C") + " HOLD: CRUISE    " + Key("F") + " LEAVE" : "";
             objHint.text = hint;
             objHint.gameObject.SetActive(hint.Length > 0);
         }

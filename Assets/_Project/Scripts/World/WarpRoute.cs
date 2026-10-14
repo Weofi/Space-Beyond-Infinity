@@ -84,21 +84,26 @@ namespace Voidward.World
     {
         public int From, To;
         public float Start, End;
+        /// <summary>Share of the leg at each rim (halo / system outskirts).</summary>
+        public float Share;
         public float Length => End - Start;
-        public float HaloEnd => Start + Length * WarpRoute.HaloShare;
-        public float HaloStart => End - Length * WarpRoute.HaloShare;
+        public float HaloEnd => Start + Length * Share;
+        public float HaloStart => End - Length * Share;
     }
 
     /// <summary>
     /// Deterministic profile of one warp flight (#79), identical on every peer: legs, zones, obstacles and signals
     /// along a corridor of `Length` metres. Obstacles are generated per 1 km chunk on demand (a slow drive flies
-    /// thousands of kilometres), ids are chunk * 1024 + index.
+    /// thousands of kilometres), ids are chunk * 1024 + index. A hop (#80) is the short warp between two systems of
+    /// one galaxy: one leg, the rims are the systems' outskirts (thinner fields), no signals and no welcome party.
     /// </summary>
     public class WarpRoute
     {
         public const float ChunkLength = 1000f;
         /// <summary>Share of every leg at each galaxy rim (two halos = 24 %, rifts and wells add the rest of WarpDriveDef.FieldShare).</summary>
         public const float HaloShare = 0.12f;
+        /// <summary>Share of a hop at each end (the systems' outskirts).</summary>
+        public const float HopShare = 0.2f;
         /// <summary>No obstacles right after the start of the flight.</summary>
         const float SafeStart = 1500f;
         const int MaxPerChunk = 1024;
@@ -106,18 +111,27 @@ namespace Voidward.World
         public readonly int Seed;
         public readonly float Length;
         public readonly int From, To;
+        /// <summary>A warp between two systems of galaxy From (#80).</summary>
+        public readonly bool Hop;
         public readonly WarpLeg[] Legs;
         public readonly WarpSignal[] Signals;
 
         readonly Dictionary<int, List<WarpObstacle>> chunks = new Dictionary<int, List<WarpObstacle>>();
         readonly Queue<int> chunkOrder = new Queue<int>();
 
-        public WarpRoute(int seed, int from, int to, float length)
+        public WarpRoute(int seed, int from, int to, float length, bool hop = false)
         {
             Seed = seed;
             From = from;
             To = to;
+            Hop = hop;
             Length = Mathf.Max(ChunkLength * 4f, length);
+            if (hop)
+            {
+                Legs = new[] { new WarpLeg { From = from, To = from, Start = 0f, End = Length, Share = HopShare } };
+                Signals = new WarpSignal[0];
+                return;
+            }
 
             // Legs in proportion to the galaxies' leg lengths.
             int n = Mathf.Max(1, Mathf.Min(to, DriveMath.Home) - Mathf.Max(1, from));
@@ -134,7 +148,7 @@ namespace Voidward.World
             for (int i = 0; i < n; i++)
             {
                 float len = Length * weights[i] / sum;
-                Legs[i] = new WarpLeg { From = from + i, To = from + i + 1, Start = s, End = i == n - 1 ? Length : s + len };
+                Legs[i] = new WarpLeg { From = from + i, To = from + i + 1, Start = s, End = i == n - 1 ? Length : s + len, Share = HaloShare };
                 s += len;
             }
 
@@ -168,7 +182,7 @@ namespace Voidward.World
         {
             var leg = LegAt(s);
             if (s < leg.HaloEnd) { galaxy = leg.From; return WarpZone.ExitHalo; }
-            if (s >= leg.HaloStart) { galaxy = Mathf.Min(leg.To, GalaxyDef.Count); return WarpZone.ArrivalHalo; }
+            if (s >= leg.HaloStart) { galaxy = Mathf.Clamp(leg.To, 1, GalaxyDef.Count); return WarpZone.ArrivalHalo; }
             galaxy = leg.From;
             return WarpZone.Void;
         }
@@ -191,6 +205,10 @@ namespace Voidward.World
         }
 
         public static string ZoneLabel(WarpZone z) => z == WarpZone.ExitHalo ? "GALAXY HALO" : z == WarpZone.Void ? "DEEP VOID" : "ARRIVAL HALO";
+
+        /// <summary>HUD name of a zone of this route (a hop crosses system outskirts and interstellar space).</summary>
+        public string ZoneName(WarpZone z) =>
+            !Hop ? ZoneLabel(z) : z == WarpZone.ExitHalo ? "SYSTEM OUTSKIRTS" : z == WarpZone.Void ? "INTERSTELLAR" : "APPROACH";
 
         /// <summary>Obstacles with from &lt;= S &lt; to, in route order.</summary>
         public void Query(float from, float to, List<WarpObstacle> into)
@@ -217,8 +235,8 @@ namespace Voidward.World
             var zone = ZoneAt(s, out galaxy);
             if (zone == WarpZone.Void || s < SafeStart * 2f) return false;
             var leg = LegAt(s);
-            // Every arrival halo has a welcome party a little way in; elsewhere patrols are random.
-            if (zone == WarpZone.ArrivalHalo && chunk == ChunkOf(leg.HaloStart) + 3) return true;
+            // Every arrival halo of a galaxy has a welcome party a little way in; elsewhere patrols are random.
+            if (!Hop && zone == WarpZone.ArrivalHalo && chunk == ChunkOf(leg.HaloStart) + 3) return true;
             var rng = new System.Random(Hash(chunk) ^ 0x7a7);
             return rng.NextDouble() < (zone == WarpZone.ArrivalHalo ? 0.05 : 0.025);
         }
@@ -255,8 +273,9 @@ namespace Voidward.World
             var zone = ZoneAt(c0 + ChunkLength * 0.5f, out _);
             if (zone != WarpZone.Void)
             {
-                // Halo: an asteroid field over the whole corridor (~1 rock per 4 m of route) ...
+                // Halo: an asteroid field over the whole corridor (~1 rock per 4 m of route; system outskirts are thinner) ...
                 int rocks = 230 + rng.Next(40);
+                if (Hop) rocks = rocks * 2 / 5;
                 for (int i = 0; i < rocks; i++)
                     Add(WarpHazard.Rock, c0 + R(0f, ChunkLength), Lat(W), Mathf.Lerp(5f, 28f, Mathf.Pow((float)rng.NextDouble(), 2.2f)));
                 // ... now and then a debris cloud ...

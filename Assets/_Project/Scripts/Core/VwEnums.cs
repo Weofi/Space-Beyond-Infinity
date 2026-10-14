@@ -34,6 +34,9 @@ namespace Voidward.Core
     /// <summary>Ship archetypes. Dart = agile starter, Mule = cargo starter, Ark = large co-op ship.</summary>
     public enum ShipClass { Dart, Mule, Ark }
 
+    /// <summary>System cruise of a ship (#80): off, spooling up (key held), cruising.</summary>
+    public enum CruiseMode : byte { Off, Spooling, Cruising }
+
     public enum Biome { Ice, Desert, ToxicJungle, Crystal, Volcanic }
 
     /// <summary>Roles for ship stations. One occupant per station.</summary>

@@ -32,6 +32,8 @@ namespace Voidward.Core
         public static float FovBoost;
         /// <summary>Lateral acceleration of corridor fields (gravity wells) at a world position, set by the corridor view.</summary>
         public static Func<Vector3, Vector3> Pull;
+        /// <summary>Core tier of the crew's warp drive (WarpDrive writes it on every peer): system cruise speed (#80).</summary>
+        public static int CoreTier = 1;
 
         // ---- lead pilot input (set by the pilot seat, read and sent by WarpFlight on the same client) ----
         /// <summary>W/S axis of the lead pilot this frame (-1..1).</summary>
@@ -49,6 +51,7 @@ namespace Voidward.Core
             LeadShip = ulong.MaxValue;
             Throttle = Speed = Intensity = FovBoost = 0f;
             Pull = null;
+            CoreTier = 1;
             PilotThrottleAxis = 0f;
             PilotBrake = PilotCruiseToggle = PilotDropOut = false;
             PilotInputTime = -99f;

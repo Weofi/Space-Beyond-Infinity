@@ -34,12 +34,16 @@ namespace Voidward.World
         /// <summary>Heat starts above this share of the cooling's sustainable throttle (so even a matched build has to ease off now and then).</summary>
         const float HeatThreshold = 0.92f;
         const float CollisionStall = 4f;
+        /// <summary>Engaged enemies this close to the lead ship (m) pull the bubble out of warp (#80).</summary>
+        public const float InterdictRange = 300f;
 
         public NetworkVariable<bool> Active = new NetworkVariable<bool>(false);
         public NetworkVariable<bool> DroppedOut = new NetworkVariable<bool>(false);
         public NetworkVariable<int> Seed = new NetworkVariable<int>(0);
         public NetworkVariable<int> From = new NetworkVariable<int>(1);
         public NetworkVariable<int> To = new NetworkVariable<int>(2);
+        /// <summary>System of galaxy From a hop (#80) leads to; -1 = a galaxy warp.</summary>
+        public NetworkVariable<int> TargetSystem = new NetworkVariable<int>(-1);
         public NetworkVariable<float> Length = new NetworkVariable<float>(1f);
         public NetworkVariable<int> CoreTier = new NetworkVariable<int>(1);
         public NetworkVariable<float> Progress = new NetworkVariable<float>(0f);
@@ -75,6 +79,8 @@ namespace Voidward.World
         readonly HashSet<long> impacts = new HashSet<long>();
         readonly List<NetworkObject> siteObjects = new List<NetworkObject>();
         readonly List<WarpObstacle> query = new List<WarpObstacle>();
+        Combat.HealthComponent watchedHull;
+        float lastImpactAt = -99f;
 
         // ---- lead pilot client ----
         float pilotCommand;
@@ -83,14 +89,17 @@ namespace Voidward.World
 
         public static bool Flying => Instance != null && Instance.Active.Value && !Instance.DroppedOut.Value;
 
+        /// <summary>This flight is a hop between two systems of one galaxy (#80).</summary>
+        public bool IsHop => TargetSystem.Value >= 0;
+
         /// <summary>The route of the current flight (rebuilt from the synced seed), null when not warping.</summary>
         public WarpRoute Route
         {
             get
             {
                 if (!Active.Value) return null;
-                int key = Seed.Value ^ From.Value * 7919 ^ To.Value * 104729 ^ Mathf.RoundToInt(Length.Value);
-                if (route == null || key != routeKey) { route = new WarpRoute(Seed.Value, From.Value, To.Value, Length.Value); routeKey = key; }
+                int key = Seed.Value ^ From.Value * 7919 ^ To.Value * 104729 ^ Mathf.RoundToInt(Length.Value) ^ (TargetSystem.Value + 1) * 15485863;
+                if (route == null || key != routeKey) { route = new WarpRoute(Seed.Value, From.Value, To.Value, Length.Value, IsHop); routeKey = key; }
                 return route;
             }
         }
@@ -140,6 +149,8 @@ namespace Voidward.World
         public override void OnNetworkDespawn()
         {
             if (Instance == this) Instance = null;
+            if (watchedHull != null) watchedHull.DamagedClient -= OnLeadHit;
+            watchedHull = null;
             Destroyed.OnListChanged -= OnDestroyedChanged;
             if (view != null) Destroy(view.gameObject);
             WarpBubble.Active = WarpBubble.Flying = false;
@@ -227,10 +238,24 @@ namespace Voidward.World
         public void ServerBegin(int from, int to, ShipCore lead)
         {
             if (!IsServer) return;
+            float minutes = DriveMath.Minutes(DriveStatsNow, from, to);
+            if (float.IsInfinity(minutes) || minutes <= 0f) minutes = 10f;
+            ServerStart(from, to, -1, minutes, WarpDrive.FuelTo(to), lead);
+        }
+
+        /// <summary>Server: start a hop to another system of galaxy `galaxy` (#80): short, free of Exotic Matter, thinner fields.</summary>
+        public void ServerBeginHop(int galaxy, int system, ShipCore lead)
+        {
+            if (!IsServer) return;
+            float minutes = DriveMath.HopMinutes(WarpDrive.Def, DriveStatsNow);
+            if (float.IsInfinity(minutes) || minutes <= 0f) minutes = 1.5f;
+            ServerStart(galaxy, galaxy, system, minutes, 0, lead);
+        }
+
+        void ServerStart(int from, int to, int system, float minutes, int fuel, ShipCore lead)
+        {
             var stats = DriveStatsNow;
             var d = WarpDrive.Def;
-            float minutes = DriveMath.Minutes(stats, from, to);
-            if (float.IsInfinity(minutes) || minutes <= 0f) minutes = 10f;
             float balanced = d != null ? d.BalancedFactor : 1.2f;
             CoreTier.Value = Mathf.Clamp(stats.Core, 1, VisualSpeed.Length);
             // Full-throttle seconds of the route = model minutes without the build penalty and without the field slow-down.
@@ -239,6 +264,7 @@ namespace Voidward.World
             Seed.Value = Random.Range(1, int.MaxValue);
             From.Value = from;
             To.Value = to;
+            TargetSystem.Value = system;
             Progress.Value = 0f;
             localProgress = localProgressPrev = 0f;
             pilotCommand = 0f;
@@ -256,13 +282,13 @@ namespace Voidward.World
             stallTimer = 0f;
             lastPatrolChunk = -1;
             VisitedSignals.Value = 0;
-            fuelNeed = WarpDrive.FuelTo(to);
+            fuelNeed = fuel;
             fuelBurned = 0f;
             Lead.Value = PickLead(lead);
             Active.Value = true;
             DroppedOut.Value = false;
             ServerFormation();
-            Debug.Log($"[Warp] begin {from} -> {to}: {Length.Value / 1000f:0.0} km at {FullSpeed:0} m/s, planned {minutes:0.0} min, fuel {fuelNeed}");
+            Debug.Log($"[Warp] begin {from} -> {to}{(system >= 0 ? " system " + system : "")}: {Length.Value / 1000f:0.0} km at {FullSpeed:0} m/s, planned {minutes:0.0} min, fuel {fuelNeed}");
         }
 
         /// <summary>Server: the flight is over (arrived, run ended, dev goto). Clears signal sites; RunManager enters the destination.</summary>
@@ -382,6 +408,7 @@ namespace Voidward.World
 
             ServerHazardScan(r);
             ServerPatrols(r, rm);
+            ServerInterdiction(rm);
 
             if (p >= r.Length - 0.5f) ServerArrive(rm);
         }
@@ -429,6 +456,48 @@ namespace Voidward.World
             }
         }
 
+        /// <summary>Server (#80): engaged enemies close to the lead ship pull the bubble out of warp (an emergency stop until they are gone).</summary>
+        void ServerInterdiction(RunManager rm)
+        {
+            var lead = ShipById(Lead.Value);
+            WatchLeadHull(lead);
+            if (lead == null || Stalled.Value || Overheated.Value || Throttle.Value < 0.2f) return;
+            Vector3 lp = lead.transform.position;
+            foreach (var e in EnemyFactory.Alive)
+            {
+                if (e == null || !e.IsSpawned || ((IThreatSource)e).Engagement < 0.5f) continue;
+                if ((e.transform.position - lp).sqrMagnitude < InterdictRange * InterdictRange) { Interdict(rm, "interceptors on the bubble"); return; }
+            }
+        }
+
+        /// <summary>Server: the lead ship's hull, so enemy hits on it interdict the warp.</summary>
+        void WatchLeadHull(ShipCore lead)
+        {
+            var hull = lead != null ? lead.Hull : null;
+            if (hull == watchedHull) return;
+            if (watchedHull != null) watchedHull.DamagedClient -= OnLeadHit;
+            watchedHull = hull;
+            if (hull != null) hull.DamagedClient += OnLeadHit;
+        }
+
+        void OnLeadHit(DamageInfo info)
+        {
+            // Corridor impacts stop the bubble on their own (ReportImpactServerRpc).
+            if (!IsServer || !Active.Value || DroppedOut.Value || Stalled.Value || Time.time - lastImpactAt < 0.3f || Throttle.Value < 0.2f) return;
+            Interdict(RunManager.Instance, "the lead ship is under fire");
+        }
+
+        void Interdict(RunManager rm, string why)
+        {
+            Stalled.Value = true;
+            stallTimer = CollisionStall;
+            Cruise.Value = false;
+            commanded = 0f;
+            Throttle.Value = 0f;
+            Debug.Log("[Warp] interdicted: " + why);
+            if (rm != null) rm.Announce($"INTERDICTED - {why}!\nFight them off, then throttle up again", "alarm");
+        }
+
         /// <summary>Server: interceptor patrols of the halo's galaxy meet the bubble.</summary>
         void ServerPatrols(WarpRoute r, RunManager rm)
         {
@@ -455,9 +524,11 @@ namespace Voidward.World
             if (WarpDrive.Instance != null && !CheatManager.GodMode)
                 WarpDrive.Instance.Exotic.Value = Mathf.Max(0f, WarpDrive.Instance.Exotic.Value - Mathf.Max(0f, fuelNeed - fuelBurned));
             fuelBurned = fuelNeed;
-            Debug.Log($"[Warp] arrived at stop {to}");
+            int system = TargetSystem.Value;
+            Debug.Log(system >= 0 ? $"[Warp] arrived at system {system}" : $"[Warp] arrived at stop {to}");
             ServerAbort();
-            rm.ServerArrive(to);
+            if (system >= 0) rm.ServerArriveSystem(system);
+            else rm.ServerArrive(to);
         }
 
         // ================================================================ server: pilot, impacts, shots
@@ -512,6 +583,7 @@ namespace Voidward.World
             }
 
             float dmg = o.ImpactDamage * (0.25f + 0.75f * t);
+            lastImpactAt = Time.time;
             Debug.Log($"[Warp] impact {o.Kind} {o.Id} ship {shipId}{(lead ? " (lead)" : "")} throttle {t:0.00} dmg {dmg:0}");
             ship.Hull.ApplyDamage(new DamageInfo { Amount = dmg, Type = DamageType.Kinetic, Point = ship.transform.position + WarpBubble.Axis * 4f, Direction = -WarpBubble.Axis });
             ImpactClientRpc(ship.transform.position + WarpBubble.Axis * 6f, (int)o.Kind, false);
