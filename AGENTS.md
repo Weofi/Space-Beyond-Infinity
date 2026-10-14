@@ -121,10 +121,11 @@ Journey structure (#46) playable and tested: lobby -> M33 ... LMC (5 galaxies x 
 
 Known limitations: mostly placeholder procedural art (only the Dart is a real asset so far, #91) and audio, no terrain deformation, LOD without geomorphing, no swimming (pawns walk on the seabed), owner authority without prediction, Ark can only be claimed (not built).
 
-## Next priorities (user, 2026-10-13)
-Roadmap: #53. Order of the foundation:
+## Next priorities (user, 2026-10-14)
+Roadmap: #53. **Current priority: the graphics upgrade #93** (all existing visuals to the asset-based look of the Dart, no new mechanics), in its order: #94 Dart cockpit -> #95 player/seated body/tools -> #96 light, post, skybox, VFX -> #97 Mule + Ark -> #98 enemies + Warden boss -> #99 station, wrecks, POIs, crates, pickups, menu -> #100 planet materials, decor, asteroids. Each part follows "Art & assets" (search, propose 2-4 candidates, user picks).
+Then the foundation continues:
 1. ~~#46 run structure~~ (done).
-2. **#73** warp drive tiers + flown warp flight (warp throttle, obstacles, Home ETA in real flight minutes, exotic matter as fuel, the Rift in the finale).
-3. **#74** prologue (moon mission -> wormhole), time loop on death, homecoming ending; **#49** home ship (Nostos, from the Ark).
+2. ~~#73 warp drive tiers + flown warp flight~~ (done: #78-#81).
+3. **#74** prologue (moon mission -> wormhole, #87), homecoming ending (#88), lore (#89); **#49** home ship (Nostos, from the Ark).
 4. Then the build-up loop (#50, #55, #44, #54), enemies (#41, #51 pirates -> aliens, #42 Warden enclaves), systems/expeditions (#45 alert level, #57, #52, #56), living world (#38-#40), meta (#47 Logbook, #59, #58, #48).
 Older feedback still applies: menu, graphics and gameplay need major improvement; clarify concrete goals/references with the user before large changes. Graphics: replace procedural art with fitting free assets step by step (see "Art & assets").
