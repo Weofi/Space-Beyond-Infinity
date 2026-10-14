@@ -1026,6 +1026,8 @@ namespace Voidward.EditorTools
 
         static GameObject BuildDart()
         {
+            var fab = FabShipMesh();
+            if (fab != null) return BuildFabDart(fab);
             var go = ShipRoot("Ship_Dart", ShipClass.Dart, 2000f, 4, 2);
             var core = go.GetComponent<ShipCore>();
             Visual(go.transform, "Hull", DartHullMesh(), MatHull);
@@ -1048,6 +1050,37 @@ namespace Voidward.EditorTools
             var fx = go.AddComponent<ShipEngineFx>();
             fx.Thrusters = Thrusters(go.transform, new Vector3(-0.72f, 0, -4.9f), new Vector3(0.72f, 0, -4.9f));
             ShipLighting(go, new Vector3(0, -1.2f, 0), 10f, new Vector3(-0.38f, -0.24f, 3.85f), new Vector3(0.38f, -0.24f, 3.85f));
+            return SavePrefab(go);
+        }
+
+        /// <summary>
+        /// Dart with the textured Fab hull (#91): 10.5 m long, 12.4 m forward-swept wings, two engine pods at x = +-2.1.
+        /// The canopy is part of the opaque hull, so the pilot view sits just above and behind it (the nose stays in view).
+        /// </summary>
+        static GameObject BuildFabDart(Mesh hull)
+        {
+            var go = ShipRoot("Ship_Dart", ShipClass.Dart, 2000f, 4, 2);
+            var core = go.GetComponent<ShipCore>();
+            Visual(go.transform, "Hull", hull, FabShipMaterial());
+
+            Box(go, new Vector3(0, -0.35f, 0.3f), new Vector3(2.4f, 1.5f, 9.8f));    // fuselage
+            Box(go, new Vector3(0, -0.3f, -2.3f), new Vector3(5.8f, 2.2f, 6f));      // engine pods
+            Box(go, new Vector3(0, -0.9f, 0f), new Vector3(12.4f, 0.5f, 4.8f));      // wings
+
+            Seat(go.transform, "PilotSeat", StationRole.Pilot, new Vector3(0, -0.2f, 1.6f), new Vector3(0, 1.25f, -1f), new Vector3(-2.3f, -0.2f, 3.8f),
+                new Vector3(0, 0f, 2.4f), new Vector3(3.6f, 3f, 5.5f), Quaternion.Euler(6f, 0f, 0f));
+            // no 3D dashboard: it would float on the hull outside the opaque canopy (the HUD carries the flight data)
+            var term = Child(go.transform, "CargoTerminal", new Vector3(0, 0.3f, -3.6f));
+            Box(term, Vector3.zero, new Vector3(3f, 3f, 3f), true);
+            term.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
+
+            core.MuzzlesA = new[] { Child(go.transform, "MuzzleL", new Vector3(-0.95f, -0.6f, 4.3f)).transform, Child(go.transform, "MuzzleR", new Vector3(0.95f, -0.6f, 4.3f)).transform };
+            core.MuzzlesB = new[] { Child(go.transform, "MuzzleC", new Vector3(0, -0.75f, 5.3f)).transform };
+            core.RespawnPoint = Child(go.transform, "Respawn", new Vector3(-2.3f, 0f, 3.4f)).transform;
+            core.FabricatorPoint = go.transform;
+            var fx = go.AddComponent<ShipEngineFx>();
+            fx.Thrusters = Thrusters(go.transform, new Vector3(-2.1f, -0.5f, -5.3f), new Vector3(2.1f, -0.5f, -5.3f));
+            ShipLighting(go, new Vector3(0, -1.7f, 0), 12f, new Vector3(-0.35f, -0.3f, 5.0f), new Vector3(0.35f, -0.3f, 5.0f));
             return SavePrefab(go);
         }
 
