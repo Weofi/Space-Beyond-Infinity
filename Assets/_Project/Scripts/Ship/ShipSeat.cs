@@ -191,6 +191,9 @@ namespace Voidward.Ship
                 if (input && VwInput.Pressed(VwInput.DropOut)) WarpBubble.PilotDropOut = true;
                 WarpBubble.PilotInputTime = Time.unscaledTime;
             }
+            // System cruise (#80): hold C to spool up, C again drops out (inside the warp bubble C is its cruise control).
+            if (!WarpBubble.Active) flight.SetCruiseInput(input && VwInput.Held(VwInput.Cruise), input && VwInput.Pressed(VwInput.Cruise));
+            else flight.SetCruiseInput(false, false);
             if (!input) { pilotLook = Vector2.zero; AimAssist.Clear(); flight.SetPilotInput(Vector3.zero, Vector3.zero, false, false); return; }
             Vector2 mv = VwInput.Move.ReadValue<Vector2>();
             float vert = VwInput.Vertical.ReadValue<float>();

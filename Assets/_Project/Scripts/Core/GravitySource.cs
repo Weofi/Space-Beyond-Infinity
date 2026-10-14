@@ -61,6 +61,22 @@ namespace Voidward.Core
             return best;
         }
 
+        /// <summary>Gravity lock (#80): inside this distance from the centre (the gravity field, at least radius + 1 km) no cruise or warp.</summary>
+        public float CruiseRadius => Mathf.Max(InfluenceRadius, SurfaceRadius + 1000f);
+
+        /// <summary>Distance (m) to the nearest gravity lock boundary; &lt;= 0 = inside a gravity field. Infinity in deep space.</summary>
+        public static float CruiseClearance(Vector3 pos, out GravitySource nearest)
+        {
+            nearest = null;
+            float best = float.PositiveInfinity;
+            for (int i = 0; i < All.Count; i++)
+            {
+                float d = Vector3.Distance(pos, All[i].Center) - All[i].CruiseRadius;
+                if (d < best) { best = d; nearest = All[i]; }
+            }
+            return best;
+        }
+
         public static Vector3 GravityAtPoint(Vector3 pos)
         {
             Vector3 sum = Vector3.zero;

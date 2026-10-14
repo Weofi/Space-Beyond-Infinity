@@ -156,6 +156,9 @@ namespace Voidward.UI
             }
             else
             {
+                var hopDrive = WarpDrive.Instance;
+                if (!current && hopDrive != null)
+                    Line(info, UIKit.Text(info, $"System warp  <color=#F59E0B>{DriveMath.Eta(hopDrive.HopMinutes)}</color>  <color=#64748B>(no Exotic Matter, clear of gravity and combat)</color>", 22, TextAlignmentOptions.Left, UIKit.TextDim), 30);
                 var warp = UIKit.Button(info, current ? "You are here" : pilot ? "Warp here" : "Pilot seat needed", () => { rm.RequestWarpServerRpc(sys.Index); }, 52, UIKit.Primary, 26);
                 warp.interactable = !current && pilot;
                 UIKit.LayoutElement(warp.gameObject, -1, 52);

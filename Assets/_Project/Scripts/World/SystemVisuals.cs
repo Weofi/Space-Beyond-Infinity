@@ -366,8 +366,9 @@ namespace Voidward.World
         {
             var cam = Camera.main;
             var flight = WarpFlight.Instance;
-            bool warp = WarpBubble.Active && flight != null;
-            bool show = cam != null && GameState.Phase == GamePhase.Playing && (builtSeed != int.MinValue || warp);
+            // A hop between systems (#80) stays inside the galaxy: the sky does not change.
+            bool warp = WarpBubble.Active && flight != null && !flight.IsHop;
+            bool show = cam != null && GameState.Phase == GamePhase.Playing && (builtSeed != int.MinValue || WarpBubble.Active);
             if (!warp)
             {
                 PlaceSky(milkyWay, MilkyWayDir, milkyWayDeg, show, cam);

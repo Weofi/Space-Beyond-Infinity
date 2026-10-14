@@ -37,6 +37,8 @@ namespace Voidward.Ship
         public const int ModuleSlotCount = 10;
         /// <summary>Pilot aim assist cone (degrees) without a Targeting module.</summary>
         public const float BaseAimAssist = 4f;
+        /// <summary>Thrust and top speed in normal flight: at most this multiple of the hull's base values (#80).</summary>
+        public const float NormalFlightCap = 1.3f;
         /// <summary>Fan angle between extra projectiles of a multishot salvo.</summary>
         const float MultishotSpreadDeg = 1.8f;
         /// <summary>Damage of each extra multishot projectile relative to the main one.</summary>
@@ -184,6 +186,9 @@ namespace Voidward.Ship
                 if (i == (int)ModuleSlot.WeaponA) { s.WeaponA = m.Weapon; s.TierA = m.Tier; s.DmgMultA = m.WeaponDamageMult; }
                 if (i == (int)ModuleSlot.WeaponB) { s.WeaponB = m.Weapon; s.TierB = m.Tier; s.DmgMultB = m.WeaponDamageMult; }
             }
+            // Normal flight stays close to the hull's own feel (#80): engine parts add at most +30 %, travel speed comes from cruise and warp.
+            s.Thrust = Mathf.Min(s.Thrust, d.Thrust * NormalFlightCap);
+            s.MaxSpeed = Mathf.Min(s.MaxSpeed, d.MaxSpeed * NormalFlightCap);
             var p = Power.Value;
             s.Thrust *= p.x;
             s.ShieldRegen *= p.y;

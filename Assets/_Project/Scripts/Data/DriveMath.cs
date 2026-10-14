@@ -57,6 +57,20 @@ namespace Voidward.Data
             return len * s.Factor / s.Speed;
         }
 
+        /// <summary>Flight minutes of a warp between two systems of a galaxy (#80). Infinity without a core.</summary>
+        public static float HopMinutes(WarpDriveDef d, DriveStats s)
+        {
+            if (d == null || s.Speed <= 0f) return float.PositiveInfinity;
+            return d.HopMinutes * s.Factor / Mathf.Pow(s.Speed, d.HopSpeedExponent);
+        }
+
+        /// <summary>System cruise speed (m/s) of a core tier (#80).</summary>
+        public static float CruiseSpeed(WarpDriveDef d, int coreTier)
+        {
+            if (d == null || d.CruiseSpeed == null || d.CruiseSpeed.Length == 0) return 1000f;
+            return d.CruiseSpeed[Mathf.Clamp(coreTier, 1, d.CruiseSpeed.Length) - 1];
+        }
+
         /// <summary>Exotic Matter needed from galaxy `from` to stop `to`; every leg beyond the first costs a surcharge.</summary>
         public static int Fuel(WarpDriveDef d, int from, int to)
         {

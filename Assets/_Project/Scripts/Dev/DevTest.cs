@@ -509,10 +509,85 @@ namespace Voidward.Dev
                 var r = f.Route;
                 var zone = r.ZoneAt(f.LocalProgress, out _);
                 var d = WarpDrive.Instance;
-                return $"{f.From.Value} -> {f.To.Value} | {f.LocalProgress / 1000f:0.0}/{f.Length.Value / 1000f:0.0} km {f.Progress01 * 100f:0}% {WarpRoute.ZoneLabel(zone)} | " +
+                string route = f.IsHop ? $"hop {f.From.Value}:{(Run != null ? Run.SystemIndex.Value : -1)} -> system {f.TargetSystem.Value}" : $"{f.From.Value} -> {f.To.Value}";
+                return $"{route} | {f.LocalProgress / 1000f:0.0}/{f.Length.Value / 1000f:0.0} km {f.Progress01 * 100f:0}% {r.ZoneName(zone)} | " +
                        $"throttle {f.Throttle.Value:0.00} heat {f.Heat.Value:0.00} cruise {f.Cruise.Value} stall {f.Stalled.Value} hot {f.Overheated.Value} | " +
                        $"lead {f.Lead.Value} hazard {f.Hazard.Value} | out {f.DroppedOut.Value} | exotic {(d != null ? d.Exotic.Value : 0f):0.0} | scan {f.ScanRange:0} | destroyed {f.Destroyed.Count}";
             }
+        }
+
+        // ------------------------------------------------------------------ system cruise + hops (#80)
+
+        /// <summary>Server: start the flown hop to another system of this galaxy now (skips countdown and locks). Logs "[Dev] end hop &lt;WarpInfo&gt;".</summary>
+        public static void StartHop(int system)
+        {
+            Log("begin hop");
+            if (!IsServer || Run == null || Flight == null) { Log("end hop FAILED: needs the host in a run"); return; }
+            Run.ServerWarp(system);
+            DevRunner.Get().Run(HopCo());
+        }
+
+        static IEnumerator HopCo()
+        {
+            yield return null;
+            yield return null;
+            Log("end hop " + WarpInfo);
+        }
+
+        /// <summary>The ship the local player sits in (any seat), else the own ship.</summary>
+        public static ShipCore SeatShip
+        {
+            get
+            {
+                var seat = Pawn != null ? Pawn.CurrentShipSeat : null;
+                return seat != null && seat.Ship != null ? seat.Ship : Ship;
+            }
+        }
+
+        /// <summary>Local pilot: cruise on at once (no spool-up) / off. force = ignore gravity/combat lock.</summary>
+        public static void Cruise(bool on, bool force = false)
+        {
+            var s = SeatShip;
+            bool ok = s != null && s.Flight != null && s.Flight.DevCruise(on, force);
+            Log($"cruise {(on ? "on" : "off")} {(ok ? "ok" : "FAILED: " + (s == null ? "no ship" : s.Flight.IsSimulating ? s.Flight.CruiseBlock() : "not the pilot"))} | " + CruiseInfo);
+        }
+
+        /// <summary>"cruise Cruising 2380/3000 m/s | clear 2311 m Planet_x | block - | spool 1.00".</summary>
+        public static string CruiseInfo
+        {
+            get
+            {
+                var s = SeatShip;
+                if (s == null || s.Flight == null) return "no ship";
+                var f = s.Flight;
+                float clear = GravitySource.CruiseClearance(s.transform.position, out var near);
+                return $"cruise {f.Cruise} {f.Speed:0}/{ShipFlight.CruiseTopSpeed:0} m/s | clear {(float.IsInfinity(clear) ? "inf" : clear.ToString("0"))} m {(near != null ? near.name : "-")} | block {f.CruiseBlock() ?? "-"} | spool {f.CruiseSpool01:0.00}";
+            }
+        }
+
+        /// <summary>Cruise state of every ship as this peer sees it: "79:Cruising:993 80:Off:0".</summary>
+        public static string ShipsCruise
+        {
+            get
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var s in ShipCore.All)
+                    if (s != null && s.Flight != null) sb.Append($"{s.NetworkObjectId}:{s.Flight.Cruise}:{s.Flight.Speed:0} ");
+                return sb.ToString().TrimEnd();
+            }
+        }
+
+        /// <summary>Server: put the local player's ship `clearance` metres outside planet i's gravity lock (cruise boundary), nose on the planet.</summary>
+        public static void FacePlanet(int planet = 0, float clearance = 3000f)
+        {
+            var s = SeatShip;
+            var all = GravitySource.All;
+            if (!IsServer || s == null || planet < 0 || planet >= all.Count) { Log("FacePlanet FAILED: ship or planet missing"); return; }
+            var g = all[planet];
+            Vector3 dir = (Vector3.right * -1f + Vector3.up * 0.2f).normalized; // approach from the corridor's start side
+            Vector3 pos = g.Center + dir * (g.CruiseRadius + clearance);
+            s.GetComponent<NetTeleport>().ServerTeleport(pos, Quaternion.LookRotation(g.Center - pos));
+            Log($"face planet {planet} {g.name} r {g.SurfaceRadius:0} lock {g.CruiseRadius:0} at {clearance:0} m");
         }
 
         // ------------------------------------------------------------------ actions
