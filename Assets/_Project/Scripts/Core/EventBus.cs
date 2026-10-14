@@ -34,6 +34,7 @@ namespace Voidward.Core
         // ---- Panel open requests (raised by interactables, served by UI) ----
         public static event Action<ulong> TradePanelRequested;     // station NetworkObjectId
         public static event Action CraftPanelRequested;
+        public static event Action DrivePanelRequested;              // crew warp drive tab (#78)
         public static event Action<ulong> ShipPanelRequested;      // ship NetworkObjectId (cargo/modules)
         public static event Action<ulong> EngineerPanelRequested;  // ship NetworkObjectId (power/repair)
 
@@ -54,6 +55,7 @@ namespace Voidward.Core
         public static void RaisePingRequested(Vector3 pos, PingKind kind, string label) => PingRequested?.Invoke(pos, kind, label);
         public static void RaiseTradePanelRequested(ulong stationId) => TradePanelRequested?.Invoke(stationId);
         public static void RaiseCraftPanelRequested() => CraftPanelRequested?.Invoke();
+        public static void RaiseDrivePanelRequested() => DrivePanelRequested?.Invoke();
         public static void RaiseShipPanelRequested(ulong shipId) => ShipPanelRequested?.Invoke(shipId);
         public static void RaiseEngineerPanelRequested(ulong shipId) => EngineerPanelRequested?.Invoke(shipId);
     }

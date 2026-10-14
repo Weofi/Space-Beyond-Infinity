@@ -38,6 +38,7 @@ namespace Voidward.UI
             var top = UIKit.Row(panel, 56);
             header = UIKit.Text(top, "", 30, TextAlignmentOptions.Left, UIKit.Warn, FontStyles.Bold);
             UIKit.LayoutElement(header.gameObject, -1, 56, 1);
+            UIKit.LayoutElement(UIKit.Button(top, "Warp Drive", EventBus.RaiseDrivePanelRequested, 52, UIKit.Accent, 22).gameObject, 200, 52);
             UIKit.LayoutElement(UIKit.Button(top, "Close", Close, 52, UIKit.Bad, 22).gameObject, 160, 52);
             route = UIKit.Text(panel, "", 22, TextAlignmentOptions.Left, UIKit.TextDim);
             UIKit.LayoutElement(route.gameObject, -1, 34);

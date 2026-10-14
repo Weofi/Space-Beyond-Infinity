@@ -249,9 +249,9 @@ namespace Voidward.UI
             meterText = UIKit.Text(meter, "", 19, TextAlignmentOptions.Center, HudKit.Teal, FontStyles.Bold);
             UIKit.Place(meterText.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(440, 26), new Vector2(0.5f, 0));
             meterText.characterSpacing = 3f;
-            // Home ETA of the crew's warp drive (#78), always visible under the system meter.
+            // Home ETA of the crew's warp drive (#78), always visible under the system meter and compass.
             etaText = HudKit.Micro(root, "", 15f, HudKit.TextDim, TextAlignmentOptions.Center);
-            UIKit.Place(etaText.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -84), new Vector2(640, 22), new Vector2(0.5f, 1));
+            UIKit.Place(etaText.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -140), new Vector2(640, 22), new Vector2(0.5f, 1));
             etaText.richText = true;
             crew = new CrewHud(root, markerLayer, meterTrack, new Vector2(Edge, Edge + 112 + 14));
 

@@ -88,6 +88,7 @@ namespace Voidward.UI
             EventBus.TradePanelRequested += id => { CloseModals(); trade.Open(id); };
             EventBus.CraftPanelRequested += () => { CloseModals(); inventory.Open(InventoryView.Tab.Crafting); };
             EventBus.ShipPanelRequested += id => { CloseModals(); inventory.Open(InventoryView.Tab.Ship); };
+            EventBus.DrivePanelRequested += () => { CloseModals(); inventory.Open(InventoryView.Tab.Drive); };
             EventBus.EngineerPanelRequested += id => { CloseModals(); engineer.Open(id); };
             VfxManager.ScreenFlash += (c, d) => { flashColor = c; flashDuration = d; flashTime = d; };
 
