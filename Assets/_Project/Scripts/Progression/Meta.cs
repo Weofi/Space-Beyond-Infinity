@@ -16,6 +16,8 @@ namespace Voidward.Progression
         public int Victories;
         public int BestSector;
         public float BestDistance;
+        /// <summary>Lowest Home ETA (flight minutes) a failed loop ended with; 0 = none yet (#86).</summary>
+        public float BestEtaMinutes;
         public string SelectedShip = "Dart";
         public List<string> Unlocked = new List<string>();
         public List<string> Equipped = new List<string>();
@@ -127,6 +129,9 @@ namespace Voidward.Progression
             return new RunLoadout { Ship = SelectedShip, PerkMask = mask };
         }
 
+        /// <summary>Loops this player has finished (every run is one loop of the time loop, #86).</summary>
+        public static int Loops => Data.Runs;
+
         /// <summary>Called on every client when a run ends.</summary>
         public static void RecordRun(RunSummary s)
         {
@@ -136,6 +141,9 @@ namespace Voidward.Progression
             Data.TotalStardust += s.StardustEarned;
             Data.BestSector = Mathf.Max(Data.BestSector, s.GalaxyReached); // best galaxy (field name kept for save compatibility)
             Data.BestDistance = Mathf.Max(Data.BestDistance, s.DistanceTraveled);
+            // Closest a failed loop got to home (a homecoming counts in Victories).
+            if (!s.Victory && s.HomeEtaMinutes > 0f && !float.IsInfinity(s.HomeEtaMinutes) && (Data.BestEtaMinutes <= 0f || s.HomeEtaMinutes < Data.BestEtaMinutes))
+                Data.BestEtaMinutes = s.HomeEtaMinutes;
             Save();
         }
 

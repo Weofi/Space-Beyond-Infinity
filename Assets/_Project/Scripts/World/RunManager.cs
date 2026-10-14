@@ -43,6 +43,8 @@ namespace Voidward.World
         public NetworkVariable<float> WarpCountdown = new NetworkVariable<float>(-1f);
         public NetworkVariable<int> WarpTarget = new NetworkVariable<int>(0);
         public NetworkVariable<bool> BossActive = new NetworkVariable<bool>(false);
+        /// <summary>The loop of the time loop this run is (1-based, the host's count, #86).</summary>
+        public NetworkVariable<int> Loop = new NetworkVariable<int>(1);
         /// <summary>Asteroid ids (SystemVisuals.RockId) destroyed in the current system.</summary>
         public NetworkList<int> DestroyedAsteroids;
 
@@ -52,6 +54,8 @@ namespace Voidward.World
         readonly Dictionary<int, float> asteroidDamage = new Dictionary<int, float>();
         SystemDirector director;
         RunSummary stats = new RunSummary();
+        /// <summary>Crew logbook of this loop (#86): "[h:mm:ss] text" entries.</summary>
+        readonly List<string> log = new List<string>();
         float distanceDone;
         float maxXThisSystem;
         float autoStartTimer = 3f;
@@ -274,6 +278,7 @@ namespace Voidward.World
         {
             if (!IsServer || Phase.Value == GamePhase.Playing) return;
             ResetRunState(Random.Range(1, int.MaxValue), StartingRespawns, 0f);
+            Loop.Value = Meta.Loops + 1;
             foreach (var pawn in PlayerPawn.All) if (pawn != null) pawn.Gear.ResetServer();
             if (WarpDrive.Instance != null) WarpDrive.Instance.ServerReset(0);
             EnterSystem(1, 0, false);
@@ -284,6 +289,7 @@ namespace Voidward.World
             StartClock();
             var def = director.Def;
             AnnounceClientRpc($"{GalaxyTitle(def)}\n{(def != null ? def.Intro : "")}", "jump_gate");
+            ServerLog(Story != null ? Story.LogLoopStart : "", def);
             ServerWriteSave();
         }
 
@@ -294,6 +300,8 @@ namespace Voidward.World
             var save = RunSave.Read();
             if (save == null) { AnnounceClientRpc("No saved run to continue", "ui_back"); return; }
             ResetRunState(save.RunSeed, save.RespawnsLeft, save.RunTime);
+            Loop.Value = save.Loop > 0 ? save.Loop : Meta.Loops + 1;
+            if (save.Log != null) log.AddRange(save.Log);
             clearedEnclaves = save.ClearedEnclaves;
             distanceDone = save.Distance;
             stats.Kills = save.Kills;
@@ -336,6 +344,7 @@ namespace Voidward.World
         void ResetRunState(int seed, int respawns, float runTime)
         {
             stats = new RunSummary();
+            log.Clear();
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
             warpLead = null;
             distanceDone = 0f;
@@ -359,6 +368,20 @@ namespace Voidward.World
         public void ServerReturnToLobby()
         {
             if (!IsServer) return;
+            ClearRun();
+            Phase.Value = GamePhase.Lobby;
+        }
+
+        /// <summary>Host: straight from the logbook into the next loop (#86) - the crew wakes at the wormhole exit again.</summary>
+        public void ServerNewLoop()
+        {
+            if (!IsServer || Phase.Value == GamePhase.Playing || Phase.Value == GamePhase.Lobby) return;
+            ClearRun();
+            ServerStartRun();
+        }
+
+        void ClearRun()
+        {
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
             director.Clear();
             ClearShips();
@@ -366,7 +389,6 @@ namespace Voidward.World
             RunSeed.Value = 0;
             BossActive.Value = false;
             WarpCountdown.Value = -1f;
-            Phase.Value = GamePhase.Lobby;
         }
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
@@ -375,9 +397,55 @@ namespace Voidward.World
             if (rp.Receive.SenderClientId == NetworkManager.ServerClientId) ServerReturnToLobby();
         }
 
-        void EndRun(bool victory, string reason)
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        public void NewLoopServerRpc(RpcParams rp = default)
+        {
+            if (rp.Receive.SenderClientId == NetworkManager.ServerClientId) ServerNewLoop();
+        }
+
+        // ================================================================ crew logbook (#86)
+
+        static StoryDef Story => ContentCatalog.Instance != null ? ContentCatalog.Instance.Story : null;
+
+        /// <summary>Server: the crew logbook of this loop so far.</summary>
+        public IReadOnlyList<string> Logbook => log;
+
+        /// <summary>
+        /// Server: add an entry to the crew logbook of this loop (StoryDef template, {loop}/{galaxy}/{eta} filled in here)
+        /// and show it to everyone. The logbook ends up on the loop reset / homecoming screen and in the suspend save.
+        /// </summary>
+        public void ServerLog(string template, GalaxyDef galaxy = null, string part = "", string ship = "")
+        {
+            if (!IsServer || string.IsNullOrEmpty(template)) return;
+            if (galaxy == null) galaxy = director != null ? director.Def : null;
+            string eta = WarpDrive.Instance != null ? DriveMath.Eta(WarpDrive.Instance.EtaTo(DriveMath.Home)) : "--";
+            string text = StoryDef.Format(template, Loop.Value, galaxy != null ? galaxy.DisplayName : "", eta, part, ship);
+            log.Add($"[{LogClock(RunTime)}] {text}");
+            LogbookClientRpc(text);
+        }
+
+        static string LogClock(float seconds)
+        {
+            int t = Mathf.Max(0, Mathf.FloorToInt(seconds));
+            return $"{t / 3600}:{t / 60 % 60:00}:{t % 60:00}";
+        }
+
+        [ClientRpc]
+        void LogbookClientRpc(string text) => EventBus.RaiseLogbookEntry(text);
+
+        /// <summary>
+        /// Server: the loop ends. A death (crew lost, caught by the Rift) is no game over but the time loop (#86): every
+        /// client plays the collapse, then the logbook; the host starts the next loop from there (ServerNewLoop).
+        /// </summary>
+        void EndRun(bool victory, string reason, string logTemplate)
         {
             if (Phase.Value != GamePhase.Playing) return;
+            ServerLog(logTemplate);
+            var drive = WarpDrive.Instance;
+            stats.Loop = Loop.Value;
+            stats.DriveTier = drive != null ? drive.TierOf(DriveSlot.Core) : 1;
+            stats.HomeEtaMinutes = victory || drive == null ? 0f : drive.EtaTo(DriveMath.Home);
+            stats.Log = string.Join("\n", log);
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
             stats.Victory = victory;
             stats.EndReason = reason;
@@ -390,16 +458,18 @@ namespace Voidward.World
             Phase.Value = victory ? GamePhase.DemoComplete : GamePhase.GameOver;
             RunSave.Delete(); // one slot, no reloading after death (and nothing left to resume after the homecoming)
             foreach (var p in PlayerPawn.All) if (p != null) { var s = ShipSeat.SeatOf(p.OwnerClientId); if (s) s.Vacate(); }
-            RunEndedClientRpc(stats.Victory, stats.EndReason, stats.GalaxyReached, stats.DistanceTraveled, stats.Kills, stats.LootCollected, stats.StardustEarned, stats.RunTimeSeconds);
+            RunEndedClientRpc(stats.Victory, stats.EndReason, stats.GalaxyReached, stats.DistanceTraveled, stats.Kills, stats.LootCollected, stats.StardustEarned, stats.RunTimeSeconds,
+                stats.Loop, stats.DriveTier, stats.HomeEtaMinutes, stats.Log);
         }
 
         [ClientRpc]
-        void RunEndedClientRpc(bool victory, string reason, int galaxy, float dist, int kills, int loot, int dust, float time)
+        void RunEndedClientRpc(bool victory, string reason, int galaxy, float dist, int kills, int loot, int dust, float time, int loop, int driveTier, float eta, string logText)
         {
             var s = new RunSummary
             {
                 Victory = victory, EndReason = reason, GalaxyReached = galaxy, DistanceTraveled = dist,
-                Kills = kills, LootCollected = loot, StardustEarned = dust, RunTimeSeconds = time
+                Kills = kills, LootCollected = loot, StardustEarned = dust, RunTimeSeconds = time,
+                Loop = loop, DriveTier = driveTier, HomeEtaMinutes = eta, Log = logText
             };
             Meta.RecordRun(s);
             Sfx.Engine(false, 0f);
@@ -562,6 +632,7 @@ namespace Voidward.World
             string label = system >= 0 ? WarpLabel(system) : WarpLabel(stop == GalaxyIndex.Value + 1 ? WarpNextGalaxy : WarpSkipGalaxy);
             if (system >= 0) WarpFlight.Instance.ServerBeginHop(GalaxyIndex.Value, system, lead);
             else WarpFlight.Instance.ServerBegin(GalaxyIndex.Value, stop, lead);
+            if (stop > GalaxyDef.Count) ServerLog(Story != null ? Story.LogFlightHome : "");
             GameState.Objective = "Warp flight";
             WarpFlightStartedClientRpc(label, system >= 0);
         }
@@ -583,18 +654,16 @@ namespace Voidward.World
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
             // The crew outran the Rift (#81) and leaves the warp in the Solar System. Placeholder until the Earth/Moon
             // approach and landing of #74: the homecoming result.
-            if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew outran the Rift and made it back to Sol!"); return; }
+            if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew outran the Rift and made it back to Sol!", Story != null ? Story.LogHomecoming : ""); return; }
             WarpTo(stop, 0);
         }
 
-        /// <summary>
-        /// Server: the Rift caught the bubble on the flight home (#81). Hand-over point to the time loop of #74 (back to
-        /// M33 with the meta kept); until then the run ends like a crew wipe.
-        /// </summary>
+        /// <summary>Server: the Rift caught the bubble on the flight home (#81): the crew falls back into the time loop (#86).</summary>
         public void ServerRiftCaught()
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
-            EndRun(false, "The Rift caught the crew - pulled back into the time loop");
+            var st = Story;
+            EndRun(false, st != null ? st.ResetRiftCaught : "Caught by the Rift", st != null ? st.LogRiftCaught : "");
         }
 
         /// <summary>Server: a hop (#80) reached its system: the crew arrives at the system's edge.</summary>
@@ -631,7 +700,7 @@ namespace Voidward.World
             var def = director.Def;
             WarpedClientRpc(newGalaxy, newGalaxy ? GalaxyTitle(def) : director.System.Name,
                 newGalaxy ? (def != null ? def.Intro : "") : GalaxyGenerator.KindLabel(director.System.Kind));
-            if (newGalaxy) ServerWriteSave();
+            if (newGalaxy) { ServerLog(Story != null ? Story.LogGalaxy : "", def); ServerWriteSave(); }
         }
 
         /// <summary>Ships into formation at the arrival point; pawns on foot follow their ship or the formation.</summary>
@@ -687,7 +756,7 @@ namespace Voidward.World
             {
                 RunSeed = RunSeed.Value, Galaxy = GalaxyIndex.Value, System = SystemIndex.Value, VisitedMask = VisitedMask.Value,
                 ClearedEnclaves = clearedEnclaves, RunTime = RunTime, RespawnsLeft = RespawnsLeft.Value,
-                Distance = distanceDone, Kills = stats.Kills, Loot = stats.LootCollected
+                Distance = distanceDone, Kills = stats.Kills, Loot = stats.LootCollected, Loop = Loop.Value, Log = new List<string>(log)
             };
             var drive = WarpDrive.Instance;
             if (drive != null)
@@ -957,7 +1026,8 @@ namespace Voidward.World
                 active++;
                 if (p.IsLost.Value) gone++;
             }
-            if (active > 0 && gone == active) EndRun(false, "The whole crew was lost - the loop begins again");
+            var st = Story;
+            if (active > 0 && gone == active) EndRun(false, st != null ? st.ResetCrewLost : "Crew lost", st != null ? st.LogCrewLost : "");
         }
 
         /// <summary>Solar flare radiation for players in the open.</summary>
@@ -1005,6 +1075,8 @@ namespace Voidward.World
         {
             if (s == ark) ark = null;
             AnnounceClientRpc(s.ShipName.Value + " was destroyed!", "alarm");
+            // Personal ships respawn; only losing the crew ship is a logbook milestone.
+            if (Phase.Value == GamePhase.Playing && s.Class == ShipClass.Ark) ServerLog(Story != null ? Story.LogShipLost : "", null, "", s.ShipName.Value.ToString());
         }
 
         void OnBossDefeated()
@@ -1012,7 +1084,11 @@ namespace Voidward.World
             stats.Kills += 10;
             var boss = BossBrain.Instance;
             Vector3 at = boss != null ? boss.transform.position : (director.Layout != null ? director.Layout.BossPos : TeamCenter());
-            if (director.System != null && director.System.Kind == SystemKind.Enclave) clearedEnclaves |= 1 << (GalaxyIndex.Value - 1);
+            if (director.System != null && director.System.Kind == SystemKind.Enclave)
+            {
+                clearedEnclaves |= 1 << (GalaxyIndex.Value - 1);
+                ServerLog(Story != null ? Story.LogWarden : "");
+            }
             director.OnWardenDefeated(at);
             GameState.Objective = "Explore";
         }

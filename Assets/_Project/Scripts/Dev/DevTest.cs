@@ -587,6 +587,60 @@ namespace Voidward.Dev
             }
         }
 
+        // ------------------------------------------------------------------ time loop (#86)
+
+        /// <summary>
+        /// Server: the whole crew is lost (the real crew-wipe path); waits for the collapse and the logbook screen.
+        /// Records the run in the real meta save: BackupMeta() first. Logs "[Dev] end killcrew &lt;LoopInfo&gt;".
+        /// </summary>
+        public static void KillCrew()
+        {
+            Log("begin killcrew");
+            if (!IsServer || Run == null || Run.Phase.Value != GamePhase.Playing) { Log("end killcrew FAILED: needs the host in a run"); return; }
+            DevRunner.Get().Run(KillCrewCo());
+        }
+
+        static IEnumerator KillCrewCo()
+        {
+            foreach (var p in PlayerPawn.All) if (p != null && p.Active.Value) p.IsLost.Value = true;
+            float until = Time.realtimeSinceStartup + 10f;
+            while (Time.realtimeSinceStartup < until && (UI.UIRoot.Instance == null || UI.UIRoot.Instance.Current != UI.Screen.Results)) yield return null;
+            Log("end killcrew " + LoopInfo);
+        }
+
+        /// <summary>Host: start the next loop from the logbook (as the "New Loop" button). Logs "[Dev] end newloop &lt;LoopInfo&gt;".</summary>
+        public static void NewLoop()
+        {
+            Log("begin newloop");
+            if (!IsServer || Run == null || Run.Phase.Value == GamePhase.Playing) { Log("end newloop FAILED: needs the host on the logbook"); return; }
+            DevRunner.Get().Run(NewLoopCo());
+        }
+
+        static IEnumerator NewLoopCo()
+        {
+            Run.ServerNewLoop();
+            float until = Time.realtimeSinceStartup + 5f;
+            while (Time.realtimeSinceStartup < until && Run.Phase.Value != GamePhase.Playing) yield return null;
+            yield return new WaitForSecondsRealtime(0.5f);
+            Log("end newloop " + LoopInfo);
+        }
+
+        /// <summary>"loop 2 Playing seed 123 | meta loops 1 best galaxy 1 best eta 35 h 12 min | log 2 | screen None | time 1.00".</summary>
+        public static string LoopInfo
+        {
+            get
+            {
+                if (Run == null) return "no run";
+                var ui = UI.UIRoot.Instance;
+                string eta = Meta.Data.BestEtaMinutes > 0f ? DriveMath.Eta(Meta.Data.BestEtaMinutes) : "--";
+                return $"loop {Run.Loop.Value} {Run.Phase.Value} seed {Run.RunSeed.Value} | meta loops {Meta.Loops} best galaxy {Meta.Data.BestSector} best eta {eta} | " +
+                    $"log {(IsServer ? Run.Logbook.Count : -1)} | screen {(ui != null ? ui.Current.ToString() : "-")} | time {Time.timeScale:0.00}";
+            }
+        }
+
+        /// <summary>Server: the crew logbook of this loop, one entry per line.</summary>
+        public static string Logbook => IsServer && Run != null ? string.Join("\n", Run.Logbook) : "";
+
         // ------------------------------------------------------------------ system cruise + hops (#80)
 
         /// <summary>Server: start the flown hop to another system of this galaxy now (skips countdown and locks). Logs "[Dev] end hop &lt;WarpInfo&gt;".</summary>

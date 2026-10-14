@@ -15,8 +15,8 @@ Two endings only: **Homecoming** or **death** (= the loop resets). Target run le
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
 > galaxy map, suspend save), the crew warp drive with Home ETA (#78) and the flown warp between galaxies (#79) are
-> playable, as are system cruise and the flown in-galaxy warp (#80) and the flight home chased by the Rift (#81); still to come are
-> prologue/time loop/Sol approach and landing (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
+> playable, as are system cruise and the flown in-galaxy warp (#80), the flight home chased by the Rift (#81) and the time loop (#86); still to come are
+> the prologue, Sol approach and landing (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
 the Input System, Cinemachine 3 and TextMeshPro. All art, audio and music are procedural
@@ -158,6 +158,10 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
   breathable). Ships, the Ark interior and station pads refill it.
 * **Team respawns**: 4 per run (+1 per new galaxy). Respawn happens at your ship (or any ship).
   Lose your ship and you get a replacement Dart after 20 s. If the whole crew is lost, the loop resets.
+* **The time loop**: death (crew lost or caught by the Rift) slows time, the Rift closes the picture and
+  the loop's **logbook** opens (cause, galaxy, warp core, Home ETA vs. your best, the crew's log entries).
+  The host starts the **New Loop** right there; later loops open with a short deja-vu and radio echoes from
+  earlier loops instead of the intro.
 * **The Ark** — a derelict capital ship near the wormhole exit. Bring 8 Scrap and restore its
   power. It has Pilot, 2 Turret (flak/laser) and Engineer stations, a fabricator, a big hold,
   big shields and a walkable interior with its own gravity. Players can walk around inside it while

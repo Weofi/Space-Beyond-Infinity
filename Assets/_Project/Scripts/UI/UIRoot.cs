@@ -30,6 +30,7 @@ namespace Voidward.UI
         GalaxyMapView galaxyMap;
         EngineerView engineer;
         IntroSequence intro;
+        LoopView loop;
         GamePhase lastPhase = GamePhase.MainMenu;
         Image flash;
         float flashTime, flashDuration;
@@ -82,6 +83,7 @@ namespace Voidward.UI
             UIKit.Stretch(flash.rectTransform);
             flash.raycastTarget = false;
             intro = new IntroSequence(Root);
+            loop = new LoopView(Root);
 
             EventBus.RunEnded += OnRunEnded;
             EventBus.PhaseChanged += OnPhase;
@@ -100,6 +102,7 @@ namespace Voidward.UI
         {
             EventBus.RunEnded -= OnRunEnded;
             EventBus.PhaseChanged -= OnPhase;
+            loop.Dispose();
             G.Unregister<UIGate>();
             if (Instance == this) Instance = null;
         }
@@ -108,17 +111,27 @@ namespace Voidward.UI
         {
             LastSummary = s;
             CloseModals();
-            Show(Screen.Results);
-            Sfx.PlayUI(s.Victory ? "stardust" : "alarm");
+            if (s.Victory) { Show(Screen.Results); Sfx.PlayUI("stardust"); return; }
+            // A death is the time loop (#86): the Rift closes the picture first, then the logbook opens.
+            Sfx.PlayUI("alarm");
+            loop.Collapse(s, () => { if (GameState.Phase == GamePhase.GameOver) Show(Screen.Results); });
         }
 
         void OnPhase(GamePhase p)
         {
+            if (p != GamePhase.GameOver) loop.StopCollapse();
             if (p == GamePhase.MainMenu) { CloseModals(); back.Clear(); Show(Screen.Main); }
             if (p == GamePhase.Playing) { back.Clear(); Show(Screen.None); }
             if (p == GamePhase.Lobby) { CloseModals(); back.Clear(); Show(Screen.Lobby); }
-            // Lobby -> Playing is a fresh run; late joiners arrive from MainMenu and skip the intro.
-            if (p == GamePhase.Playing && lastPhase == GamePhase.Lobby) { CloseModals(); intro.Begin(); }
+            // Lobby/loop end -> Playing is a fresh run; late joiners arrive from MainMenu and skip the intro. The full intro
+            // only plays for a player's first loop, later loops start with the short deja-vu (#86).
+            bool fresh = lastPhase == GamePhase.Lobby || lastPhase == GamePhase.GameOver || lastPhase == GamePhase.DemoComplete;
+            if (p == GamePhase.Playing && fresh)
+            {
+                CloseModals();
+                if (Progression.Meta.Loops == 0) intro.Begin();
+                else loop.DejaVu();
+            }
             lastPhase = p;
         }
 
@@ -217,6 +230,7 @@ namespace Voidward.UI
             hud.SetVisible(playing && !intro.Active && (screen == Screen.None || screen == Screen.Pause));
             hud.Update();
             intro.Update();
+            loop.Tick();
             menus.Update();
             inventory.Update();
             trade.Update();

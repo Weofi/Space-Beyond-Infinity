@@ -14,6 +14,14 @@ namespace Voidward.Core
         public int LootCollected;
         public int StardustEarned;
         public float RunTimeSeconds;
+        /// <summary>The loop this run was (1-based, #86).</summary>
+        public int Loop = 1;
+        /// <summary>Warp core tier at the end (1-6).</summary>
+        public int DriveTier = 1;
+        /// <summary>Home ETA in flight minutes from where the run ended (0 after the homecoming).</summary>
+        public float HomeEtaMinutes;
+        /// <summary>Crew logbook of this loop, one "[h:mm:ss] text" entry per line.</summary>
+        public string Log = "";
 
         /// <summary>Stardust conversion: the meta currency earned by this run.</summary>
         public int ComputeStardust()
