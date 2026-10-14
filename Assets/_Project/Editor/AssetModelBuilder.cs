@@ -268,7 +268,7 @@ namespace Voidward.EditorTools
             m.SetColor("_BaseColor", new Color(0.2f, 0.32f, 0.42f, 0.04f));
             m.SetColor("_RimColor", new Color(0.45f, 0.65f, 0.85f, 1f));
             m.SetFloat("_RimPower", 5f);
-            m.SetFloat("_RimAlpha", 0.14f);
+            m.SetFloat("_RimAlpha", 0.08f);
             m.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Front);
             return m;
         }
