@@ -1072,6 +1072,39 @@ namespace Voidward.Dev
             return path;
         }
 
+        /// <summary>
+        /// The seated crew body as the other players see it (#95): one sheet of four views around the local pawn's seat
+        /// (side through the canopy, front over the dashboard, right shoulder onto the stick hand, left onto the throttle),
+        /// with the head shown (as on a remote peer) for the shots. Ship-local, eye at (0, 0, eyeZ).
+        /// </summary>
+        public static string SeatBodyViews(string name, float eyeZ = 3.67f)
+        {
+            var s = SeatShip;
+            var seat = Pawn != null ? Pawn.CurrentShipSeat : null;
+            if (s == null || seat == null) { Log("SeatBodyViews needs a seated pawn"); return null; }
+            var pose = seat.GetComponentInChildren<Voidward.Ship.CrewSeatPose>(true);
+            bool local = pose != null && pose.Local;
+            if (pose != null) pose.Local = false;
+            var t = s.transform;
+            var eye = new Vector3(0f, 0f, eyeZ);
+            var views = new[]
+            {
+                (new Vector3(1.7f, 0.5f, -0.45f), new Vector3(0f, -0.5f, 0.25f), 55f),
+                (new Vector3(0.3f, 0.3f, 1.95f), new Vector3(0f, -0.5f, -0.05f), 60f),
+                (new Vector3(0.75f, 0.15f, -0.25f), new Vector3(0.4f, -0.6f, 0.3f), 60f),
+                (new Vector3(-0.75f, 0.15f, -0.25f), new Vector3(-0.4f, -0.65f, 0.3f), 60f),
+            };
+            var tiles = new System.Collections.Generic.List<Texture2D>();
+            foreach (var (from, to, fov) in views)
+                tiles.Add(DevShots.Render(new DevPose(t.TransformPoint(eye + from), t.TransformPoint(eye + to), fov), 640, 360, t.up));
+            if (pose != null) pose.Local = local;
+            var sheet = DevShots.Sheet(tiles, 2);
+            string path = DevShots.Save(sheet, name);
+            foreach (var x in tiles) DevShots.Kill(x);
+            DevShots.Kill(sheet);
+            return path;
+        }
+
         /// <summary>The local pawn's interaction prompt ("[F] Board ...", "" when nothing is in reach).</summary>
         public static string InteractPrompt => Pawn != null ? Pawn.Prompt : "";
 

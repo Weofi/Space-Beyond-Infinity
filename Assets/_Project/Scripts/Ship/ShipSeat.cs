@@ -86,7 +86,13 @@ namespace Voidward.Ship
         void OnOccupantChanged(ulong oldV, ulong newV)
         {
             if (seatedBody != null)
-                seatedBody.SetActive(newV != NoOne && (NetworkManager == null || newV != NetworkManager.LocalClientId));
+            {
+                // a crew body (#95) also shows for the local occupant, head collapsed: the own hands on the controls
+                bool mine = newV != NoOne && NetworkManager != null && newV == NetworkManager.LocalClientId;
+                var pose = seatedBody.GetComponent<CrewSeatPose>();
+                if (pose != null) pose.Local = mine;
+                seatedBody.SetActive(newV != NoOne && (!mine || pose != null));
+            }
             if (newV != NoOne && NetworkManager != null && newV == NetworkManager.LocalClientId)
             {
                 localAim = TurretAim.Value;

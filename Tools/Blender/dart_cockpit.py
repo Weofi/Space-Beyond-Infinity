@@ -59,7 +59,7 @@ CONSOLE_CUT = -0.645                    # the console tower ends just above the 
 SEAT_ZONE = (0.62, 3.45 + 0.75)                # Wasp islands inside |x| < a and z < b are its own seat (the chair replaces it)
 # moving parts (and the islands around their base, e.g. brackets and boots) go to the armrest consoles:
 # throttle left, stick right as a side stick, so the centre monitor stays in view
-MOVES = {"throttle": Vector((-0.3, 0.06, 0.0)), "steering": Vector((0.6, 0.07, -0.08))}
+MOVES = {"throttle": Vector((-0.1, 0.06, -0.3)), "steering": Vector((0.44, 0.07, -0.34))}  # within reach of the seated crew body (#95)
 MOVE_RADIUS = 0.14
 MARGIN = 0.03                           # keep inside the hull skin
 CHAIR_SCALE = 0.8

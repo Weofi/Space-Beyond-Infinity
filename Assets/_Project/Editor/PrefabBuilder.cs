@@ -508,10 +508,9 @@ namespace Voidward.EditorTools
             go.AddComponent<TargetTag>().IsPawn = true;
             var pawn = go.AddComponent<PlayerPawn>();
 
+            ResetCrew();
             var body = Child(go.transform, "Body", Vector3.zero);
-            Visual(body.transform, "Astronaut", AstronautMesh(), MatHull);
-            var strips = Visual(body.transform, "CrewStrips", CrewStripMesh(), MatHull);
-            Set(go.AddComponent<CrewLights>(), "strips", strips.GetComponent<MeshRenderer>());
+            var crewLights = go.AddComponent<CrewLights>();
 
             var cam = Child(go.transform, "CameraPoint", new Vector3(0, 1.62f, 0));
             var vcam = cam.AddComponent<CinemachineCamera>();
@@ -605,6 +604,13 @@ namespace Voidward.EditorTools
             });
             Glow(medkit, () => medkit.AddBox(T(0.085f, -0.055f, 0.072f), new Vector3(0.02f, 0.01f, 0.004f), Green), 1.4f);
             var meshes = new[] { SaveMesh(drill, "Tool_Drill"), SaveMesh(blaster, "Tool_Blaster"), SaveMesh(rifle, "Tool_Rifle"), SaveMesh(medkit, "Tool_Medkit") };
+            // body (#95): the animated crew model with hand-held tools; the procedural astronaut without the UAL rig
+            if (CrewBody(body.transform, meshes) == null)
+            {
+                Visual(body.transform, "Astronaut", AstronautMesh(), MatHull);
+                var strips = Visual(body.transform, "CrewStrips", CrewStripMesh(), MatHull);
+                Set(crewLights, "strips", strips.GetComponent<MeshRenderer>());
+            }
             string[] names = { "Drill", "Blaster", "Rifle", "Medkit" };
             for (int i = 0; i < 4; i++)
             {
@@ -666,7 +672,8 @@ namespace Voidward.EditorTools
             Set(seat, "seatAnchor", a.transform);
             Set(seat, "viewPoint", v.transform);
             Set(seat, "exitPoint", e.transform);
-            Set(seat, "seatedBody", SeatedBody(a.transform));
+            var crew = CrewSeated(a.transform, v.transform);
+            Set(seat, "seatedBody", crew != null ? crew : SeatedBody(a.transform));
             return seat;
         }
 
@@ -1081,8 +1088,10 @@ namespace Voidward.EditorTools
             float seatZ = fitted ? 0.75f : 0f;
             // [F] trigger: hugs the canopy (the interaction ray looks through the ship's own hull colliders), so a player
             // standing on the wing beside the cockpit is outside it and can aim at the glass
-            Seat(go.transform, "PilotSeat", StationRole.Pilot, new Vector3(0, -1.2f, 2.88f + seatZ), new Vector3(0, 0f, 2.92f + seatZ), new Vector3(-3.3f, -0.3f, 5.4f),
+            var pilot = Seat(go.transform, "PilotSeat", StationRole.Pilot, new Vector3(0, -1.2f, 2.88f + seatZ), new Vector3(0, 0f, 2.92f + seatZ), new Vector3(-3.3f, -0.3f, 5.4f),
                 fitted ? new Vector3(0, -0.3f, 4.4f) : new Vector3(0, 0f, 3.4f), fitted ? new Vector3(2.6f, 1.9f, 4.4f) : new Vector3(5.1f, 4.3f, 7.9f));
+            // the seated crew body's hands on the side stick (right) and throttle (left) (#95)
+            if (fitted) SeatGrips(pilot, go.transform.Find("Interior/Stick/GripIK"), go.transform.Find("Interior/Throttle/GripIK"));
             if (!fitted) Dashboard(go.transform, new Vector3(0, -0.68f, 4.05f), 1.2f);
             var term = Child(go.transform, "CargoTerminal", new Vector3(0, 0.4f, -5.1f));
             Box(term, Vector3.zero, new Vector3(4.3f, 4.3f, 4.3f), true);
@@ -1138,8 +1147,18 @@ namespace Voidward.EditorTools
                 var frame = DartCockpitMesh("Frame");
                 if (frame != null) Visual(root.transform, "CanopyFrame", frame, WaspMaterial("cockpit"));
                 // pivots printed by dart_cockpit.py
-                Visual(Child(root.transform, "Stick", new Vector3(0.6f, -0.737f, 4.26f)).transform, "Grip", DartCockpitMesh("Stick"), center);
-                Visual(Child(root.transform, "Throttle", new Vector3(-0.638f, -0.743f, 4.303f)).transform, "Lever", DartCockpitMesh("Throttle"), center);
+                var stick = Child(root.transform, "Stick", new Vector3(0.44f, -0.737f, 4.0f)).transform;
+                var throttle = Child(root.transform, "Throttle", new Vector3(-0.438f, -0.743f, 4.003f)).transform;
+                var stickMesh = DartCockpitMesh("Stick");
+                var throttleMesh = DartCockpitMesh("Throttle");
+                Visual(stick, "Grip", stickMesh, center);
+                Visual(throttle, "Lever", throttleMesh, center);
+                // hand IK goals for the seated crew body (#95): just under the top of each lever, palm on the grip.
+                // forward = the fingers, up = the back of the hand (CrewSeatPose): fingers forward, palms facing inwards
+                if (stickMesh != null)
+                    Child(stick, "GripIK", GripPoint(stickMesh.bounds, 0.11f, 1f), Quaternion.Euler(0f, 0f, -90f));
+                if (throttleMesh != null)
+                    Child(throttle, "GripIK", GripPoint(throttleMesh.bounds, 0.06f, -1f), Quaternion.Euler(0f, 0f, 90f));
 
                 // big displays in the dashboard bays (frames printed by dart_cockpit.py), the Wasp monitors below them
                 var screens = Child(root.transform, "Screens", Vector3.zero).transform;
