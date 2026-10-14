@@ -15,8 +15,8 @@ Two endings only: **Homecoming** or **death** (= the loop resets). Target run le
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
 > galaxy map, suspend save), the crew warp drive with Home ETA (#78) and the flown warp between galaxies (#79) are
-> playable, as are system cruise and the flown in-galaxy warp (#80); still to come are the home-flight finale (#81), prologue/loop/homecoming
-> (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
+> playable, as are system cruise and the flown in-galaxy warp (#80) and the flight home chased by the Rift (#81); still to come are
+> prologue/time loop/Sol approach and landing (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
 the Input System, Cinemachine 3 and TextMeshPro. All art, audio and music are procedural
@@ -111,7 +111,8 @@ upgrade → the Home ETA drops → keep searching or warp on to the next galaxy 
 
 **Loop:** wake up at the *Wormhole Exit* in M33 → explore the system (scan/ping, land, mine, loot, fight)
 → back to the ship, upgrade/craft → open the **galaxy map (M)** → as pilot, warp to another system of the
-galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud: **fly home** (homecoming).
+galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud: **fly home**, chased by the Rift
+(~5 min with the Home Drive; caught = back into the loop, out in front = homecoming).
 
 * **Galaxies & systems:** 5 galaxies (M33, M31, NGC 6822, Leo I, LMC), each with 4-6 systems generated
   from the run seed: planetary systems, asteroid & wreck fields, anomalies (frequent flares/meteors),
