@@ -246,6 +246,33 @@ namespace Voidward.EditorTools
             return m;
         }
 
+        /// <summary>Near-black gunmetal for the dashboard's panel seams (they read as grooves between the plates).</summary>
+        static Material SeamMaterial()
+        {
+            var m = Mat("Ship_Dart_Cockpit_Seams", "Universal Render Pipeline/Lit");
+            m.SetColor("_BaseColor", new Color(0.03f, 0.035f, 0.045f));
+            m.SetFloat("_Metallic", 0.4f);
+            m.SetFloat("_Smoothness", 0.25f);
+            m.enableInstancing = true;
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>
+        /// The canopy glass seen from inside (#94): same mesh, front faces culled, nearly clear so the view stays open;
+        /// a faint cool rim towards grazing angles shows the panes. (A sun glint was tried: the flat panes light up whole.)
+        /// </summary>
+        static Material FabShipGlassInnerMaterial()
+        {
+            var m = Mat("Ship_Dart_Fab_GlassInner", "VOIDWARD/Glass");
+            m.SetColor("_BaseColor", new Color(0.2f, 0.32f, 0.42f, 0.04f));
+            m.SetColor("_RimColor", new Color(0.45f, 0.65f, 0.85f, 1f));
+            m.SetFloat("_RimPower", 5f);
+            m.SetFloat("_RimAlpha", 0.14f);
+            m.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Front);
+            return m;
+        }
+
         /// <summary>VW_Hull for interiors: same panel detail, no blue rim (it reads as glow inside a cockpit), softer spec.</summary>
         static Material InteriorMaterial()
         {

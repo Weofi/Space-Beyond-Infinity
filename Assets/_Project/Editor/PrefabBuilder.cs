@@ -1064,7 +1064,12 @@ namespace Voidward.EditorTools
             var core = go.GetComponent<ShipCore>();
             Visual(go.transform, "Hull", hull, FabShipMaterial());
             var canopy = FabShipCanopyMesh();
-            if (canopy != null) Visual(go.transform, "Canopy", canopy, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            if (canopy != null)
+            {
+                Visual(go.transform, "Canopy", canopy, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                // the same panes seen from inside the cockpit (back faces): nearly clear, rim + sun glint
+                Visual(go.transform, "CanopyInner", canopy, FabShipGlassInnerMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
             bool fitted = FabDartInterior(go.transform);
 
             Box(go, new Vector3(0, -0.5f, 0.45f), new Vector3(3.4f, 2.2f, 14f));     // fuselage
@@ -1098,7 +1103,8 @@ namespace Voidward.EditorTools
         /// The Dart's cockpit interior under one "Interior" root (#94): the hull-following tub plus the fittings from
         /// Tools/Blender/dart_cockpit.py (Wasp Interdictor consoles and wall linings, McCloskey pilot chair; stick and
         /// throttle as their own objects with the pivot at the base, for #40: side stick right, throttle left), the own
-        /// full-width dashboard with light strips, and six live CockpitScreens, one job each: flight, radar and nav in
+        /// full-width dashboard with panel seams and light strips, the rear bay behind the seat, the canopy frame (roll
+        /// bar, bows, sill rails), and six live CockpitScreens, one job each: flight, radar and nav in
         /// the dashboard's three bays, hull/shield, fuel and drive in the Wasp's monitor bezels below. A LODGroup culls it all once the ship is small on screen.
         /// Returns false (procedural fittings + text dashboard) when the fitting FBX files are missing.
         /// </summary>
@@ -1120,9 +1126,17 @@ namespace Voidward.EditorTools
                 if (dash != null)
                 {
                     Visual(root.transform, "Dash", dash, WaspMaterial("cockpit"));
-                    Visual(root.transform, "DashGlowCyan", DartCockpitMesh("DashGlowCyan"), GlowMaterial("VW_CockpitGlowCyan", new Color(0.3f, 0.85f, 1f) * 3f));
-                    Visual(root.transform, "DashGlowAmber", DartCockpitMesh("DashGlowAmber"), GlowMaterial("VW_CockpitGlowAmber", new Color(1f, 0.5f, 0.15f) * 3f));
+                    var seams = DartCockpitMesh("DashSeams");
+                    if (seams != null) Visual(root.transform, "DashSeams", seams, SeamMaterial());
+                    // HDR just above 1 keeps the hue under bloom (3x burnt out to white / pale yellow)
+                    Visual(root.transform, "DashGlowCyan", DartCockpitMesh("DashGlowCyan"), GlowMaterial("VW_CockpitGlowCyan", new Color(0.2f, 0.75f, 1f) * 1.8f));
+                    Visual(root.transform, "DashGlowAmber", DartCockpitMesh("DashGlowAmber"), GlowMaterial("VW_CockpitGlowAmber", new Color(1f, 0.42f, 0.1f) * 1.3f));
                 }
+                // rear bay behind the seat, roll bar + canopy bows and sill rails
+                var rear = DartCockpitMesh("Rear");
+                if (rear != null) Visual(root.transform, "RearBay", rear, WaspMaterial("cockpit"));
+                var frame = DartCockpitMesh("Frame");
+                if (frame != null) Visual(root.transform, "CanopyFrame", frame, WaspMaterial("cockpit"));
                 // pivots printed by dart_cockpit.py
                 Visual(Child(root.transform, "Stick", new Vector3(0.6f, -0.737f, 4.26f)).transform, "Grip", DartCockpitMesh("Stick"), center);
                 Visual(Child(root.transform, "Throttle", new Vector3(-0.638f, -0.743f, 4.303f)).transform, "Lever", DartCockpitMesh("Throttle"), center);
@@ -1139,6 +1153,7 @@ namespace Voidward.EditorTools
                 AddLight(root.transform, "CockpitLight", new Vector3(0, -0.3f, 3.85f), new Color(0.75f, 0.85f, 1f), 0.35f, 2.2f);
                 AddLight(root.transform, "ScreenGlow", new Vector3(0, -0.45f, 4.4f), new Color(0.35f, 0.85f, 1f), 0.45f, 1.2f);
                 AddLight(root.transform, "FootwellGlow", new Vector3(0, -1.4f, 4.6f), new Color(1f, 0.55f, 0.2f), 0.3f, 1.4f);
+                AddLight(root.transform, "RearBayGlow", new Vector3(0, -0.9f, 2.9f), new Color(0.35f, 0.8f, 1f), 0.5f, 1.5f);
             }
             else
             {

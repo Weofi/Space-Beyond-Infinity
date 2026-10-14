@@ -19,7 +19,10 @@ ShipDashboard). Outputs (original UVs, PBR materials in AssetModelBuilder):
   - Ship_Dart_Cockpit_Throttle.fbx  throttle lever, origin = its pivot
   - Ship_Dart_Cockpit_Seat.fbx      pilot chair without its swivel base ("chair" texture set)
   - Ship_Dart_Cockpit_Dash.fbx      own full-width dashboard with three display bays ("cockpit" texture set)
-  - Ship_Dart_Cockpit_DashGlow*.fbx its cyan / amber light strips and LEDs (unlit glow)
+  - Ship_Dart_Cockpit_DashGlow*.fbx its cyan / amber light strips and LEDs (unlit glow, incl. the rear bay's)
+  - Ship_Dart_Cockpit_DashSeams.fbx dark panel seams on the dashboard (own dark material)
+  - Ship_Dart_Cockpit_Rear.fbx      rear bay behind the seat: avionics rack, lockers, conduits, floor plate
+  - Ship_Dart_Cockpit_Frame.fbx     roll bar / canopy bows and sill rails (the canopy's frame seen from inside)
 Prints the pivots and the Wasp monitor frames (Unity coordinates) for PrefabBuilder.
 With a preview dir it also renders workbench shots from the pilot's eye and from outside.
 Blender (x, y, z) = Unity (-x, z, -y); U() / B() convert.
@@ -503,19 +506,200 @@ for side in (-1, 1):
             add_box(dash_bm, c + n * 0.008, (right, up, n), (0.036, 0.03, 0.016), bevel=0.003)
             led = cyan_bm if (row + col) % 3 else amber_bm
             add_box(led, c + up * 0.009 + n * 0.0165, (right, up, n), (0.018, 0.005, 0.002), bevel=0)
-# light strips: under the sun hood lip (cyan) and along the face bottom (amber), one segment per facet
-for bm_, b_row, ydrop in ((cyan_bm, 1.0, 0.012), (amber_bm, 0.0, -0.01)):
+# light strips, one segment per facet: cyan just below the sun hood lip (on the face, so the pilot looking down
+# over it sees it), a thin amber one along the face bottom
+for bm_, b_row, thick in ((cyan_bm, 0.93, 0.007), (amber_bm, 0.03, 0.003)):
     for x0, x1 in ((-0.74, -HINGE), (-HINGE, HINGE), (HINGE, 0.74)):
-        p0, p1 = face_point(x0, b_row, 0.01), face_point(x1, b_row, 0.01)
-        mid = (p0 + p1) * 0.5 + Vector((0, ydrop, 0))
+        p0, p1 = face_point(x0, b_row, 0.004), face_point(x1, b_row, 0.004)
+        mid = (p0 + p1) * 0.5
         right = (p1 - p0).normalized()
         _, up, n = face_axes((x0 + x1) * 0.5)
-        add_box(bm_, mid, (right, up, n), ((p1 - p0).length, 0.004, 0.006), bevel=0)
+        add_box(bm_, mid, (right, up, n), ((p1 - p0).length - 0.02, thick, 0.004), bevel=0)
+
+
+def strip(bm, pts, normal, width=0.01, height=0.003):
+    """A thin flat strip along a polyline of Unity points lying on a surface with the given normal (seams, rails)."""
+    for a, b in zip(pts, pts[1:]):
+        d = b - a
+        if d.length < 1e-4:
+            continue
+        right = d.normalized()
+        n = (normal - right * normal.dot(right)).normalized()
+        up = n.cross(right).normalized()
+        add_box(bm, (a + b) * 0.5 + n * (height * 0.5), (right, up, n), (d.length + width, width, height), bevel=0)
+
+
+# panel seams (dark, own material): facet folds and a cut line under the displays on the face, cross seams and
+# two long seams on the glare shield, so the big surfaces read as plates
+seam_bm = bmesh.new()
+seam_bm.loops.layers.uv.new("UVChannel_1")
+for x in (-HINGE, HINGE, -0.62, 0.62):
+    strip(seam_bm, [face_point(x, b, 0.001) for b in (0.02, 0.5, 0.9)], face_axes(x * 0.99)[2])
+for b in (0.1,):
+    for x0, x1 in ((-0.74, -HINGE), (-HINGE, HINGE), (HINGE, 0.74)):
+        strip(seam_bm, [face_point(x0, b, 0.001), face_point(x1, b, 0.001)], face_axes((x0 + x1) * 0.5)[2])
+
+
+def shield_point(x, t, lift=0.0015):
+    y, z = row_shield(t)(x)
+    return Vector((x, y + lift, z))
+
+
+def shield_span(t):
+    y, z = row_shield(t)(0.0)
+    return half_width(y, z) - DASH_MARGIN - 0.03
+
+
+shield_n = (shield_point(0, 1) - shield_point(0, 0)).cross(Vector((1, 0, 0))).normalized()
+if shield_n.y < 0:
+    shield_n = -shield_n
+for t in (0.3, 0.72):
+    w = shield_span(t)
+    xs_ = [-w, -0.42, -HINGE, 0.0, HINGE, 0.42, w]
+    strip(seam_bm, [shield_point(x, t) for x in xs_], shield_n)
+for x in (-0.42, 0.42):
+    strip(seam_bm, [shield_point(x, t) for t in (0.04, 0.3, 0.72, 0.97)], shield_n)
 # roof vents near the front of the glare shield
 for i in range(7):
     t = 0.55 + i * 0.03
     y, z = row_shield(t)(0.0)
     add_box(dash_bm, Vector((0, y + 0.005, z)), (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, -1))), (0.46, 0.008, 0.012), bevel=0.002)
+
+
+# ---------------------------------------------------------------- rear bay, roll bar, canopy frame
+# The ~0.9 m between the seat back and the rear bulkhead: avionics rack in the middle, lockers left and right,
+# conduits across the bulkhead, a floor plate; a roll bar right behind the seat that doubles as the canopy's rear
+# bow, a second bow on the bulkhead and rails along both sills, so the canopy reads as framed glass from inside.
+# Same panel UVs as the dashboard ("cockpit" texture set), LEDs into the glow meshes.
+SEAT_BACK_Z = 3.18 + 0.0                        # seat z min (printed above), the bay ends just behind it
+REAR_Z = TUB_Z[0] + 0.02
+SILL_Y = Y_CUT
+
+
+def floor_y(x, z):
+    hit = cast(Vector((x, -0.3, z)), Vector((0, -1, 0)))
+    return hit.y if hit is not None else -1.9
+
+
+def add_tube(bm, a, b, r, seg=10):
+    """Closed cylinder from a to b (Unity points), UVs in the panel region."""
+    ax = (b - a).normalized()
+    t1 = ax.cross(Vector((0, 1, 0)) if abs(ax.y) < 0.9 else Vector((1, 0, 0))).normalized()
+    t2 = ax.cross(t1).normalized()
+    rings = []
+    for p in (a, b):
+        rings.append([bm.verts.new(B(p + (t1 * math.cos(i * 2 * math.pi / seg) + t2 * math.sin(i * 2 * math.pi / seg)) * r)) for i in range(seg)])
+    fs = [bm.faces.new((rings[0][i], rings[0][(i + 1) % seg], rings[1][(i + 1) % seg], rings[1][i])) for i in range(seg)]
+    fs.append(bm.faces.new(list(reversed(rings[0]))))
+    fs.append(bm.faces.new(rings[1]))
+    bm.normal_update()
+    c = B((a + b) * 0.5)
+    for f in fs:
+        if f.normal.dot(f.calc_center_median() - c) < 0:
+            f.normal_flip()
+    layer = bm.loops.layers.uv.active
+    for k, f in enumerate(fs):
+        for l in f.loops:
+            q = U(l.vert.co)
+            l[layer].uv = (PANEL_UV[0] + 0.02 + ((q - a).dot(ax) * 0.5) * PANEL_SCALE % (PANEL_UV[2] - 0.04),
+                           PANEL_UV[1] + 0.02 + (k % seg) / seg * (PANEL_UV[3] - 0.04))
+    return fs
+
+
+def tube_path(bm, pts, r, seg=10):
+    for a, b in zip(pts, pts[1:]):
+        add_tube(bm, a, b + (b - a).normalized() * r * 0.5, r, seg)
+
+
+AX = (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)))  # Unity axes: boxes facing the pilot (+z towards the nose)
+rear_bm = bmesh.new()
+rear_bm.loops.layers.uv.new("UVChannel_1")
+fl = max(floor_y(x, z) for x in (-0.4, 0.0, 0.4) for z in (REAR_Z + 0.1, SEAT_BACK_Z - 0.1))
+print(f"[dart_cockpit] rear bay floor {fl:+.2f}, half width at sill {half_width(SILL_Y, REAR_Z + 0.2):.2f}, at floor {half_width(fl + 0.1, REAR_Z + 0.2):.2f}")
+
+# avionics rack: body, four module drawers with LED strips, a vent grille on top
+RACK_W, RACK_D, RACK_TOP = 0.78, 0.36, SILL_Y + 0.08
+rack_h = RACK_TOP - fl
+add_box(rear_bm, Vector((0, fl + rack_h * 0.5, REAR_Z + RACK_D * 0.5)), AX, (RACK_W, rack_h, RACK_D), bevel=0.008)
+front = REAR_Z + RACK_D
+mod_h = (rack_h - 0.16) / 4
+for i in range(4):
+    y = fl + 0.06 + mod_h * (i + 0.5)
+    add_box(rear_bm, Vector((0, y, front + 0.012)), AX, (RACK_W - 0.08, mod_h - 0.025, 0.024), bevel=0.004)
+    for sx in (-1, 1):  # drawer handles
+        add_box(rear_bm, Vector((sx * (RACK_W * 0.5 - 0.09), y, front + 0.032)), AX, (0.018, mod_h * 0.55, 0.018), bevel=0.003)
+    add_box(cyan_bm if i % 2 else amber_bm, Vector((0.12, y + mod_h * 0.28, front + 0.0255)), AX, (0.22 if i % 2 else 0.05, 0.006, 0.002), bevel=0)
+    for k in range(3):
+        add_box(cyan_bm, Vector((-0.2 + k * 0.035, y + mod_h * 0.28, front + 0.0255)), AX, (0.014, 0.008, 0.002), bevel=0)
+for k in range(9):  # vent slats on the rack top
+    add_box(rear_bm, Vector((-0.28 + k * 0.07, RACK_TOP + 0.006, REAR_Z + RACK_D * 0.5)), AX, (0.03, 0.012, RACK_D - 0.08), bevel=0.002)
+add_box(cyan_bm, Vector((0, fl + 0.025, front + 0.004)), AX, (RACK_W - 0.04, 0.006, 0.004), bevel=0)  # kick light
+
+# lockers left and right of the rack, up to the walls (which lean in towards the sill)
+for sx in (-1, 1):
+    top = SILL_Y - 0.02
+    x_in = RACK_W * 0.5 + 0.04
+    x_out = min(half_width(y, REAR_Z + 0.3) for y in (fl + 0.15, (fl + top) * 0.5, top)) - 0.04
+    if x_out - x_in < 0.12:
+        continue
+    w, h, d = x_out - x_in, top - fl - 0.02, 0.30
+    cx = sx * (x_in + w * 0.5)
+    add_box(rear_bm, Vector((cx, fl + 0.02 + h * 0.5, REAR_Z + d * 0.5)), AX, (w, h, d), bevel=0.008)
+    add_box(rear_bm, Vector((cx, fl + 0.02 + h * 0.5, REAR_Z + d + 0.008)), AX, (w - 0.05, h - 0.06, 0.016), bevel=0.004)  # door
+    add_box(rear_bm, Vector((cx - sx * (w * 0.5 - 0.07), fl + 0.02 + h * 0.55, REAR_Z + d + 0.03)), AX, (0.02, 0.16, 0.022), bevel=0.003)  # handle
+    add_box(amber_bm, Vector((cx, fl + 0.02 + h - 0.06, REAR_Z + d + 0.0165)), AX, (w - 0.12, 0.01, 0.002), bevel=0)  # accent
+
+# conduits across the bulkhead above the rack, bending down into the corners
+for k, (y, r) in enumerate(((SILL_Y + 0.2, 0.03), (SILL_Y + 0.27, 0.022), (SILL_Y + 0.33, 0.018))):
+    z = REAR_Z + 0.05 + k * 0.035
+    w = half_width(y, z) - 0.05
+    if w < 0.3:
+        continue
+    tube_path(rear_bm, [Vector((-w, y - 0.0, z)), Vector((-w * 0.7, y, z)), Vector((w * 0.7, y, z)), Vector((w, y, z))], r)
+    for sx in (-1, 1):  # clamps
+        for xx in (0.25, 0.55):
+            add_box(rear_bm, Vector((sx * w * xx, y, z)), AX, (0.03, r * 2.6, r * 2.6), bevel=0.003)
+
+# floor plate with ribs between the bay and the seat
+pl_z0, pl_z1 = REAR_Z + 0.3, SEAT_BACK_Z
+add_box(rear_bm, Vector((0, fl + 0.012, (pl_z0 + pl_z1) * 0.5)), AX, (1.0, 0.024, pl_z1 - pl_z0), bevel=0.004)
+for k in range(6):
+    add_box(rear_bm, Vector((0, fl + 0.028, pl_z0 + 0.05 + k * (pl_z1 - pl_z0 - 0.1) / 5)), AX, (0.9, 0.01, 0.025), bevel=0.002)
+
+
+def bow(z, inset, steps=24):
+    """Points of a canopy bow at z: the inner canopy/hull surface from sill to sill, pushed `inset` inwards."""
+    pts = []
+    centre = Vector((0.0, SILL_Y, z))
+    for i in range(steps + 1):
+        a = math.pi * i / steps
+        d = Vector((math.cos(a), math.sin(a), 0.0))
+        hit = cast(centre, d)
+        if hit is None:
+            continue
+        pts.append(hit - d * inset)
+    for _ in range(3):  # smooth out the steps where the rays switch between glass and hull
+        pts = [pts[0]] + [(pts[i - 1] + pts[i] * 2 + pts[i + 1]) * 0.25 for i in range(1, len(pts) - 1)] + [pts[-1]]
+    return pts
+
+
+frame_bm = bmesh.new()
+frame_bm.loops.layers.uv.new("UVChannel_1")
+ROLL_Z = SEAT_BACK_Z - 0.1
+for z, r, inset in ((ROLL_Z, 0.035, 0.06), (REAR_Z + 0.06, 0.025, 0.045)):
+    pts = bow(z, inset)
+    if len(pts) > 2:
+        tube_path(frame_bm, pts, r, 12)
+        if z == ROLL_Z:  # twin bar + cross braces down to the bay
+            tube_path(frame_bm, [p + Vector((0, 0, -0.08)) for p in pts], r * 0.6, 8)
+            print(f"[dart_cockpit] roll bar at z {z:.2f}: top {max(p.y for p in pts):+.2f}, {len(pts)} points")
+# sill rails, front bulkhead to rear, hugging the walls just above the cut
+for sx in (-1, 1):
+    pts = []
+    for i in range(17):
+        z = REAR_Z + 0.05 + (TUB_Z[1] - 0.08 - REAR_Z - 0.05) * i / 16
+        pts.append(Vector((sx * (half_width(SILL_Y + 0.03, z) - 0.03), SILL_Y + 0.03, z)))
+    tube_path(frame_bm, pts, 0.02, 8)
 
 
 def to_object(bm_, name):
@@ -530,6 +714,10 @@ def to_object(bm_, name):
 dash = to_object(dash_bm, "Ship_Dart_Cockpit_Dash")
 dash_cyan = to_object(cyan_bm, "Ship_Dart_Cockpit_DashGlowCyan")
 dash_amber = to_object(amber_bm, "Ship_Dart_Cockpit_DashGlowAmber")
+dash_seams = to_object(seam_bm, "Ship_Dart_Cockpit_DashSeams")
+rear = to_object(rear_bm, "Ship_Dart_Cockpit_Rear")
+frame = to_object(frame_bm, "Ship_Dart_Cockpit_Frame")
+print(f"[dart_cockpit] rear {sum(len(p.vertices) - 2 for p in rear.data.polygons)} tris, frame {sum(len(p.vertices) - 2 for p in frame.data.polygons)} tris")
 print(f"[dart_cockpit] dash {sum(len(p.vertices) - 2 for p in dash.data.polygons)} tris")
 for name, c, look, w, h in screens_out:
     print(f"[dart_cockpit] dash screen {name} at ({c.x:+.3f}, {c.y:+.3f}, {c.z:+.3f}) look ({look.x:+.3f}, {look.y:+.3f}, {look.z:+.3f}) size {w:.2f} x {h:.2f}")
@@ -553,6 +741,8 @@ if PREVIEW:
     albedo(throttle, os.path.join(TEX, "Wasp_center_albedo.jpg"))
     albedo(walls, os.path.join(TEX, "Wasp_cockpit_albedo.jpg"))
     albedo(dash, os.path.join(TEX, "Wasp_cockpit_albedo_vw.png"))
+    albedo(rear, os.path.join(TEX, "Wasp_cockpit_albedo_vw.png"))
+    albedo(frame, os.path.join(TEX, "Wasp_cockpit_albedo_vw.png"))
     albedo(seat, os.path.join(TEX, "Chair_baseColor.jpg"))
     albedo(hull, os.path.join(SHIPS, "FabSpaceShip", "FabShip_Base_color.jpg"))
     canopy.hide_render = True
@@ -569,6 +759,8 @@ if PREVIEW:
         "eye": (EYE, EYE + Vector((0, -0.35, 1)), 80),
         "eye_down": (EYE, EYE + Vector((0, -1.1, 1)), 80),
         "eye_left": (EYE, EYE + Vector((-1, -0.6, 0.6)), 80),
+        "back": (EYE + Vector((0, 0.1, 0.3)), EYE + Vector((0, -0.6, -1)), 90),
+        "up": (EYE, EYE + Vector((0, 1, -0.3)), 100),
         "above": (Vector((0, 3.2, 4.6)), Vector((0, -1.1, 4.7)), 60),
         "side": (Vector((-3.2, 0.6, 4.3)), Vector((0, -0.9, 4.6)), 60),
         "outside": (Vector((-6, 2.5, 12)), Vector((0, -0.6, 4.5)), 35),
@@ -586,7 +778,7 @@ if PREVIEW:
 set_origin(stick, stick_pivot)
 set_origin(throttle, throttle_pivot)
 os.makedirs(OUT, exist_ok=True)
-for o in (console, walls, stick, throttle, seat, dash, dash_cyan, dash_amber):
+for o in (console, walls, stick, throttle, seat, dash, dash_cyan, dash_amber, dash_seams, rear, frame):
     o.data.materials.clear()
     vw.export_fbx(o, os.path.join(OUT, o.name + ".fbx"))
     print("[dart_cockpit] exported", o.name)

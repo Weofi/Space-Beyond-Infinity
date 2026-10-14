@@ -5,6 +5,8 @@ Shader "VOIDWARD/Glass"
         _BaseColor ("Tint", Color) = (0.55,0.85,1,0.25)
         _RimColor ("Rim", Color) = (0.8,0.95,1,1)
         _RimPower ("Rim Power", Range(0.5,8)) = 2.5
+        _RimAlpha ("Rim Alpha", Range(0,1)) = 0.6
+        [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
     SubShader
     {
@@ -15,7 +17,7 @@ Shader "VOIDWARD/Glass"
             Tags { "LightMode"="UniversalForward" }
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
-            Cull Back
+            Cull [_Cull]
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
@@ -26,6 +28,8 @@ Shader "VOIDWARD/Glass"
                 float4 _BaseColor;
                 float4 _RimColor;
                 float _RimPower;
+                float _RimAlpha;
+                float _Cull;
             CBUFFER_END
             Varyings vert(Attributes IN)
             {
@@ -39,7 +43,7 @@ Shader "VOIDWARD/Glass"
             {
                 float3 v = normalize(GetWorldSpaceViewDir(IN.posWS));
                 float rim = pow(1.0 - saturate(abs(dot(normalize(IN.normalWS), v))), _RimPower);
-                return half4(lerp(_BaseColor.rgb, _RimColor.rgb, rim), saturate(_BaseColor.a + rim * 0.6));
+                return half4(lerp(_BaseColor.rgb, _RimColor.rgb, rim), saturate(_BaseColor.a + rim * _RimAlpha));
             }
             ENDHLSL
         }

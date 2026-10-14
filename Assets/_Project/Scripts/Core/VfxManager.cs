@@ -339,11 +339,27 @@ namespace Voidward.Core
             scale = Mathf.Clamp(scale, 0.1f, 3f);
             var rot = Quaternion.LookRotation(dir);
             Color hot = Color.Lerp(tint, new Color(3f, 3f, 3f), 0.4f);
+            // own guns seen from the cockpit (the camera a few metres behind the muzzle): a small, dim flash, so the
+            // pilot keeps the view and the interior does not strobe (handheld guns, scale < 0.5, keep their flash)
+            var cam = Camera.main;
+            float lightK = 1f;
+            if (cam != null && scale >= 0.5f)
+            {
+                Vector3 toFlash = pos - cam.transform.position;
+                float d = toFlash.magnitude;
+                if (d < 16f && Vector3.Dot(toFlash, dir) > -0.2f * d)
+                {
+                    float near = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(4f, 16f, d));
+                    scale *= Mathf.Lerp(1f, 0.3f, near);
+                    hot *= Mathf.Lerp(1f, 0.5f, near);
+                    lightK = Mathf.Lerp(1f, 0.08f, near);
+                }
+            }
             // hot core bloom, a tight cone of flame streaks, a few sparks and a light that lights up the hull / hands
             Emit(Kind.Flash, pos + dir * (0.15f * scale), 1, 0f, 0.9f * scale, 1.3f * scale, 0.06f, hot, 0.01f, 0.3f);
             Emit(Kind.Muzzle, pos, 6, 28f * scale, 0.16f * scale, 0.32f * scale, 0.08f, hot, 0.02f, 0.4f, rot);
             Emit(Kind.SparkCone, pos, 3 + Mathf.RoundToInt(2f * scale), 14f * scale + 4f, 0.02f, 0.03f + 0.04f * scale, 0.18f, tint * 1.2f, 0.03f, 0.5f, rot);
-            FlashLight(pos + dir * (0.3f * scale), tint, Mathf.Lerp(4f, 40f, Mathf.Clamp01(scale)), Mathf.Lerp(5f, 22f, Mathf.Clamp01(scale)), 0.07f);
+            FlashLight(pos + dir * (0.3f * scale), tint, Mathf.Lerp(4f, 40f, Mathf.Clamp01(scale)) * lightK, Mathf.Lerp(5f, 22f, Mathf.Clamp01(scale)), 0.07f);
         }
 
         public void Impact(Vector3 pos, Vector3 normal, SurfaceKind surface, Color tint, float scale)
