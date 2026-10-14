@@ -44,7 +44,7 @@ Target run length ~2.5-3 h (per galaxy ~20-25 min exploring + ~8-12 min warp fli
 | Mk V | Leo I | ~8-12 min | - | ~20 min |
 | Home Drive | LMC | - | - | ~5 min |
 
-Times assume a fitting build and good flying; poor navigation/cooling forces braking (intended grind). Skipping a galaxy costs much more flight time and exotic matter. Any drive can theoretically fly home (Mk I ~40 h, achievement "The Long Way").
+Balance as implemented in #78 (`WarpDriveDef` + `GalaxyDef.LegLength/LegFuel`, balanced build): leg time = leg length / core speed (Mk I 1, II 3, III 10, IV 25, V 60, Home 240); next galaxy 10 min with the core found there, skipping ~35-43 min, home: Mk I ~36 h, Mk II ~12 h, Mk III ~3.6 h, Mk IV ~80 min, Mk V ~30 min, Home Drive 5 min. Exotic Matter per leg 8/10/12/14/16, +25 % per skipped galaxy; tanks hold 12/20/30/42/56/75. Times assume a fitting build and good flying; poor navigation/cooling forces braking (intended grind). Skipping a galaxy costs much more flight time and exotic matter. Any drive can theoretically fly home (Mk I ~40 h, achievement "The Long Way").
 
 ### Core loop per galaxy
 1. **Arrival** by warp flight at the galaxy's edge -> galaxy map with 4-6 systems.
@@ -183,7 +183,7 @@ Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; 
   - Danger / Alert / Hostile: `#EF4444` (bright coral red) | Critical: `#7F1D1D`
   - Memory Fragments (Meta, formerly Stardust): `#C084FC` (pastel neon violet)
   - Salvage (Run, formerly Credits): `#FCD34D` (soft golden pyrite)
-  - Exotic Matter (warp fuel): `#2DD4BF` (teal) - proposal, final with #73
+  - Exotic Matter (warp fuel): `#C4A5FF` / item tint violet (#78; teal is already the HUD meter accent)
 - **Sector UI Accent Triads *(legacy, to be redefined per galaxy in #46)*:**
   - **Sector 1 (Verdant Drift):** Primary Mint `#34D399`, Secondary Teal `#0F766E`, Accent Sunlight `#FBBF24`.
   - **Sector 2 (Ember Reach):** Primary Coral `#FB923C`, Secondary Terracotta `#9A3412`, Accent Flare Yellow `#FDE047`.

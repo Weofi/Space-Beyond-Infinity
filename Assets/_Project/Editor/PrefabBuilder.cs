@@ -2639,6 +2639,7 @@ namespace Voidward.EditorTools
         {
             var go = NetRoot("GameDirector", false);
             go.AddComponent<RunManager>();
+            go.AddComponent<WarpDrive>();
             go.AddComponent<CombatNet>();
             return SavePrefab(go);
         }

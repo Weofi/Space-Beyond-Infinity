@@ -78,11 +78,13 @@ namespace Voidward.World
                     var ts = st.GetComponent<TraderStation>();
                     ts.Seed.Value = System.Seed;
                     ts.Sector.Value = Mathf.Clamp(Galaxy, 1, 3);
+                    ts.Galaxy.Value = Galaxy;
                 }
             }
 
             var rng = new System.Random(System.Seed ^ 0x5f3759df);
             foreach (var w in Layout.Wrecks) SpawnWreckSite(w, rng, loot);
+            if (System.Kind == SystemKind.Anomaly && !revisit) SpawnExoticClusters(rng);
 
             var def = Def;
             eventsLeft = (def != null ? def.EventCount : 2) + (System.Kind == SystemKind.Anomaly ? 2 : 0);
@@ -212,6 +214,18 @@ namespace Voidward.World
             return true;
         }
 
+        /// <summary>Anomalies (#78): unstable space condenses Exotic Matter - a few drifting clusters in each field.</summary>
+        void SpawnExoticClusters(System.Random rng)
+        {
+            foreach (var f in Layout.Fields)
+                for (int i = 0; i < 2; i++)
+                {
+                    Vector3 p = f.Center + Vector3.Scale(new Vector3((float)rng.NextDouble() - 0.5f, (float)rng.NextDouble() - 0.5f, (float)rng.NextDouble() - 0.5f), f.Extents);
+                    var pk = WorldPickup.SpawnServer(WarpDrive.ExoticId, 2 + rng.Next(0, 2), p);
+                    if (pk != null) Track(pk.NetworkObject);
+                }
+        }
+
         /// <summary>A derelict hull in space with salvage; crates only when loot &gt; 0.</summary>
         public void SpawnWreckSite(Vector3 pos, System.Random rng, int loot)
         {
@@ -223,7 +237,17 @@ namespace Voidward.World
                     Track(LootCrate.SpawnServer(pos + rot * new Vector3(i == 0 ? 7f : -6f, 3f, 2f), rot, Mathf.Clamp(loot, 1, 3))?.NetworkObject);
             Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, pos + rot * new Vector3(0f, -4f, 8f), rot, 12)?.NetworkObject);
             Track(ResourceNode.SpawnServer(ScatterKind.FuelNode, pos + rot * new Vector3(0f, 4f, -9f), rot, 6)?.NetworkObject);
+            // Wrecks carry what was left of their own drive: Exotic Matter, sometimes a warp core one tier below the enclave's.
+            if (loot > 0)
+            {
+                Track(WorldPickup.SpawnServer(WarpDrive.ExoticId, 1 + rng.Next(0, 3), pos + rot * new Vector3(0f, 2f, 0f))?.NetworkObject);
+                if (rng.NextDouble() < 0.2)
+                    Track(WorldPickup.SpawnServer(DriveComponentDef.ItemId(DriveSlot.Core, Mathf.Max(1, DriveTier - 1)), 1, pos + rot * new Vector3(2f, 2f, 0f))?.NetworkObject);
+            }
         }
+
+        /// <summary>Warp core tier guarded by this galaxy's enclave (2 = Mk II ... 6 = Home Drive).</summary>
+        int DriveTier => Def != null ? Def.DriveTier : Galaxy + 1;
 
         public GameObject SpawnPrefab(GameObject prefab, Vector3 pos, Quaternion rot)
         {
@@ -277,7 +301,7 @@ namespace Voidward.World
             rm.Announce("WARNING: A Warden wakes up!\nDestroy its 3 glowing core pods, then the hull.", "boss_roar");
         }
 
-        /// <summary>The Warden fell: its hoard spills out (the warp core itself comes with #42/#73).</summary>
+        /// <summary>The Warden fell: its hoard spills out - the galaxy's best warp core, a matching drive part and crates.</summary>
         public void OnWardenDefeated(Vector3 at)
         {
             enclaveCleared = true;
@@ -285,8 +309,14 @@ namespace Voidward.World
             var rot = Quaternion.identity;
             for (int i = 0; i < 4; i++)
                 Track(LootCrate.SpawnServer(at + Quaternion.Euler(0f, i * 90f, 0f) * new Vector3(14f, 4f, 0f), rot, 3)?.NetworkObject);
+            int tier = DriveTier;
+            var core = DriveComponentDef.ItemId(DriveSlot.Core, tier);
+            var part = DriveComponentDef.ItemId((DriveSlot)Random.Range(1, 4), tier);
+            Track(WorldPickup.SpawnServer(core, 1, at)?.NetworkObject);
+            Track(WorldPickup.SpawnServer(part, 1, at)?.NetworkObject);
+            Track(WorldPickup.SpawnServer(WarpDrive.ExoticId, 6, at)?.NetworkObject);
             rm.PingAll(at, "Warden hoard");
-            rm.Announce("The Warden is destroyed! Its hoard is yours.", "unlock");
+            rm.Announce($"The Warden is destroyed! Its hoard is yours:\n{DriveComponentDef.FullName(DriveSlot.Core, tier)}", "unlock");
         }
 
         public bool EnclaveCleared => enclaveCleared;

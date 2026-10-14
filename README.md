@@ -14,7 +14,8 @@ Two endings only: **Homecoming** or **death** (= the loop resets). Target run le
 
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
-> galaxy map, suspend save) is playable; still to come are the flown warp drive (#73), prologue/loop/homecoming
+> galaxy map, suspend save) and the crew warp drive with Home ETA (#78) are playable; still to come are the flown
+> warp (#79-#81, parts of #73), prologue/loop/homecoming
 > (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
@@ -117,9 +118,17 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
   nomad meeting points (trader), empty space (distress signals) and one **Warden enclave** per galaxy.
   Enemies, loot tier and events get harder from galaxy to galaxy. The sky shows the journey: the next
   galaxy and the Milky Way grow along the route.
-* **Warping (placeholder until the flown warp of #73):** the pilot sets a course on the galaxy map, after
-  a 5 s countdown the whole crew warps. Systems of a galaxy can be revisited (their crates stay looted);
-  the warp to the next galaxy is one-way. There are no mandatory objectives.
+* **Warp drive (#78):** the crew shares one warp drive with four components - **warp core** (top speed,
+  Mk I - Mk V, Home Drive), **nav computer** (how much of that speed is safe in fields), **cooling** (how long
+  full throttle holds) and **Exotic tank** (capacity). Swap parts and load **Exotic Matter** (warp fuel) in the
+  *Warp Drive* tab (Tab, or the button on the galaxy map) while at a ship. The **Home ETA** (HUD under the
+  compass, cockpit NAV, galaxy map) shows the real flight time home and drops with every better part; each
+  backpack part shows its ETA change. Warden enclaves guard the best core of their galaxy; crates, wrecks,
+  anomalies, crystal veins, alien nests and Nomad traders give Exotic Matter, nav/cooling/tank parts.
+* **Warping (placeholder until the flown warp of #79/#80):** the pilot sets a course on the galaxy map, after
+  a 5 s countdown the whole crew warps. Systems of a galaxy can be revisited (their crates stay looted).
+  The warp to the next galaxy is one-way and burns Exotic Matter; **skipping a galaxy** costs much more
+  (and needs a bigger tank). There are no mandatory objectives.
 * **Warden enclave:** fly to the far end of the enclave system to wake its Warden: destroy its three
   glowing core pods (weak points) to drop its shield, then the hull. It drops a hoard of top-tier crates.
 * **Oxygen** drains outside ships and outside breathable atmospheres (Ice and Crystal worlds are
@@ -182,7 +191,8 @@ warp to the next galaxy, wake a Warden nearby, trigger an event, refill ship. FP
 * **Modules (23):** Engine Mk I–III (+Ark drive), Laser Mk I–III, Missile Pod Mk I–II,
   Flak Mk I–II, Shield Mk I–III, Hull Mk I–III, Cargo Mk I–II, Scanner Mk I–II, Fuel Tank Mk I–II.
 * **Gear (9):** Suit Mk II/III, Oxygen Tank Mk II/III, Jetpack Mk II/III, Drill Mk II/III, Pulse Rifle.
-* **Resources:** Ore, Crystal, Scrap, Fuel, Energy Cells, Credits. 17 crafting recipes.
+* **Resources:** Ore, Crystal, Scrap, Fuel, Exotic Matter, Credits. 17 crafting recipes.
+* **Warp drive parts (24):** Warp Core / Nav Computer / Cooling / Exotic Tank, each Mk I-V plus tier 6 (Home Drive core, Warden parts).
 * **Galaxies:** Triangulum (M33) → Andromeda (M31) → Barnard's Galaxy (NGC 6822) → Leo I → Large
   Magellanic Cloud → home, each with its own palette, biome pool, enemy mix and difficulty/loot tier,
   and 4–6 seeded systems.

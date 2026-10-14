@@ -7,18 +7,20 @@ using Voidward.Data;
 using Voidward.Inventory;
 using Voidward.Player;
 using Voidward.Ship;
+using Voidward.World;
 
 namespace Voidward.UI
 {
-    /// <summary>Tab panel: personal inventory + ship cargo, ship modules & services, crafting.</summary>
+    /// <summary>Tab panel: personal inventory + ship cargo, ship modules & services, crafting, the crew's warp drive (#78).</summary>
     public class InventoryView
     {
-        public enum Tab { Inventory, Ship, Crafting }
+        public enum Tab { Inventory, Ship, Crafting, Drive }
+        const int TabCount = 4;
 
         readonly RectTransform panel;
         RectTransform body;
         readonly TextMeshProUGUI header, details;
-        readonly Button[] tabs = new Button[3];
+        readonly Button[] tabs = new Button[TabCount];
         Tab tab;
         int selected = -1;
         bool selectedInCargo;
@@ -37,8 +39,8 @@ namespace Voidward.UI
             var top = UIKit.Row(panel, 56);
             header = UIKit.Text(top, "", 30, TextAlignmentOptions.Left, UIKit.Accent, FontStyles.Bold);
             UIKit.LayoutElement(header.gameObject, -1, 56, 1);
-            string[] names = { "Inventory", "Ship", "Crafting" };
-            for (int i = 0; i < 3; i++)
+            string[] names = { "Inventory", "Ship", "Crafting", "Warp Drive" };
+            for (int i = 0; i < TabCount; i++)
             {
                 var t = (Tab)i;
                 tabs[i] = UIKit.Button(top, names[i], () => { tab = t; selected = -1; dirty = true; }, 52, UIKit.PanelLight * 2.5f, 22);
@@ -89,7 +91,7 @@ namespace Voidward.UI
             if (refreshTimer <= 0f) { refreshTimer = 1f; dirty = true; }
             if (!dirty) return;
             dirty = false;
-            for (int i = 0; i < 3; i++) UIKit.SetButtonColor(tabs[i], (int)tab == i ? UIKit.Primary : UIKit.Secondary);
+            for (int i = 0; i < TabCount; i++) UIKit.SetButtonColor(tabs[i], (int)tab == i ? UIKit.Primary : UIKit.Secondary);
             header.text = $"{pawn.Inventory.Credits.Value} credits   <size=70%><color=#b0b0d0>{(ship != null ? "Ship in range: " + ship.ShipName.Value : "No ship in range")}</color></size>";
             Object.Destroy(body.gameObject);
             body = UIKit.Rect(panel, "Body");
@@ -100,6 +102,7 @@ namespace Voidward.UI
                 case Tab.Inventory: BuildInventory(pawn, ship); break;
                 case Tab.Ship: BuildShip(pawn, ship); break;
                 case Tab.Crafting: BuildCrafting(pawn); break;
+                case Tab.Drive: BuildDrive(pawn, ship); break;
             }
         }
 
@@ -307,6 +310,97 @@ namespace Voidward.UI
             details.text = "Modules change your ship's stats immediately. Weapons: Laser (fast), Missiles (homing), Flak (area). Targeting CPUs widen aim assist; Weapon Mods add shots, hit radius or fire rate. Big ships like the Ark have more slots for crew stations.";
         }
 
+        // ------------------------------------------------------------ warp drive tab (#78)
+
+        static string Tier(DriveSlot slot, int tier) => DriveComponentDef.FullName(slot, tier);
+
+        static string Effect(DriveSlot slot, DriveStats s)
+        {
+            switch (slot)
+            {
+                case DriveSlot.Core: return $"Warp speed x{s.Speed:0.#}";
+                case DriveSlot.Navigation: return $"Safe in fields: {Mathf.RoundToInt(s.NavFraction * 100f)}% of core speed";
+                case DriveSlot.Cooling: return $"Sustained throttle: {Mathf.RoundToInt(s.Sustain * 100f)}%";
+                default: return $"Holds {s.Capacity} Exotic Matter";
+            }
+        }
+
+        void BuildDrive(PlayerPawn pawn, ShipCore ship)
+        {
+            UIKit.VLayout(body.gameObject, 8, 0, TextAnchor.UpperLeft);
+            var drive = WarpDrive.Instance;
+            var rm = RunManager.Instance;
+            if (drive == null || rm == null)
+            {
+                UIKit.LayoutElement(UIKit.Text(body, "No warp drive.", 26, TextAlignmentOptions.Left, UIKit.TextDim).gameObject, -1, 60);
+                return;
+            }
+            var s = drive.Stats;
+            int g = rm.GalaxyIndex.Value;
+            bool last = g >= GalaxyDef.Count;
+            string next = DriveMath.Eta(drive.EtaTo(g + 1));
+            string skip = g + 2 <= GalaxyDef.Count ? DriveMath.Eta(drive.EtaTo(g + 2)) : "-";
+            var head = UIKit.Text(body,
+                $"<b>HOME ETA  <color=#F59E0B>{DriveMath.Eta(drive.EtaTo(DriveMath.Home))}</color></b>   " +
+                $"<size=85%><color=#b0b0d0>{(last ? "Home" : "Next galaxy")} {next}   Skip {skip}   Build efficiency {Mathf.RoundToInt(100f / Mathf.Max(0.01f, s.Factor))}%</color></size>\n" +
+                $"<size=85%>Exotic Matter <b>{Mathf.FloorToInt(drive.Exotic.Value)}/{drive.Capacity}</b>   <color=#b0b0d0>next warp needs {WarpDrive.FuelTo(g + 1)}" +
+                $"{(g + 2 <= GalaxyDef.Count ? $", skipping needs {WarpDrive.FuelTo(g + 2)}" : "")}</color></size>", 24);
+            UIKit.LayoutElement(head.gameObject, -1, 66);
+
+            var cols = UIKit.Rect(body, "Cols");
+            UIKit.HLayout(cols.gameObject, 30, 0, TextAnchor.UpperLeft);
+            UIKit.LayoutElement(cols.gameObject, -1, 540);
+
+            var parts = UIKit.Rect(cols, "Parts");
+            UIKit.VLayout(parts.gameObject, 6, 0, TextAnchor.UpperLeft);
+            UIKit.LayoutElement(parts.gameObject, 720, 540);
+            UIKit.LayoutElement(UIKit.Text(parts, "INSTALLED COMPONENTS", 22, TextAlignmentOptions.Left, UIKit.TextDim, FontStyles.Bold).gameObject, -1, 28);
+            for (int i = 0; i < 4; i++)
+            {
+                var slot = (DriveSlot)i;
+                var row = UIKit.Panel(parts, "Part", UIKit.PanelLight);
+                UIKit.HLayout(row.gameObject, 10, 8);
+                UIKit.LayoutElement(row.gameObject, -1, 64);
+                var item = ContentCatalog.GetItem(DriveComponentDef.ItemId(slot, drive.TierOf(slot)));
+                if (item != null) UIKit.ItemIcon(row, item, 48);
+                var t = UIKit.Text(row, $"<color=#a0a0c0>{DriveComponentDef.SlotName(slot)}</color>   <b>{Tier(slot, drive.TierOf(slot))}</b>\n<size=80%><color=#b0b0d0>{Effect(slot, s)}</color></size>", 21);
+                UIKit.LayoutElement(t.gameObject, -1, 58, 1);
+            }
+            int have = pawn.Inventory.Count(WarpDrive.ExoticId);
+            var load = UIKit.Button(parts, $"Load Exotic Matter (backpack: {have})", () => drive.LoadExoticServerRpc(), 56, UIKit.Accent, 22);
+            load.interactable = ship != null && have > 0 && drive.Exotic.Value + 1f <= drive.Capacity;
+            UIKit.LayoutElement(load.gameObject, -1, 56);
+
+            var side = UIKit.Rect(cols, "Side");
+            UIKit.VLayout(side.gameObject, 8, 0, TextAnchor.UpperLeft);
+            UIKit.LayoutElement(side.gameObject, 660, 540);
+            UIKit.LayoutElement(UIKit.Text(side, "DRIVE PARTS IN BACKPACK", 22, TextAlignmentOptions.Left, UIKit.TextDim, FontStyles.Bold).gameObject, -1, 28);
+            var list = UIKit.Scroll(side, 480);
+            float home = drive.EtaTo(DriveMath.Home);
+            int count = 0;
+            for (int i = 0; i < pawn.Inventory.Slots.Count; i++)
+            {
+                var d = pawn.Inventory.Slots[i].Def;
+                if (d == null || d.Kind != ItemKind.DriveComponent || d.Drive == null) continue;
+                int invSlot = i;
+                var with = s.With(d.Drive.Slot, d.Drive.Tier, WarpDrive.Def);
+                float delta = WarpDrive.EtaTo(with, DriveMath.Home) - home;
+                string col = delta < -0.01f ? "#90f0a0" : delta > 0.01f ? "#ff90a0" : "#b0b0d0";
+                var row = UIKit.Row(list, 56);
+                UIKit.ItemIcon(row, d, 48);
+                var t = UIKit.Text(row, $"<b>{d.DisplayName}</b>\n<size=80%><color={col}>Home {DriveMath.Delta(delta)}</color> <color=#b0b0d0>{Effect(d.Drive.Slot, with)}</color></size>", 20);
+                UIKit.LayoutElement(t.gameObject, -1, 54, 1);
+                var b = UIKit.Button(row, "Install", () => drive.InstallFromInventoryServerRpc(invSlot), 44, UIKit.Good, 20);
+                b.interactable = ship != null;
+                UIKit.LayoutElement(b.gameObject, 120, 44);
+                count++;
+            }
+            if (count == 0) UIKit.Text(list, "No drive parts - Warden enclaves guard the best warp cores; crates, wrecks and Nomad traders have nav computers, cooling and tanks.", 20, TextAlignmentOptions.Left, UIKit.TextDim);
+            details.text = ship != null
+                ? "The whole crew shares one warp drive. The core sets the top speed; nav computer and cooling decide how much of it you can really fly - match them to the core. Swapping returns the old part."
+                : "Get to a ship (or sit in one) to install parts or load Exotic Matter.";
+        }
+
         // ------------------------------------------------------------ crafting tab
 
         void BuildCrafting(PlayerPawn pawn)
@@ -340,7 +434,7 @@ namespace Voidward.UI
                 b.interactable = can && fab;
                 UIKit.LayoutElement(b.gameObject, 140, 50);
             }
-            details.text = "Energy Cells power Jump Gates. Medkits heal (hotbar 4). Gear upgrades are used from the backpack.";
+            details.text = "Exotic Matter fuels the warp drive. Medkits heal (hotbar 4). Gear upgrades are used from the backpack.";
         }
     }
 }

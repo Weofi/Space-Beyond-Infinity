@@ -22,6 +22,7 @@ namespace Voidward.Data
         public RecipeDef[] Recipes = new RecipeDef[0];
         public ShipDef[] Ships = new ShipDef[0];
         public LootTable[] LootTables = new LootTable[0];
+        public WarpDriveDef WarpDrive;
 
         [Header("Network prefabs (built by Voidward > Build All Content)")]
         public GameObject PlayerPawn;

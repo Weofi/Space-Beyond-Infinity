@@ -324,6 +324,41 @@ namespace Voidward.Dev
         public static void SaveRun() { if (IsServer && Run != null) { Run.ServerWriteSave(); Log("run saved"); } }
         public static bool HasRunSave => RunSave.Exists;
 
+        // ------------------------------------------------------------------ warp drive (#78)
+
+        /// <summary>Server: set all four drive components to one tier (1-6), or each one separately.</summary>
+        public static void SetDrive(int tier) => SetDrive(tier, tier, tier, tier);
+        public static void SetDrive(int core, int nav, int cooling, int tank)
+        {
+            if (!IsServer || WarpDrive.Instance == null) { Log("SetDrive FAILED: needs the host in a run"); return; }
+            WarpDrive.Instance.ServerSetTiers(core, nav, cooling, tank);
+            Log("drive " + DriveInfo);
+        }
+
+        /// <summary>Server: Exotic Matter in the drive's tank (clamped to its capacity).</summary>
+        public static void SetFuel(float exotic)
+        {
+            var d = WarpDrive.Instance;
+            if (!IsServer || d == null) { Log("SetFuel FAILED: needs the host in a run"); return; }
+            d.Exotic.Value = Mathf.Clamp(exotic, 0f, d.Capacity);
+            Log("drive " + DriveInfo);
+        }
+
+        /// <summary>"core 2 nav 2 cool 1 tank 1 | exotic 4/12 | next 10:00 (8) skip 40:00 (23) home 12 h 06 min | factor 1.08".</summary>
+        public static string DriveInfo
+        {
+            get
+            {
+                var d = WarpDrive.Instance;
+                if (d == null || Run == null) return "no drive";
+                var s = d.Stats;
+                int g = Run.GalaxyIndex.Value;
+                return $"core {s.Core} nav {s.Nav} cool {s.Cooling} tank {s.Tank} | exotic {d.Exotic.Value:0}/{d.Capacity} | " +
+                       $"next {DriveMath.Eta(d.EtaTo(g + 1))} ({WarpDrive.FuelTo(g + 1)}) skip {DriveMath.Eta(d.EtaTo(g + 2))} ({WarpDrive.FuelTo(g + 2)}) " +
+                       $"home {DriveMath.Eta(d.EtaTo(DriveMath.Home))} | factor {s.Factor:0.00}";
+            }
+        }
+
         // ------------------------------------------------------------------ actions
 
         /// <summary>Server: fire an authoritative projectile from 'from' at 'to' (dmg 0 = cosmetic test shot).</summary>
@@ -443,7 +478,7 @@ namespace Voidward.Dev
         // ------------------------------------------------------------------ loot & music (#43 part 4)
 
         /// <summary>One item per rarity: Common, Uncommon, Rare, Epic.</summary>
-        public static readonly string[] RarityItems = { "ore", "cell", "gear_suit_mk2", "gear_suit_mk3" };
+        public static readonly string[] RarityItems = { "ore", "exotic", "gear_suit_mk2", "gear_suit_mk3" };
 
         /// <summary>Server: drop an item that pops out of 'from' (like an enemy / crate drop) and lands nearby.</summary>
         public static WorldPickup DropLoot(string itemId, Vector3 from, int count = 1)

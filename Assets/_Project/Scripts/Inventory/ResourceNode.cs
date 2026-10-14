@@ -87,6 +87,9 @@ namespace Voidward.Inventory
             progress -= units;
             Remaining.Value -= units;
             NetInventory.GiveOrDrop(rp.Receive.SenderClientId, ResourceItemId, units, transform.position);
+            // Crystal veins sometimes hold Exotic Matter (#78).
+            if (Kind == ScatterKind.CrystalNode && Random.value < 0.12f * units)
+                NetInventory.GiveOrDrop(rp.Receive.SenderClientId, "exotic", 1, transform.position);
             LootStats.Collected?.Invoke(rp.Receive.SenderClientId, units);
             MinedClientRpc(transform.position + transform.up, rp.Receive.SenderClientId, units);
             if (Remaining.Value <= 0) NetworkObject.Despawn(true);

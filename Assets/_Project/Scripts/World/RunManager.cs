@@ -27,6 +27,8 @@ namespace Voidward.World
         public const int StartingRespawns = 4;
         /// <summary>WarpTarget value for the one-way warp to the next galaxy (or home from the last one).</summary>
         public const int WarpNextGalaxy = -1;
+        /// <summary>WarpTarget value for skipping a galaxy (#78): straight to the one after the next, for more Exotic Matter.</summary>
+        public const int WarpSkipGalaxy = -2;
         public const float WarpDelay = 5f;
 
         public NetworkVariable<GamePhase> Phase = new NetworkVariable<GamePhase>(GamePhase.Lobby);
@@ -269,6 +271,7 @@ namespace Voidward.World
             if (!IsServer || Phase.Value == GamePhase.Playing) return;
             ResetRunState(Random.Range(1, int.MaxValue), StartingRespawns, 0f);
             foreach (var pawn in PlayerPawn.All) if (pawn != null) pawn.Gear.ResetServer();
+            if (WarpDrive.Instance != null) WarpDrive.Instance.ServerReset(0);
             EnterSystem(1, 0, false);
             int slot = 0;
             foreach (var pawn in PlayerPawn.All)
@@ -291,6 +294,16 @@ namespace Voidward.World
             distanceDone = save.Distance;
             stats.Kills = save.Kills;
             stats.LootCollected = save.Loot;
+            var drive = WarpDrive.Instance;
+            if (drive != null)
+            {
+                drive.ServerReset(0);
+                if (save.DriveTiers != null && save.DriveTiers.Length == 4)
+                {
+                    drive.ServerSetTiers(save.DriveTiers[0], save.DriveTiers[1], save.DriveTiers[2], save.DriveTiers[3]);
+                    drive.Exotic.Value = Mathf.Min(save.Exotic, drive.Capacity);
+                }
+            }
             // The saved system is entered fresh: the save does not know which of its crates were already opened.
             EnterSystem(save.Galaxy, save.System, false);
             VisitedMask.Value = save.VisitedMask | (1 << save.System);
@@ -405,11 +418,12 @@ namespace Voidward.World
         public static string GalaxyTitle(GalaxyDef def) =>
             def == null ? "" : $"GALAXY {def.Index}/{GalaxyDef.Count} - {def.DisplayName.ToUpperInvariant()} ({def.Designation})";
 
-        // ---------------------------------------------------------------- warp (placeholder until the flown warp of #73)
+        // ---------------------------------------------------------------- warp (placeholder until the flown warp of #79/#80)
 
         /// <summary>
-        /// A pilot sets the warp course: another system of this galaxy, or (WarpNextGalaxy) the one-way warp to the
-        /// next galaxy - from the last galaxy that is the flight home. Starts a short countdown, then everyone warps.
+        /// A pilot sets the warp course: another system of this galaxy, or (WarpNextGalaxy / WarpSkipGalaxy) the one-way
+        /// warp to the next galaxy or the one after it - from the last galaxy the next stop is home. A galaxy warp needs
+        /// the Exotic Matter for the route in the crew's warp drive (#78). Starts a short countdown, then everyone warps.
         /// </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void RequestWarpServerRpc(int target, RpcParams rp = default)
@@ -419,6 +433,7 @@ namespace Voidward.World
             var seat = ShipSeat.SeatOf(c);
             if (seat == null || seat.Role != StationRole.Pilot) { ToastRpc("Only a pilot can set the warp course", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
             if (!ValidWarpTarget(target)) return;
+            if (!FuelOk(target, out string why)) { ToastRpc(why, RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
             WarpTarget.Value = target;
             WarpCountdown.Value = WarpDelay;
             AnnounceClientRpc($"{NameOf(c)} set course: {WarpLabel(target)}\nWarp in {WarpDelay:0} s - everyone aboard!", "jump_charge");
@@ -432,19 +447,38 @@ namespace Voidward.World
             AnnounceClientRpc("Warp cancelled by " + NameOf(rp.Receive.SenderClientId), "ui_back");
         }
 
+        /// <summary>Route stop a galaxy warp target leads to (DriveMath.Home after the last galaxy), -1 for a system warp.</summary>
+        public int StopOf(int target) =>
+            target == WarpNextGalaxy ? GalaxyIndex.Value + 1 : target == WarpSkipGalaxy ? GalaxyIndex.Value + 2 : -1;
+
+        /// <summary>Enough Exotic Matter in the warp drive for this target (system warps are free until #80).</summary>
+        bool FuelOk(int target, out string why)
+        {
+            why = "";
+            int stop = StopOf(target);
+            var drive = WarpDrive.Instance;
+            if (stop < 0 || drive == null || CheatManager.GodMode) return true;
+            int need = WarpDrive.FuelTo(stop);
+            if (drive.Capacity < need) { why = $"Exotic tank too small: this warp needs {need}, the tank holds {drive.Capacity}"; return false; }
+            if (!drive.HasFuelFor(stop)) { why = $"Not enough Exotic Matter: need {need}, tank {Mathf.FloorToInt(drive.Exotic.Value)}\nLoad it in the Warp Drive tab"; return false; }
+            return true;
+        }
+
         bool ValidWarpTarget(int target)
         {
             if (target == WarpNextGalaxy) return true;
+            if (target == WarpSkipGalaxy) return GalaxyIndex.Value + 2 <= GalaxyDef.Count;
             var p = Plan;
             return p != null && target >= 0 && target < p.Systems.Length && target != SystemIndex.Value;
         }
 
         public string WarpLabel(int target)
         {
-            if (target == WarpNextGalaxy)
+            int stop = StopOf(target);
+            if (stop >= 0)
             {
-                if (GalaxyIndex.Value >= GalaxyDef.Count) return "HOME - the Milky Way";
-                var next = ContentCatalog.GetGalaxy(GalaxyIndex.Value + 1);
+                if (stop > GalaxyDef.Count) return "HOME - the Milky Way";
+                var next = ContentCatalog.GetGalaxy(stop);
                 return next != null ? $"{next.DisplayName} ({next.Designation})" : "next galaxy";
             }
             var p = Plan;
@@ -464,14 +498,18 @@ namespace Voidward.World
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
             WarpCountdown.Value = -1f;
             if (!ValidWarpTarget(target)) return;
-            bool newGalaxy = target == WarpNextGalaxy;
-            if (newGalaxy && GalaxyIndex.Value >= GalaxyDef.Count)
+            int stop = StopOf(target);
+            if (stop >= 0)
             {
-                // Placeholder for the flown home flight and landing (#73, #74).
-                EndRun(true, "Homecoming - the crew made it back to the Milky Way!");
-                return;
+                if (!FuelOk(target, out string why) || !WarpDrive.Instance.ServerConsume(WarpDrive.FuelTo(stop)))
+                {
+                    AnnounceClientRpc("Warp aborted - " + why, "ui_back");
+                    return;
+                }
+                // Placeholder for the flown home flight and landing (#81, #74).
+                if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew made it back to the Milky Way!"); return; }
+                WarpTo(stop, 0);
             }
-            if (newGalaxy) WarpTo(GalaxyIndex.Value + 1, 0);
             else WarpTo(GalaxyIndex.Value, target);
         }
 
@@ -559,6 +597,12 @@ namespace Voidward.World
                 ClearedEnclaves = clearedEnclaves, RunTime = RunTime, RespawnsLeft = RespawnsLeft.Value,
                 Distance = distanceDone, Kills = stats.Kills, Loot = stats.LootCollected
             };
+            var drive = WarpDrive.Instance;
+            if (drive != null)
+            {
+                s.DriveTiers = new[] { drive.TierOf(DriveSlot.Core), drive.TierOf(DriveSlot.Navigation), drive.TierOf(DriveSlot.Cooling), drive.TierOf(DriveSlot.Tank) };
+                s.Exotic = drive.Exotic.Value;
+            }
             foreach (var pawn in PlayerPawn.All)
             {
                 if (pawn == null || !pawn.Active.Value) continue;
@@ -639,7 +683,7 @@ namespace Voidward.World
                 if (lo.Has("reinforced_suit")) pawn.Gear.BonusHp.Value = 30f;
                 if (lo.Has("deep_lungs")) pawn.Gear.BonusOxygen.Value = 0.4f;
                 if (lo.Has("head_start")) pawn.Inventory.Credits.Value += 150;
-                if (lo.Has("spare_cells")) pawn.Inventory.Add("cell", 1);
+                if (lo.Has("spare_cells")) pawn.Inventory.Add(WarpDrive.ExoticId, 2);
                 if (lo.Has("salvager")) { pawn.Inventory.Add("scrap", 10); pawn.Inventory.Add("fuel", 5); }
                 if (lo.Has("rifle_start")) pawn.Gear.HasRifle.Value = true;
                 pawn.Inventory.Add("medkit", 2);
@@ -714,7 +758,7 @@ namespace Voidward.World
             ark.Hull.Hp.Value = ark.Hull.MaxHp.Value * 0.35f;
             ark.Fuel.Value = 0f;
             ark.Shield.Value = 0f;
-            ark.Cargo.Add("cell", 1);
+            ark.Cargo.Add(WarpDrive.ExoticId, 2);
             ark.Cargo.Add("scrap", 4);
         }
 
@@ -926,7 +970,7 @@ namespace Voidward.World
                 case 1:
                     if (pawn == null) return;
                     foreach (var r in new[] { "ore", "crystal", "scrap", "fuel" }) pawn.Inventory.Add(r, 20);
-                    pawn.Inventory.Add("cell", 3);
+                    pawn.Inventory.Add(WarpDrive.ExoticId, 20);
                     pawn.Inventory.Credits.Value += 500;
                     break;
                 case 2:

@@ -70,7 +70,7 @@ namespace Voidward.EditorTools
         static void EnsureFolders()
         {
             foreach (var d in new[] { DataDir, DataDir + "/Items", DataDir + "/Modules", DataDir + "/Enemies", DataDir + "/Biomes", DataDir + "/Galaxies",
-                         DataDir + "/Palettes", DataDir + "/Recipes", DataDir + "/Ships", DataDir + "/Loot", PlanetDir, ArtDir, MeshDir, MatDir, TextureDir, PrefabDir, ResourcesDir, SceneDir })
+                         DataDir + "/Palettes", DataDir + "/Recipes", DataDir + "/Ships", DataDir + "/Loot", DataDir + "/Drive", PlanetDir, ArtDir, MeshDir, MatDir, TextureDir, PrefabDir, ResourcesDir, SceneDir })
                 if (!AssetDatabase.IsValidFolder(d))
                 {
                     var parent = Path.GetDirectoryName(d).Replace('\\', '/');
@@ -196,6 +196,7 @@ namespace Voidward.EditorTools
             catalog.Galaxies = galaxies;
             catalog.Recipes = recipes.ToArray();
             catalog.Ships = ships;
+            catalog.WarpDrive = BuildWarpDrive();
             catalog.LootTables = new[] { loot["loot_t1"], loot["loot_t2"], loot["loot_t3"], loot["loot_pirate"], loot["loot_drone"], loot["loot_alien"], loot["loot_guardian"], loot["loot_gunship"] };
             catalog.ToonMaterial = MatToon;
             catalog.TerrainMaterial = MatTerrain;
@@ -311,7 +312,7 @@ namespace Voidward.EditorTools
         {
             var it = Asset<ItemDef>($"{DataDir}/Items/{id}.asset");
             it.Id = id; it.DisplayName = name; it.Kind = kind; it.CreditValue = value; it.Tint = tint; it.Description = desc; it.MaxStack = stack;
-            it.Module = null; it.Gear = GearKind.None; it.GearTier = 1; it.HealAmount = 0; it.SoldAtTrader = true;
+            it.Module = null; it.Drive = null; it.Gear = GearKind.None; it.GearTier = 1; it.HealAmount = 0; it.SoldAtTrader = true;
             items[id] = it;
             return it;
         }
@@ -319,11 +320,11 @@ namespace Voidward.EditorTools
         static void BuildItems()
         {
             Item("ore", "Ore", ItemKind.Resource, 6, new Color(0.9f, 0.6f, 0.45f), "Common metal ore. Refine into fuel or craft parts.").Resource = ResourceType.Ore;
-            Item("crystal", "Crystal", ItemKind.Resource, 14, new Color(0.55f, 0.9f, 1f), "Energetic crystal used in electronics and Energy Cells.").Resource = ResourceType.Crystal;
+            Item("crystal", "Crystal", ItemKind.Resource, 14, new Color(0.55f, 0.9f, 1f), "Energetic crystal used in electronics. Its veins sometimes hold Exotic Matter.").Resource = ResourceType.Crystal;
             Item("scrap", "Scrap", ItemKind.Resource, 5, new Color(0.72f, 0.74f, 0.85f), "Salvaged parts. Repairs hulls; crafting staple.").Resource = ResourceType.Scrap;
             Item("fuel", "Fuel", ItemKind.Resource, 8, new Color(1f, 0.85f, 0.35f), "Refined propellant. Refuel ships from the Ship tab.").Resource = ResourceType.Fuel;
-            var cell = Item("cell", "Energy Cell", ItemKind.Resource, 40, new Color(0.6f, 1f, 0.6f), "Powers Jump Gates. Fly close to a gate to insert automatically.", 10);
-            cell.Resource = ResourceType.EnergyCell;
+            Item("exotic", "Exotic Matter", ItemKind.Resource, 40, new Color(0.72f, 0.45f, 1f),
+                "Warp fuel. Load it into the crew's warp drive (Warp Drive tab). Found in anomalies, crystal veins, wrecks and alien nests.", 50).Resource = ResourceType.ExoticMatter;
             Item("medkit", "Medkit", ItemKind.Consumable, 25, new Color(1f, 0.5f, 0.62f), "Restores 50 health (hotbar 4).", 10).HealAmount = 50;
             Item("repair_kit", "Repair Kit", ItemKind.Consumable, 45, new Color(0.95f, 0.72f, 0.45f), "Restores 80 hull to a nearby ship.", 10).HealAmount = 80;
 
@@ -342,12 +343,59 @@ namespace Voidward.EditorTools
             Gear("gear_drill_mk3", "Mining Drill Mk III", GearKind.MiningTool, 3, 260, "Industrial drill.");
             Gear("gear_rifle", "Pulse Rifle", GearKind.Rifle, 1, 200, "Automatic hitscan rifle (hotbar 3).");
 
+            BuildDriveComponents();
+
             foreach (var (id, m) in moduleDefs)
             {
                 var it = Item(id, m.DisplayName, ItemKind.Module, m.CreditValue, m.Tint, m.Description, 1);
                 it.Module = m;
                 if (id == "module_engine_ark" || m.Tier == 1 && (id.Contains("engine") || id.Contains("laser"))) it.SoldAtTrader = false;
             }
+        }
+
+        /// <summary>
+        /// Warp drive components (#78): core, nav computer, cooling and Exotic tank in tiers 1-6 (tier 6 = Home Drive core /
+        /// Warden parts). Each becomes an item (Kind=DriveComponent). Cores only come from Warden enclaves and wrecks.
+        /// </summary>
+        static void BuildDriveComponents()
+        {
+            var slots = new[] { DriveSlot.Core, DriveSlot.Navigation, DriveSlot.Cooling, DriveSlot.Tank };
+            var tints = new[] { new Color(0.45f, 0.75f, 1f), new Color(0.4f, 1f, 0.85f), new Color(0.55f, 0.85f, 1f), new Color(0.72f, 0.45f, 1f) };
+            var descs = new[]
+            {
+                "Warp core: sets the drive's top speed.",
+                "Nav computer: sees obstacles earlier, so more of the core's speed is safe in fields. Match it to the core.",
+                "Cooling: how long full throttle holds before the drive overheats. Match it to the core.",
+                "Exotic Matter tank: more capacity = longer warps, skipping galaxies.",
+            };
+            for (int s = 0; s < slots.Length; s++)
+                for (int tier = 1; tier <= DriveComponentDef.MaxTier; tier++)
+                {
+                    string id = DriveComponentDef.ItemId(slots[s], tier);
+                    var d = Asset<DriveComponentDef>($"{DataDir}/Drive/{id}.asset");
+                    d.Id = id; d.Slot = slots[s]; d.Tier = tier; d.DisplayName = DriveComponentDef.FullName(slots[s], tier); d.Description = descs[s];
+                    int value = Mathf.RoundToInt((slots[s] == DriveSlot.Core ? 160f : 70f) * Mathf.Pow(tier, 1.6f));
+                    var it = Item(id, d.DisplayName, ItemKind.DriveComponent, value, tints[s], d.Description, 1);
+                    it.Drive = d;
+                    // Traders sell nav/cooling/tank parts; cores are found (Warden enclaves, wrecks), never bought.
+                    it.SoldAtTrader = slots[s] != DriveSlot.Core && tier < DriveComponentDef.MaxTier;
+                    EditorUtility.SetDirty(d);
+                }
+        }
+
+        static WarpDriveDef BuildWarpDrive()
+        {
+            var d = Asset<WarpDriveDef>($"{DataDir}/Drive/WarpDrive.asset");
+            // Speeds relative to Mk I; with the legs in BuildGalaxies a balanced build gives (gameplan #72 targets):
+            // next galaxy ~10 min with the core found there, skipping ~35-40 min, home: Mk I ~36 h, Mk II ~12 h, Mk III ~3.6 h,
+            // Mk IV ~80 min, Mk V ~30 min, Home Drive from the LMC 5 min.
+            d.CoreSpeed = new[] { 1f, 3f, 10f, 25f, 60f, 240f };
+            d.TankCapacity = new[] { 12, 20, 30, 42, 56, 75 };
+            d.FieldShare = 0.3f; d.NavMatched = 0.6f; d.NavStep = 0.12f; d.NavMin = 0.12f; d.CoolingStep = 0.15f; d.CoolingMin = 0.35f;
+            d.SkipFuelSurcharge = 0.25f;
+            d.StartExotic = 4;
+            EditorUtility.SetDirty(d);
+            return d;
         }
 
         static void BuildLoot()
@@ -363,23 +411,23 @@ namespace Voidward.EditorTools
                 loot[id] = t;
                 return t;
             }
-            L("loot_t1", 3, ("ore", 2, 4, 3), ("crystal", 1, 3, 2), ("scrap", 2, 4, 3), ("fuel", 1, 2, 2), ("cell", 1, 1, 1.6f), ("medkit", 1, 1, 1),
+            L("loot_t1", 3, ("ore", 2, 4, 3), ("crystal", 1, 3, 2), ("scrap", 2, 4, 3), ("fuel", 1, 2, 2), ("exotic", 1, 2, 1.6f), ("medkit", 1, 1, 1),
                 ("module_shield_mk1", 1, 1, 0.4f), ("module_hull_mk1", 1, 1, 0.4f), ("module_cargo_mk1", 1, 1, 0.3f), ("module_scanner_mk1", 1, 1, 0.3f),
                 ("module_fueltank_mk1", 1, 1, 0.3f), ("module_missile_mk1", 1, 1, 0.3f), ("module_flak_mk1", 1, 1, 0.3f), ("gear_o2_mk2", 1, 1, 0.3f), ("gear_rifle", 1, 1, 0.25f),
                 ("module_targeting_mk1", 1, 1, 0.4f), ("module_splitter_mk1", 1, 1, 0.35f), ("module_focus_mk1", 1, 1, 0.35f), ("module_capacitor_mk1", 1, 1, 0.3f));
-            L("loot_t2", 3, ("ore", 3, 5, 2), ("crystal", 2, 4, 2), ("scrap", 3, 5, 2), ("fuel", 2, 3, 2), ("cell", 1, 2, 2), ("medkit", 1, 2, 1), ("repair_kit", 1, 1, 0.8f),
+            L("loot_t2", 3, ("ore", 3, 5, 2), ("crystal", 2, 4, 2), ("scrap", 3, 5, 2), ("fuel", 2, 3, 2), ("exotic", 1, 3, 2), ("medkit", 1, 2, 1), ("repair_kit", 1, 1, 0.8f),
                 ("module_engine_mk2", 1, 1, 0.35f), ("module_laser_mk2", 1, 1, 0.35f), ("module_shield_mk2", 1, 1, 0.35f), ("module_hull_mk2", 1, 1, 0.35f),
                 ("module_missile_mk2", 1, 1, 0.25f), ("module_flak_mk2", 1, 1, 0.25f), ("module_cargo_mk2", 1, 1, 0.2f), ("module_fueltank_mk2", 1, 1, 0.2f),
                 ("gear_suit_mk2", 1, 1, 0.3f), ("gear_jetpack_mk2", 1, 1, 0.3f), ("gear_drill_mk2", 1, 1, 0.3f), ("gear_rifle", 1, 1, 0.25f),
                 ("module_targeting_mk2", 1, 1, 0.3f), ("module_splitter_mk2", 1, 1, 0.25f), ("module_focus_mk2", 1, 1, 0.25f), ("module_capacitor_mk2", 1, 1, 0.25f));
-            L("loot_t3", 4, ("crystal", 3, 6, 2), ("scrap", 4, 6, 2), ("fuel", 2, 4, 2), ("cell", 1, 2, 2), ("medkit", 1, 2, 1), ("repair_kit", 1, 2, 1),
+            L("loot_t3", 4, ("crystal", 3, 6, 2), ("scrap", 4, 6, 2), ("fuel", 2, 4, 2), ("exotic", 2, 4, 2), ("medkit", 1, 2, 1), ("repair_kit", 1, 2, 1),
                 ("module_engine_mk3", 1, 1, 0.3f), ("module_laser_mk3", 1, 1, 0.3f), ("module_shield_mk3", 1, 1, 0.3f), ("module_hull_mk3", 1, 1, 0.3f),
                 ("module_scanner_mk2", 1, 1, 0.2f), ("module_targeting_mk3", 1, 1, 0.3f), ("gear_suit_mk3", 1, 1, 0.25f), ("gear_o2_mk3", 1, 1, 0.25f), ("gear_jetpack_mk3", 1, 1, 0.25f), ("gear_drill_mk3", 1, 1, 0.25f));
-            L("loot_pirate", 1, ("scrap", 1, 3, 3), ("fuel", 1, 2, 2), ("cell", 1, 1, 0.35f), ("ore", 1, 2, 1));
+            L("loot_pirate", 1, ("scrap", 1, 3, 3), ("fuel", 1, 2, 2), ("exotic", 1, 1, 0.35f), ("ore", 1, 2, 1));
             L("loot_drone", 1, ("scrap", 1, 1, 3), ("crystal", 1, 1, 0.5f));
             L("loot_alien", 1, ("crystal", 1, 2, 3), ("ore", 1, 1, 1), ("medkit", 1, 1, 0.25f));
-            L("loot_guardian", 2, ("crystal", 3, 5, 2), ("cell", 1, 1, 1), ("gear_drill_mk2", 1, 1, 0.3f), ("gear_suit_mk2", 1, 1, 0.2f));
-            L("loot_gunship", 3, ("scrap", 3, 6, 2), ("cell", 1, 1, 1), ("module_missile_mk1", 1, 1, 0.5f), ("module_flak_mk2", 1, 1, 0.4f), ("fuel", 2, 3, 1),
+            L("loot_guardian", 2, ("crystal", 3, 5, 2), ("exotic", 1, 2, 1), ("gear_drill_mk2", 1, 1, 0.3f), ("gear_suit_mk2", 1, 1, 0.2f));
+            L("loot_gunship", 3, ("scrap", 3, 6, 2), ("exotic", 1, 2, 1), ("module_missile_mk1", 1, 1, 0.5f), ("module_flak_mk2", 1, 1, 0.4f), ("fuel", 2, 3, 1),
                 ("module_splitter_mk1", 1, 1, 0.3f), ("module_targeting_mk2", 1, 1, 0.3f));
         }
 
@@ -447,6 +495,9 @@ namespace Voidward.EditorTools
                 g.MinSystems = minSys; g.MaxSystems = maxSys; g.SystemLength = len; g.BiomePool = pool;
                 g.SpaceEnemies = space; g.SpaceEnemyCap = cap; g.SpaceEnemyGrace = grace; g.SpaceEnemyRamp = ramp; g.SurfaceEnemies = surface;
                 g.EnemyTier = tier; g.LootTier = loot; g.EventCount = events; g.Palette = pal[i - 1]; g.NextGalaxyTint = nextTint;
+                // #78: each leg takes ~10 min with the core this galaxy's enclave guards (LMC -> home ~5 min with the Home Drive).
+                g.LegLength = new[] { 30f, 100f, 250f, 600f, 1200f }[i - 1];
+                g.LegFuel = new[] { 8, 10, 12, 14, 16 }[i - 1];
                 return g;
             }
             var fighters = new[] { EnemyKind.PirateFighter, EnemyKind.DroneSwarm, EnemyKind.PirateGunship };
@@ -482,7 +533,7 @@ namespace Voidward.EditorTools
                 foreach (var i in inputs) r.Inputs.Add(new RecipeDef.Ingredient { Item = items[i.id], Count = i.n });
                 list.Add(r);
             }
-            R("cell", 1, ("crystal", 2), ("scrap", 2));
+            R("exotic", 1, ("crystal", 4), ("fuel", 2));
             R("fuel", 2, ("ore", 3));
             R("medkit", 1, ("crystal", 1), ("ore", 1));
             R("repair_kit", 1, ("scrap", 4));

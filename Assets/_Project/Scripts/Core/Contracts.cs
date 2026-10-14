@@ -107,12 +107,14 @@ namespace Voidward.Core
         /// <summary>Local weapon recoil 0..~1.5 (viewmodel / seat camera kick), decays back to 0. Already scaled by Screen shake.</summary>
         public static float Recoil;
         public static string Objective = "";
+        /// <summary>Home ETA of the crew's warp drive as display text (#78), "" outside a run.</summary>
+        public static string HomeEta = "";
         public static float FieldOfView = 75f;
         /// <summary>The intro camera sequence owns the view; gameplay input is suppressed.</summary>
         public static bool Cinematic;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; GalaxyIndex = 1; SystemIndex = 0; ShakeIntensity = 0f; FovPunch = 0f; HitStopUntil = 0f; Recoil = 0f; Objective = ""; Cinematic = false; }
+        static void Reset() { UIOpen = false; Phase = GamePhase.MainMenu; GalaxyIndex = 1; SystemIndex = 0; ShakeIntensity = 0f; FovPunch = 0f; HitStopUntil = 0f; Recoil = 0f; Objective = ""; HomeEta = ""; Cinematic = false; }
 
         public static bool GameplayInputAllowed => !UIOpen && !Cinematic && Phase == GamePhase.Playing;
     }

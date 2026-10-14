@@ -550,7 +550,7 @@ namespace Voidward.UI
             return new Shot
             {
                 Title = "Hostile life",
-                Body = "Alien nests guard the planets and spawn creatures when you get close. Destroy them for loot - some hide Energy Cells.",
+                Body = "Alien nests guard the planets and spawn creatures when you get close. Destroy them for loot - some hide Exotic Matter.",
                 Label = "ALIEN NEST", Highlight = c + up * 1.5f, Sfx = "nest",
                 Duration = 5f,
                 FromPos = c + up * 26f + t * 34f,
@@ -569,7 +569,7 @@ namespace Voidward.UI
             return new Shot
             {
                 Title = "Trader station",
-                Body = "Buy Energy Cells, modules and fuel, sell what you find and repair your ship. Credits come from salvage and loot.",
+                Body = "Buy Exotic Matter, drive parts, modules and fuel, sell what you find and repair your ship. Credits come from salvage and loot.",
                 Label = "TRADER STATION", Highlight = c,
                 Duration = 4.5f,
                 FromPos = c + Quaternion.AngleAxis(30f, Vector3.up) * toAnchor * 120f + Vector3.up * 30f,

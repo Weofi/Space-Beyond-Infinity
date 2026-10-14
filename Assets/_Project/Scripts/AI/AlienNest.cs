@@ -113,7 +113,7 @@ namespace Voidward.AI
         {
             for (int i = 0; i < 4; i++)
                 WorldPickup.SpawnServer(i < 2 ? "crystal" : "ore", Random.Range(2, 4), transform.position + transform.up * 1.5f + Random.insideUnitSphere * 2f);
-            if (Random.value < 0.5f) WorldPickup.SpawnServer("cell", 1, transform.position + transform.up * 2f);
+            if (Random.value < 0.5f) WorldPickup.SpawnServer("exotic", 1 + Random.Range(0, 2), transform.position + transform.up * 2f);
             DeathClientRpc(transform.position, info.ByPlayer);
             NetworkObject.Despawn(true);
         }
