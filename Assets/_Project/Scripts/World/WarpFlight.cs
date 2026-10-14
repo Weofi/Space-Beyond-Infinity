@@ -907,6 +907,7 @@ namespace Voidward.World
             riftPos = Progress.Value - Mathf.Max(0f, seconds) * speed;
             RiftGap.Value = Progress.Value - riftPos;
             RiftSpeed.Value = speed;
+            localRiftGap = RiftGap.Value;
         }
 
         /// <summary>Server, dev: the Wardens' last guard now.</summary>

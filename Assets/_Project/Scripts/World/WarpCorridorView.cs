@@ -522,9 +522,9 @@ namespace Voidward.World
             if (close <= 0f || !WarpBubble.Flying) { riftPulse = 0f; return; }
             riftPulse -= Time.deltaTime;
             if (riftPulse > 0f) return;
-            riftPulse = Mathf.Lerp(1.3f, 0.55f, close);
-            Vfx.ScreenFlash(new Color(0.55f, 0.2f, 0.9f, 0.06f + 0.22f * close), 0.45f);
-            Vfx.Shake(0.12f + 0.45f * close);
+            riftPulse = Mathf.Lerp(1.4f, 0.7f, close);
+            Vfx.ScreenFlash(new Color(0.55f, 0.2f, 0.9f, 0.03f + 0.1f * close), 0.25f);
+            Vfx.Shake(0.1f + 0.3f * close);
         }
 
         void BuildRift()
