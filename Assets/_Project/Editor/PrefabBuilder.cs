@@ -687,7 +687,7 @@ namespace Voidward.EditorTools
                 Color led = k % 4 == 0 ? Gold : (k % 4 == 1 ? Cyan : (k % 4 == 2 ? Green : Red));
                 Glow(panel, () => panel.AddBox(T(x, -0.175f, 0.0f), new Vector3(0.015f, 0.008f, 0.01f), led), 1.4f);
             }
-            Visual(d.transform, "Panel", SaveMesh(panel, "Dashboard_" + width.ToString("0.0")), MatHull);
+            Visual(d.transform, "Panel", SaveMesh(panel, "Dashboard_" + width.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)), MatHull);
             TextMeshPro Txt(string n, float x, TextAlignmentOptions align, float w)
             {
                 var t = Child(d.transform, n, new Vector3(x, 0f, -0.005f));
@@ -1026,6 +1026,8 @@ namespace Voidward.EditorTools
 
         static GameObject BuildDart()
         {
+            var fab = FabShipMesh();
+            if (fab != null) return BuildFabDart(fab);
             var go = ShipRoot("Ship_Dart", ShipClass.Dart, 2000f, 4, 2);
             var core = go.GetComponent<ShipCore>();
             Visual(go.transform, "Hull", DartHullMesh(), MatHull);
@@ -1049,6 +1051,96 @@ namespace Voidward.EditorTools
             fx.Thrusters = Thrusters(go.transform, new Vector3(-0.72f, 0, -4.9f), new Vector3(0.72f, 0, -4.9f));
             ShipLighting(go, new Vector3(0, -1.2f, 0), 10f, new Vector3(-0.38f, -0.24f, 3.85f), new Vector3(0.38f, -0.24f, 3.85f));
             return SavePrefab(go);
+        }
+
+        /// <summary>
+        /// Dart with the textured Fab hull (#91): 15 m long, 17.8 m forward-swept wings, two engine pods at x = +-3.
+        /// The canopy glass is cut out of the hull (Tools/Blender/fab_spaceship.py), so the pilot sits inside a cockpit tub
+        /// that follows the hull (bulkheads at z 2.2 / 6.2, floor 1.9 m below the canopy roof) with seat, dashboard and stick.
+        /// </summary>
+        static GameObject BuildFabDart(Mesh hull)
+        {
+            var go = ShipRoot("Ship_Dart", ShipClass.Dart, 2400f, 4, 2);
+            var core = go.GetComponent<ShipCore>();
+            Visual(go.transform, "Hull", hull, FabShipMaterial());
+            var canopy = FabShipCanopyMesh();
+            if (canopy != null) Visual(go.transform, "Canopy", canopy, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var tub = FabShipCockpitMesh();
+            var interior = InteriorMaterial();
+            if (tub != null) Visual(go.transform, "CockpitTub", tub, interior);
+            Visual(go.transform, "Cockpit", FabDartCockpitMesh(), interior);
+            AddLight(go.transform, "CockpitLight", new Vector3(0, -0.75f, 3.7f), new Color(0.55f, 0.8f, 1f), 0.5f, 2.4f);
+
+            Box(go, new Vector3(0, -0.5f, 0.45f), new Vector3(3.4f, 2.2f, 14f));     // fuselage
+            Box(go, new Vector3(0, -0.45f, -3.3f), new Vector3(8.3f, 3.1f, 8.6f));   // engine pods
+            Box(go, new Vector3(0, -1.3f, 0f), new Vector3(17.8f, 0.7f, 6.9f));      // wings
+
+            // Seated eye just under the canopy roof (high enough to see the nose over the front frame); anchor = eye - 1.2.
+            Seat(go.transform, "PilotSeat", StationRole.Pilot, new Vector3(0, -1.2f, 2.88f), new Vector3(0, 0f, 2.92f), new Vector3(-3.3f, -0.3f, 5.4f),
+                new Vector3(0, 0f, 3.4f), new Vector3(5.1f, 4.3f, 7.9f));
+            Dashboard(go.transform, new Vector3(0, -0.68f, 4.05f), 1.2f);
+            var term = Child(go.transform, "CargoTerminal", new Vector3(0, 0.4f, -5.1f));
+            Box(term, Vector3.zero, new Vector3(4.3f, 4.3f, 4.3f), true);
+            term.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
+
+            core.MuzzlesA = new[] { Child(go.transform, "MuzzleL", new Vector3(-1.36f, -0.86f, 6.15f)).transform, Child(go.transform, "MuzzleR", new Vector3(1.36f, -0.86f, 6.15f)).transform };
+            core.MuzzlesB = new[] { Child(go.transform, "MuzzleC", new Vector3(0, -1.07f, 7.6f)).transform };
+            core.RespawnPoint = Child(go.transform, "Respawn", new Vector3(-3.3f, 0f, 4.9f)).transform;
+            core.FabricatorPoint = go.transform;
+            var fx = go.AddComponent<ShipEngineFx>();
+            fx.Thrusters = Thrusters(go.transform, new Vector3(-3f, -0.71f, -7.55f), new Vector3(3f, -0.71f, -7.55f));
+            foreach (var t in fx.Thrusters) t.localScale = new Vector3(2.3f, 2.3f, 2.2f);
+            ShipLighting(go, new Vector3(0, -2.4f, 0), 16f, new Vector3(-0.5f, -0.45f, 7.1f), new Vector3(0.5f, -0.45f, 7.1f));
+            return SavePrefab(go);
+        }
+
+        /// <summary>Cockpit fittings inside the Fab Dart's tub: floor plate, pilot seat, dash console, side consoles, stick and throttle.</summary>
+        static Mesh FabDartCockpitMesh()
+        {
+            var mb = Hero(0.04f);
+            // floor plate with a grip strip
+            With(mb, Satin, 0.6f, 0.6f, () => mb.AddBox(T(0, -1.32f, 4.1f), new Vector3(1.5f, 0.06f, 3.6f), Graphite));
+            With(mb, 0.2f, 0f, 0f, () => mb.AddBox(T(0, -1.285f, 3.9f), new Vector3(0.7f, 0.01f, 1.6f), Rubber));
+            // seat: pedestal, cushion, tilted back, headrest, armrests with a gold edge, harness straps
+            With(mb, 0.5f, 0.9f, 0.5f, () =>
+            {
+                mb.AddBox(T(0, -1.18f, 2.98f), new Vector3(0.34f, 0.24f, 0.4f), Gunmetal);
+                mb.AddBox(TR(0, -0.62f, 2.6f, -10, 0, 0), new Vector3(0.66f, 0.98f, 0.1f), Gunmetal);
+                mb.AddBox(T(-0.34f, -0.86f, 2.98f), new Vector3(0.06f, 0.08f, 0.5f), Gunmetal);
+                mb.AddBox(T(0.34f, -0.86f, 2.98f), new Vector3(0.06f, 0.08f, 0.5f), Gunmetal);
+            });
+            With(mb, 0.25f, 0f, 0f, () =>
+            {
+                mb.AddBox(T(0, -1.0f, 3.0f), new Vector3(0.58f, 0.14f, 0.56f), Slate);
+                mb.AddBox(TR(0, -0.6f, 2.67f, -10, 0, 0), new Vector3(0.56f, 0.86f, 0.08f), Slate);
+                mb.AddBox(TR(0, -0.02f, 2.58f, -10, 0, 0), new Vector3(0.34f, 0.24f, 0.12f), Slate);
+                mb.AddBox(TR(-0.17f, -0.5f, 2.72f, -10, 0, 0), new Vector3(0.06f, 0.7f, 0.02f), Ochre);
+                mb.AddBox(TR(0.17f, -0.5f, 2.72f, -10, 0, 0), new Vector3(0.06f, 0.7f, 0.02f), Ochre);
+            });
+            With(mb, Paint, 0.3f, 0f, () => { mb.AddBox(T(-0.34f, -0.815f, 2.98f), new Vector3(0.065f, 0.012f, 0.5f), Ochre); mb.AddBox(T(0.34f, -0.815f, 2.98f), new Vector3(0.065f, 0.012f, 0.5f), Ochre); });
+            // dash console under the screens (low, so the view over the nose stays open), foot well behind it
+            With(mb, 0.45f, 0.7f, 0.8f, () => mb.AddBox(T(0, -1.1f, 4.35f), new Vector3(1.5f, 0.42f, 0.55f), Graphite));
+            // side consoles with button rows and glowing strips
+            foreach (float sx in new[] { -1f, 1f })
+            {
+                With(mb, 0.45f, 0.7f, 0.8f, () => mb.AddBox(T(sx * 0.66f, -0.98f, 3.45f), new Vector3(0.28f, 0.5f, 1.1f), Graphite));
+                With(mb, 0.9f, 0.1f, 0f, () => mb.AddBox(T(sx * 0.66f, -0.725f, 3.5f), new Vector3(0.22f, 0.01f, 0.8f), new Color(0.03f, 0.05f, 0.08f)));
+                for (int i = 0; i < 6; i++)
+                {
+                    Color led = i % 3 == 0 ? Cyan : (i % 3 == 1 ? Gold : Green);
+                    Glow(mb, () => mb.AddBox(T(sx * 0.66f + (i % 2 == 0 ? -0.05f : 0.05f), -0.715f, 3.2f + (i / 2) * 0.22f), new Vector3(0.05f, 0.012f, 0.05f), led), 1.3f);
+                }
+                Glow(mb, () => mb.AddBox(T(sx * 0.81f, -0.8f, 3.45f), new Vector3(0.01f, 0.02f, 1.0f), Cyan), 0.9f);
+            }
+            // flight stick (right hand) and throttle (left console)
+            With(mb, 0.5f, 0.9f, 0.3f, () =>
+            {
+                mb.AddTube(new Vector3(0.22f, -0.98f, 3.38f), new Vector3(0.22f, -0.72f, 3.44f), 0.025f, 0.02f, 8, Gunmetal);
+                mb.AddBox(T(0.22f, -0.65f, 3.45f), new Vector3(0.07f, 0.14f, 0.08f), Rubber);
+                mb.AddBox(TR(-0.62f, -0.66f, 3.55f, 15, 0, 0), new Vector3(0.06f, 0.12f, 0.08f), Rubber);
+            });
+            Glow(mb, () => mb.AddBox(T(0.22f, -0.575f, 3.47f), new Vector3(0.02f, 0.012f, 0.02f), Red), 1.5f);
+            return SaveMesh(mb, "Ship_Dart_Fab_CockpitProps");
         }
 
         static Mesh MuleCanopyMesh()
