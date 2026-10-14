@@ -220,8 +220,9 @@ Direction since #91: **asset-based, detailed PBR sci-fi**. The procedural "styli
 ### Ship Design Language
 
 - **Dart (Agile Starter Fighter) (core):** asset since #91 (Fab "SpaceShip" by JazOone3D).
-  - Silhouette: Long armoured nose with a flush dark canopy, two engine pods with octagonal intakes and dorsal fins, forward-swept wings.
-  - Scale: 10.5m length, 12.4m wingspan, 3.1m height.
+  - Silhouette: Long armoured nose with a smoked glass canopy (roof panes + side windows), two engine pods with octagonal intakes and dorsal fins, forward-swept wings.
+  - Scale: 15.0m length, 17.8m wingspan, 4.5m height.
+  - Cockpit: the pilot sits inside under the canopy (seat, dash screens, side consoles, stick); no windscreen, the front frame works as glare shield.
   - Visual Features: Twin nose cannons, big rear engine rings, ribbed dorsal intakes.
   - Palette: Grey and dark slate plating with orange accents, warm orange emissive intakes (alternative liveries in the source pack: black/blue, black/red).
 - **Mule (Cargo Hauler) (core):**
