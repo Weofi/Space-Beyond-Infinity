@@ -12,7 +12,9 @@ namespace Voidward.World
     /// nav computer's scanner range streaming past the bubble along -X (they grow out of the warp haze at the
     /// scanner edge), speed streaks, signal beacons and the gas cloud of a signal the crew dropped out at. It also
     /// detects corridor impacts for every ship this peer simulates (its own piloted ship, unpiloted ones on the
-    /// server) and reports them to WarpFlight, and feeds gravity wells into WarpBubble.Pull.
+    /// server) and reports them to WarpFlight, and feeds gravity wells into WarpBubble.Pull. In the flight home it
+    /// shows the Rift (#81) chasing the bubble: a VW_Collapse maw behind it that grows and reaches forward with
+    /// tendrils as it closes in, plus a violet pulse on the screen and in the speed streaks.
     /// </summary>
     public class WarpCorridorView : MonoBehaviour
     {
@@ -40,7 +42,13 @@ namespace Voidward.World
         int shownSeed = int.MinValue;
         float streakBudget;
         int cloudSignal = -1;
-        Material rockMat, toonMat, glowMat;
+        Material rockMat, toonMat, glowMat, collapseMat;
+        GameObject rift;
+        Transform riftBody, riftHalo;
+        readonly List<Transform> tendrils = new List<Transform>();
+        Mesh riftSphere, riftRing, tendrilMesh;
+        float riftPulse;
+        const int TendrilCount = 10;
 
         static readonly Color RiftColor = new Color(0.72f, 0.38f, 1f);
         static readonly Color WellColor = new Color(1f, 0.62f, 0.3f);
@@ -48,7 +56,8 @@ namespace Voidward.World
         void OnDestroy()
         {
             ClearAll();
-            foreach (var m in new[] { cometMesh, cometTail, wellCore, wellDisc, beaconMesh, puffMesh }) if (m) Destroy(m);
+            foreach (var m in new[] { cometMesh, cometTail, wellCore, wellDisc, beaconMesh, puffMesh, riftSphere, riftRing, tendrilMesh }) if (m) Destroy(m);
+            if (rift) Destroy(rift);
             if (rockMeshes != null) foreach (var m in rockMeshes) if (m) Destroy(m);
             if (debrisMeshes != null) foreach (var m in debrisMeshes) if (m) Destroy(m);
             WarpBubble.Pull = null;
@@ -62,6 +71,7 @@ namespace Voidward.World
             ClearCloud();
             reported.Clear();
             if (beacon) beacon.SetActive(false);
+            if (rift) rift.SetActive(false);
             if (streaks) streaks.Clear();
         }
 
@@ -99,7 +109,8 @@ namespace Voidward.World
             DetectImpacts(f, r);
             UpdateBeacon(f, p);
             UpdateCloud(f, r);
-            UpdateStreaks();
+            UpdateStreaks(f.RiftCloseness);
+            UpdateRift(f);
         }
 
         void Place(Item it, float ahead, float seen)
@@ -307,6 +318,7 @@ namespace Voidward.World
             rockMat = cat.TerrainMaterial != null ? cat.TerrainMaterial : cat.ToonMaterial;
             toonMat = cat.ToonMaterial;
             glowMat = cat.ParticleMaterial;
+            collapseMat = cat.CollapseMaterial;
             if (rockMeshes != null) return;
 
             rockMeshes = new Mesh[6];
@@ -342,6 +354,13 @@ namespace Voidward.World
             wellDisc = Ring("WarpWellDisc", new[] { 1.25f, 2.2f, 4.2f }, new[] { 0.7f, 0.35f, 0f }, WellColor, 48);
             beaconMesh = GlowStreak("WarpBeacon", 1f, 1f, Color.white);
             puffMesh = GlowStreak("WarpPuff", 1f, 1f, Color.white);
+            {
+                var mb = new MeshBuilder();
+                mb.AddSphere(Matrix4x4.identity, 1f, 3, Color.white);
+                riftSphere = mb.Build("WarpRiftMaw");
+            }
+            riftRing = Ring("WarpRiftHalo", new[] { 0.92f, 1.0f, 1.25f, 1.9f }, new[] { 0f, 0.85f, 0.4f, 0f }, RiftColor, 96);
+            tendrilMesh = GlowStreak("WarpRiftTendril", 1f, 0.5f, new Color(0.8f, 0.45f, 1f, 0.8f));
         }
 
         /// <summary>Two crossed soft quads along +X (length in X from 0 to len; unit size = a round glow when len = width = 1).</summary>
@@ -467,7 +486,70 @@ namespace Voidward.World
             cloudSignal = -1;
         }
 
-        void UpdateStreaks()
+        // ================================================================ the Rift (#81)
+
+        /// <summary>The Rift behind the bubble: closer and bigger the less lead the crew has; tendrils reach for the ships.</summary>
+        void UpdateRift(WarpFlight f)
+        {
+            if (!f.RiftAwake || riftSphere == null)
+            {
+                if (rift) rift.SetActive(false);
+                return;
+            }
+            if (rift == null) BuildRift();
+            rift.SetActive(true);
+            float near = Mathf.Clamp01(f.RiftSeconds / 40f); // 1 = far behind, 0 = at the bubble
+            float close = f.RiftCloseness;
+            float dist = Mathf.Lerp(160f, 5200f, near);
+            float radius = Mathf.Lerp(2400f, 1300f, near);
+            rift.transform.position = new Vector3(-dist - radius * 0.25f, 0f, 0f);
+            riftBody.localScale = new Vector3(radius * 0.25f, radius, radius);
+            riftHalo.localScale = Vector3.one * radius;
+            riftHalo.localRotation = Quaternion.Euler(Time.time * 6f, 0f, 0f);
+            float t = Time.time;
+            for (int i = 0; i < tendrils.Count; i++)
+            {
+                float a = i * Mathf.PI * 2f / tendrils.Count + Mathf.Sin(t * 0.4f + i) * 0.15f;
+                // Far away they hug the maw's rim; close in they reach past the ships along the corridor walls.
+                float lat = Mathf.Lerp(Mathf.Lerp(WarpBubble.HalfWidth * 0.9f, WarpBubble.HalfWidth * 1.4f, (i * 0.37f) % 1f), radius * 0.8f, near);
+                float reach = (dist + radius * 0.25f) * Mathf.Lerp(1.15f, 0.5f, near) * (0.75f + 0.25f * Mathf.Sin(t * 1.7f + i * 2.1f));
+                var tr = tendrils[i];
+                tr.localPosition = new Vector3(radius * 0.25f, Mathf.Cos(a) * lat, Mathf.Sin(a) * lat);
+                tr.localScale = new Vector3(reach, 40f + 60f * close, 40f + 60f * close);
+            }
+
+            // Pulse: a violet flash and a shake that get stronger and faster as it closes in.
+            if (close <= 0f || !WarpBubble.Flying) { riftPulse = 0f; return; }
+            riftPulse -= Time.deltaTime;
+            if (riftPulse > 0f) return;
+            riftPulse = Mathf.Lerp(1.3f, 0.55f, close);
+            Vfx.ScreenFlash(new Color(0.55f, 0.2f, 0.9f, 0.06f + 0.22f * close), 0.45f);
+            Vfx.Shake(0.12f + 0.45f * close);
+        }
+
+        void BuildRift()
+        {
+            rift = new GameObject("Warp_Rift");
+            rift.transform.SetParent(transform, false);
+            var body = new GameObject("Maw");
+            body.transform.SetParent(rift.transform, false);
+            Renderer(body, riftSphere, collapseMat != null ? collapseMat : glowMat, false);
+            riftBody = body.transform;
+            var halo = new GameObject("Halo");
+            halo.transform.SetParent(rift.transform, false);
+            Renderer(halo, riftRing, glowMat, false);
+            riftHalo = halo.transform;
+            tendrils.Clear();
+            for (int i = 0; i < TendrilCount; i++)
+            {
+                var go = new GameObject("Tendril");
+                go.transform.SetParent(rift.transform, false);
+                Renderer(go, tendrilMesh, glowMat, false);
+                tendrils.Add(go.transform);
+            }
+        }
+
+        void UpdateStreaks(float rift)
         {
             var cam = Camera.main;
             if (cam == null) return;
@@ -511,7 +593,7 @@ namespace Voidward.World
                 ep.velocity = -WarpBubble.Axis * speed * Random.Range(0.85f, 1.2f);
                 ep.startSize = Random.Range(0.35f, 0.9f);
                 ep.startLifetime = 1.6f;
-                ep.startColor = Color.Lerp(new Color(0.6f, 0.85f, 1f, 0.5f), new Color(0.85f, 0.7f, 1f, 0.7f), Random.value) * (0.5f + 0.6f * intensity);
+                ep.startColor = Color.Lerp(Color.Lerp(new Color(0.6f, 0.85f, 1f, 0.5f), new Color(0.85f, 0.7f, 1f, 0.7f), Random.value), new Color(0.75f, 0.3f, 1f, 0.8f), rift * 0.8f) * (0.5f + 0.6f * intensity);
                 streaks.Emit(ep, 1);
             }
         }

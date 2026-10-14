@@ -63,7 +63,7 @@ namespace Voidward.UI
 
         // top-centre: collapse meter + compass
         readonly Image meterFill;
-        readonly RectTransform meterTrack, pipPlayer, pipEnd;
+        readonly RectTransform meterTrack, pipPlayer, pipEnd, pipRift;
         readonly TextMeshProUGUI meterText;
         readonly TextMeshProUGUI etaText;
         float etaTimer;
@@ -245,6 +245,8 @@ namespace Voidward.UI
             meterFill.sprite = HudKit.Gradient(HudKit.Teal, HudKit.Shield);
             meterFill.type = Image.Type.Filled; meterFill.fillMethod = Image.FillMethod.Horizontal;
             pipEnd = Pip(meterTrack, HudKit.Gold, HudKit.Ring, 18);
+            pipRift = Pip(meterTrack, RiftColor, HudKit.Ring, 16); // the Rift chasing the flight home (#81)
+            pipRift.gameObject.SetActive(false);
             pipPlayer = Pip(meterTrack, HudKit.Shield, HudKit.Chevron, 14);
             meterText = UIKit.Text(meter, "", 19, TextAlignmentOptions.Center, HudKit.Teal, FontStyles.Bold);
             UIKit.Place(meterText.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(440, 26), new Vector2(0.5f, 0));
@@ -730,6 +732,7 @@ namespace Voidward.UI
         {
             var flight = WarpFlight.Instance;
             if (flight != null && WarpBubble.Active && flight.Route != null) { UpdateWarpMeter(flight); return; }
+            pipRift.gameObject.SetActive(false);
             int key = GalaxyGenerator.GalaxySeed(rm.RunSeed.Value, rm.GalaxyIndex.Value) ^ (rm.SystemIndex.Value * 7919 + 1);
             if (key != layoutKey && rm.RunSeed.Value != 0)
             {
@@ -784,6 +787,9 @@ namespace Voidward.UI
             float w = meterTrack.rect.width;
             pipPlayer.anchoredPosition = new Vector2(pf * w, 13f);
             pipEnd.anchoredPosition = new Vector2(w, 0f);
+            float gap = f.LocalRiftGap;
+            pipRift.gameObject.SetActive(gap >= 0f);
+            if (gap >= 0f) pipRift.anchoredPosition = new Vector2(Mathf.Clamp01((f.LocalProgress - gap) / Mathf.Max(1f, f.Length.Value)) * w, 0f);
             var zone = r.ZoneAt(f.LocalProgress, out _);
             meterText.color = zone == WarpZone.Void ? HudKit.Energy : HudKit.Fuel;
             meterText.text = f.IsHop ? $"SYSTEM WARP   {r.ZoneName(zone)}" : $"{Short(f.From.Value)} > {Short(f.To.Value)}   {r.ZoneName(zone)}";
@@ -800,7 +806,12 @@ namespace Voidward.UI
             sb.Append($"ETA <color=#F59E0B>{DriveMath.Eta(secs / 60f)}</color>   ");
             if (drive != null && !f.IsHop) sb.Append($"EXOTIC <color=#C4A5FF>{Mathf.FloorToInt(drive.Exotic.Value)}/{drive.Capacity}</color>   ");
             if (f.Cruise.Value) sb.Append("<color=#2DD4BF>CRUISE</color>");
-            if (f.NextSignal(out var sig) && !f.DroppedOut.Value)
+            if (f.RiftAwake)
+            {
+                float rs = f.RiftSeconds;
+                sb.Append($"\n<color={(rs < WarpFlight.RiftCloseSeconds ? "#EF4444" : "#C084FC")}>THE RIFT  {Mathf.FloorToInt(rs)} s BEHIND  ({HudKit.Dist(f.LocalRiftGap)})</color>");
+            }
+            else if (f.NextSignal(out var sig) && !f.DroppedOut.Value)
             {
                 float ahead = sig.S - f.LocalProgress;
                 bool inRange = Mathf.Abs(ahead) < WarpFlight.DropRange;
@@ -822,6 +833,8 @@ namespace Voidward.UI
             if (f.Stalled.Value) return "<size=70%><color=#EF4444>EMERGENCY STOP</color></size>" + Sub("DRIVE RESTARTING");
             if (f.Hazard.Value >= 0 && f.Throttle.Value > 0.05f && Mathf.Repeat(Time.time, 0.5f) < 0.32f)
                 return "<size=55%><color=#FBBF24>OBSTACLE AHEAD</color></size>";
+            if (f.RiftCloseness > 0f && Mathf.Repeat(Time.time, 0.8f) < 0.5f)
+                return "<size=55%><color=#C084FC>THE RIFT IS CLOSING IN</color></size>" + Sub($"{Mathf.FloorToInt(f.RiftSeconds)} s - FULL THROTTLE");
             return null;
         }
 
@@ -850,8 +863,10 @@ namespace Voidward.UI
             bool lead = flight != null && WarpBubble.Active && flight.LocalIsLeadPilot;
             if (flight != null && WarpBubble.Active)
             {
-                header = "WARP FLIGHT";
-                text = flight.DroppedOut.Value ? "Out of warp at a signal - loot it, then back to the ships"
+                header = flight.IsFinale ? "THE FLIGHT HOME" : "WARP FLIGHT";
+                text = flight.RiftAwake ? (lead ? "Outrun the Rift: keep the throttle up, dodge at top speed, mind the heat"
+                        : "Outrun the Rift: shoot rocks and interceptors out of the lead pilot's way")
+                    : flight.DroppedOut.Value ? "Out of warp at a signal - loot it, then back to the ships"
                     : lead ? "You lead the bubble: throttle down in fields, steer through the gaps"
                     : "Shoot rocks and interceptors - the lead pilot flies the bubble";
                 text += $"\n<size=80%><color=#94A3B8>Fields: slow down. Void: full throttle, watch the heat</color></size>";
@@ -877,6 +892,8 @@ namespace Voidward.UI
             objHint.text = hint;
             objHint.gameObject.SetActive(hint.Length > 0);
         }
+
+        static readonly Color RiftColor = new Color(0.75f, 0.4f, 1f);
 
         static string Key(string k) => $"<mark=#1E293BFF padding=\"6,6,2,2\"><color=#38BDF8><b>{k}</b></color></mark>";
 

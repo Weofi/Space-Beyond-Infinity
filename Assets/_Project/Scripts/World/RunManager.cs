@@ -581,9 +581,20 @@ namespace Voidward.World
         public void ServerArrive(int stop)
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
-            // Placeholder for the home flight finale and landing (#81, #74).
-            if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew made it back to the Milky Way!"); return; }
+            // The crew outran the Rift (#81) and leaves the warp in the Solar System. Placeholder until the Earth/Moon
+            // approach and landing of #74: the homecoming result.
+            if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew outran the Rift and made it back to Sol!"); return; }
             WarpTo(stop, 0);
+        }
+
+        /// <summary>
+        /// Server: the Rift caught the bubble on the flight home (#81). Hand-over point to the time loop of #74 (back to
+        /// M33 with the meta kept); until then the run ends like a crew wipe.
+        /// </summary>
+        public void ServerRiftCaught()
+        {
+            if (!IsServer || Phase.Value != GamePhase.Playing) return;
+            EndRun(false, "The Rift caught the crew - pulled back into the time loop");
         }
 
         /// <summary>Server: a hop (#80) reached its system: the crew arrives at the system's edge.</summary>

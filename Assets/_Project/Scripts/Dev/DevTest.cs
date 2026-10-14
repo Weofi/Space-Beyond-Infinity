@@ -30,6 +30,8 @@ namespace Voidward.Dev
         Galaxy,
         /// <summary>Seated as lead pilot in a flown galaxy warp (#79): Mk II drive, fuel loaded, cruising at 60 %.</summary>
         Warp,
+        /// <summary>Seated as lead pilot in the flight home from the LMC (#81): Home Drive, the Rift chasing, cruising at 80 %.</summary>
+        Finale,
     }
 
     /// <summary>Camera views of <see cref="DevTest.PlanetSurvey"/> (one sheet column each).</summary>
@@ -153,6 +155,14 @@ namespace Voidward.Dev
                         StartWarp();
                         yield return null;
                         SetThrottle(0.6f);
+                    }
+                    else while (!WarpBubble.Active && !Timeout(30f)) yield return null;
+                    break;
+                case DevScenario.Finale:
+                    if (IsServer)
+                    {
+                        yield return FinaleCo(DriveComponentDef.MaxTier);
+                        SetThrottle(0.8f);
                     }
                     else while (!WarpBubble.Active && !Timeout(30f)) yield return null;
                     break;
@@ -512,7 +522,68 @@ namespace Voidward.Dev
                 string route = f.IsHop ? $"hop {f.From.Value}:{(Run != null ? Run.SystemIndex.Value : -1)} -> system {f.TargetSystem.Value}" : $"{f.From.Value} -> {f.To.Value}";
                 return $"{route} | {f.LocalProgress / 1000f:0.0}/{f.Length.Value / 1000f:0.0} km {f.Progress01 * 100f:0}% {r.ZoneName(zone)} | " +
                        $"throttle {f.Throttle.Value:0.00} heat {f.Heat.Value:0.00} cruise {f.Cruise.Value} stall {f.Stalled.Value} hot {f.Overheated.Value} | " +
-                       $"lead {f.Lead.Value} hazard {f.Hazard.Value} | out {f.DroppedOut.Value} | exotic {(d != null ? d.Exotic.Value : 0f):0.0} | scan {f.ScanRange:0} | destroyed {f.Destroyed.Count}";
+                       $"lead {f.Lead.Value} hazard {f.Hazard.Value} | out {f.DroppedOut.Value} | exotic {(d != null ? d.Exotic.Value : 0f):0.0} | scan {f.ScanRange:0} | destroyed {f.Destroyed.Count}" +
+                       (f.RiftStart.Value >= 0f ? " | " + RiftInfo : "");
+            }
+        }
+
+        // ------------------------------------------------------------------ the flight home + the Rift (#81)
+
+        /// <summary>
+        /// Server: start the flight home from the LMC now (goes to galaxy 5 first if needed), with all drive parts at
+        /// `tier` (6 = Home Drive, ~5 min); the Rift chases the last 5 planned minutes. Logs "[Dev] end finale &lt;WarpInfo&gt;".
+        /// </summary>
+        public static void StartFinale(int tier = 6)
+        {
+            Log("begin finale");
+            if (!IsServer || Run == null || Flight == null) { Log("end finale FAILED: needs the host in a run"); return; }
+            DevRunner.Get().Run(FinaleCo(tier));
+        }
+
+        static IEnumerator FinaleCo(int tier)
+        {
+            if (Flight.Active.Value) Flight.ServerAbort();
+            if (Run.GalaxyIndex.Value != GalaxyDef.Count)
+            {
+                Run.ServerGoto(GalaxyDef.Count, 0);
+                yield return null;
+                yield return null;
+            }
+            SetDrive(tier);
+            yield return null;
+            StartWarp();
+            yield return null;
+            yield return null;
+            Log("end finale " + WarpInfo);
+        }
+
+        /// <summary>Server: put the Rift `seconds` behind the bubble (wakes it; flight home only).</summary>
+        public static void RiftAt(float seconds)
+        {
+            var f = Flight;
+            if (!IsServer || f == null || !f.IsFinale) { Log("RiftAt FAILED: not in the flight home"); return; }
+            f.ServerSetRiftSeconds(seconds);
+            Log("rift at " + WarpInfo);
+        }
+
+        /// <summary>Server: the Wardens' last guard intercepts the bubble now.</summary>
+        public static void WardenWave()
+        {
+            var f = Flight;
+            if (!IsServer || f == null || !f.Active.Value) { Log("WardenWave FAILED: no warp flight"); return; }
+            f.ServerDevWardenWave();
+            Log("warden wave " + WarpInfo);
+        }
+
+        /// <summary>"rift 31.2 s 36.5 km @1170 m/s close 0.00 | from 0.0 km", "rift asleep (from 120.0 km)" or "no rift".</summary>
+        public static string RiftInfo
+        {
+            get
+            {
+                var f = Flight;
+                if (f == null || !f.Active.Value || f.RiftStart.Value < 0f) return "no rift";
+                if (!f.RiftAwake) return $"rift asleep (from {f.RiftStart.Value / 1000f:0.0} km)";
+                return $"rift {f.RiftSeconds:0.0} s {f.LocalRiftGap / 1000f:0.0} km @{f.RiftSpeed.Value:0} m/s close {f.RiftCloseness:0.00} | from {f.RiftStart.Value / 1000f:0.0} km";
             }
         }
 

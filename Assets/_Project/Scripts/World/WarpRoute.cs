@@ -96,6 +96,8 @@ namespace Voidward.World
     /// along a corridor of `Length` metres. Obstacles are generated per 1 km chunk on demand (a slow drive flies
     /// thousands of kilometres), ids are chunk * 1024 + index. A hop (#80) is the short warp between two systems of
     /// one galaxy: one leg, the rims are the systems' outskirts (thinner fields), no signals and no welcome party.
+    /// The flight home (#81) has a finale stretch from FinaleStart on: the Rift chases the bubble there, the void is
+    /// more crowded (rifts, stray rocks, comets at top speed), there are no signals and no welcome party.
     /// </summary>
     public class WarpRoute
     {
@@ -113,19 +115,22 @@ namespace Voidward.World
         public readonly int From, To;
         /// <summary>A warp between two systems of galaxy From (#80).</summary>
         public readonly bool Hop;
+        /// <summary>Route position where the Rift's chase of the flight home begins (#81); -1 = no finale.</summary>
+        public readonly float FinaleStart;
         public readonly WarpLeg[] Legs;
         public readonly WarpSignal[] Signals;
 
         readonly Dictionary<int, List<WarpObstacle>> chunks = new Dictionary<int, List<WarpObstacle>>();
         readonly Queue<int> chunkOrder = new Queue<int>();
 
-        public WarpRoute(int seed, int from, int to, float length, bool hop = false)
+        public WarpRoute(int seed, int from, int to, float length, bool hop = false, float finaleStart = -1f)
         {
             Seed = seed;
             From = from;
             To = to;
             Hop = hop;
             Length = Mathf.Max(ChunkLength * 4f, length);
+            FinaleStart = hop || finaleStart < 0f ? -1f : Mathf.Min(finaleStart, Length);
             if (hop)
             {
                 Legs = new[] { new WarpLeg { From = from, To = from, Start = 0f, End = Length, Share = HopShare } };
@@ -164,15 +169,23 @@ namespace Voidward.World
                     float at = Mathf.Lerp(leg.HaloEnd + leg.Length * 0.05f, leg.HaloStart - leg.Length * 0.05f, t);
                     float ang = (float)rng.NextDouble() * Mathf.PI * 2f;
                     float dist = 700f + 800f * (float)rng.NextDouble();
+                    int sigSeed = rng.Next(), kind = rng.Next(3);
+                    if (InFinale(at - DropRangeMargin)) continue; // no time for detours with the Rift on the tail
                     sig.Add(new WarpSignal
                     {
-                        Id = i * 8 + k, Kind = (WarpSignalKind)rng.Next(3), S = at,
-                        Lat = new Vector2(Mathf.Sin(ang) * 0.45f, Mathf.Cos(ang)) * dist, Seed = rng.Next()
+                        Id = i * 8 + k, Kind = (WarpSignalKind)kind, S = at,
+                        Lat = new Vector2(Mathf.Sin(ang) * 0.45f, Mathf.Cos(ang)) * dist, Seed = sigSeed
                     });
                 }
             }
             Signals = sig.ToArray();
         }
+
+        /// <summary>Signals this close before the finale stretch are left out too (the crew could not get back in time).</summary>
+        const float DropRangeMargin = 3000f;
+
+        /// <summary>Route position s lies in the finale stretch of the flight home (#81).</summary>
+        public bool InFinale(float s) => FinaleStart >= 0f && s >= FinaleStart;
 
         public static int ChunkOf(float s) => Mathf.FloorToInt(s / ChunkLength);
         public static int ChunkOfId(int id) => id / MaxPerChunk;
@@ -236,7 +249,7 @@ namespace Voidward.World
             if (zone == WarpZone.Void || s < SafeStart * 2f) return false;
             var leg = LegAt(s);
             // Every arrival halo of a galaxy has a welcome party a little way in; elsewhere patrols are random.
-            if (!Hop && zone == WarpZone.ArrivalHalo && chunk == ChunkOf(leg.HaloStart) + 3) return true;
+            if (!Hop && FinaleStart < 0f && zone == WarpZone.ArrivalHalo && chunk == ChunkOf(leg.HaloStart) + 3) return true;
             var rng = new System.Random(Hash(chunk) ^ 0x7a7);
             return rng.NextDouble() < (zone == WarpZone.ArrivalHalo ? 0.05 : 0.025);
         }
@@ -289,6 +302,14 @@ namespace Voidward.World
                 }
                 // ... and comets crossing.
                 if (rng.NextDouble() < 0.25) AddComet();
+            }
+            else if (InFinale(c0))
+            {
+                // The finale's void (#81): the Rift churns space up ahead of it - obstacles at top speed.
+                if (rng.NextDouble() < 0.35) Add(WarpHazard.StrayRock, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth * 0.9f), R(30f, 60f));
+                if (rng.NextDouble() < 0.09) Add(WarpHazard.Rift, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth - 120f), R(80f, 120f));
+                if (rng.NextDouble() < 0.03) Add(WarpHazard.GravityWell, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth * 0.7f), R(45f, 70f));
+                if (rng.NextDouble() < 0.08) AddComet();
             }
             else
             {
