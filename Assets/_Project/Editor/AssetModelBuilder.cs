@@ -58,31 +58,53 @@ namespace Voidward.EditorTools
         /// URP Lit wants metallic in R and smoothness in A of one map; Substance exports metallic + roughness separately.
         /// Writes `outPath` (PNG) from the two source images unless it is newer than both.
         /// </summary>
-        static Texture2D PackMetallicSmoothness(string metallicPath, string roughnessPath, string outPath)
+        static Texture2D PackMetallicSmoothness(string metallicPath, string roughnessPath, string outPath) =>
+            Generated(outPath, false, new[] { metallicPath, roughnessPath }, (px, i) =>
+            {
+                byte m = px[0][i].r;
+                return new Color32(m, m, m, (byte)(255 - px[1][i].r));
+            });
+
+        /// <summary>glTF metallicRoughness (G = roughness, B = metal) -> URP metallic (R) + smoothness (A).</summary>
+        static Texture2D PackGltfMetallicRoughness(string path, string outPath) =>
+            Generated(outPath, false, new[] { path }, (px, i) =>
+            {
+                var c = px[0][i];
+                return new Color32(c.b, c.b, c.b, (byte)(255 - c.g));
+            });
+
+        /// <summary>
+        /// A texture computed per pixel from source images (resized to the size of the first), written as PNG next to them
+        /// and only regenerated when a source is newer. `pixel(sources, index)` returns the output pixel.
+        /// </summary>
+        static Texture2D Generated(string outPath, bool srgb, string[] sources, System.Func<Color32[][], int, Color32> pixel, int maxSize = 4096)
         {
             string full = Path.GetFullPath(outPath);
-            if (!File.Exists(full) || File.GetLastWriteTimeUtc(full) < File.GetLastWriteTimeUtc(Path.GetFullPath(metallicPath))
-                || File.GetLastWriteTimeUtc(full) < File.GetLastWriteTimeUtc(Path.GetFullPath(roughnessPath)))
+            bool stale = !File.Exists(full);
+            foreach (var src in sources)
+                stale = stale || File.GetLastWriteTimeUtc(full) < File.GetLastWriteTimeUtc(Path.GetFullPath(src));
+            if (stale)
             {
-                var met = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
-                var rough = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
-                met.LoadImage(File.ReadAllBytes(metallicPath));
-                rough.LoadImage(File.ReadAllBytes(roughnessPath));
-                if (rough.width != met.width || rough.height != met.height) rough = Resized(rough, met.width, met.height);
-                var a = met.GetPixels32();
-                var r = rough.GetPixels32();
-                for (int i = 0; i < a.Length; i++)
+                var px = new Color32[sources.Length][];
+                int w = 0, h = 0;
+                for (int k = 0; k < sources.Length; k++)
                 {
-                    byte m = a[i].r;
-                    a[i] = new Color32(m, m, m, (byte)(255 - r[i].r));
+                    var t = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
+                    t.LoadImage(File.ReadAllBytes(sources[k]));
+                    if (k == 0) { w = t.width; h = t.height; }
+                    else if (t.width != w || t.height != h) t = Resized(t, w, h);
+                    px[k] = t.GetPixels32();
+                    Object.DestroyImmediate(t);
                 }
-                var packed = new Texture2D(met.width, met.height, TextureFormat.RGBA32, false, true);
-                packed.SetPixels32(a);
-                File.WriteAllBytes(full, packed.EncodeToPNG());
-                Object.DestroyImmediate(met); Object.DestroyImmediate(rough); Object.DestroyImmediate(packed);
+                var o = new Color32[px[0].Length];
+                for (int i = 0; i < o.Length; i++) o[i] = pixel(px, i);
+                var outTex = new Texture2D(w, h, TextureFormat.RGBA32, false, true);
+                outTex.SetPixels32(o);
+                File.WriteAllBytes(full, outTex.EncodeToPNG());
+                Object.DestroyImmediate(outTex);
                 AssetDatabase.ImportAsset(outPath);
             }
-            return ImportTexture(outPath, false);
+            return ImportTexture(outPath, srgb, maxSize: maxSize);
         }
 
         static Texture2D Resized(Texture2D src, int w, int h)
@@ -144,6 +166,83 @@ namespace Voidward.EditorTools
             m.SetColor("_BaseColor", new Color(0.16f, 0.27f, 0.38f, 0.32f));
             m.SetColor("_RimColor", new Color(0.55f, 0.75f, 0.95f, 1f));
             m.SetFloat("_RimPower", 3.5f);
+            return m;
+        }
+
+        // ---------------------------------------------------------------- Dart cockpit (#94)
+
+        const string CockpitDir = ShipModelDir + "/DartCockpit";
+
+        /// <summary>Cockpit fittings from Tools/Blender/dart_cockpit.py: Console, Walls, Stick, Throttle, Seat. Null if missing.</summary>
+        static Mesh DartCockpitMesh(string part) => ModelMesh(ShipModelDir + "/Ship_Dart_Cockpit_" + part + ".fbx");
+
+        /// <summary>
+        /// Wasp cockpit texture set ("center" / "cockpit") as URP Lit, recoloured to the Dart: the olive/cream panels become
+        /// slate gunmetal, the red trim the orange accent; the faint green screen glow becomes a cyan emission mask.
+        /// </summary>
+        static Material WaspMaterial(string part)
+        {
+            string p = CockpitDir + "/Wasp_" + part + "_";
+            var m = Mat("Ship_Dart_Cockpit_" + part, "Universal Render Pipeline/Lit");
+            m.SetTexture("_BaseMap", Generated(p + "albedo_vw.png", true, new[] { p + "albedo.jpg" }, (px, i) => Recolor(px[0][i]), 2048));
+            m.SetColor("_BaseColor", Color.white);
+            m.SetTexture("_MetallicGlossMap", PackMetallicSmoothness(p + "metallic.jpg", p + "roughness.jpg", p + "metallic_smoothness.png"));
+            m.SetFloat("_Metallic", 1f);
+            m.SetFloat("_Smoothness", 0.85f);
+            m.SetFloat("_SmoothnessTextureChannel", 0f);
+            m.EnableKeyword("_METALLICSPECGLOSSMAP");
+            m.SetTexture("_BumpMap", ImportTexture(p + "normal.jpg", false, true, false, 2048));
+            m.SetFloat("_BumpScale", 1f);
+            m.EnableKeyword("_NORMALMAP");
+            m.SetTexture("_OcclusionMap", ImportTexture(p + "AO.jpg", false, maxSize: 2048));
+            m.SetFloat("_OcclusionStrength", 1f);
+            m.EnableKeyword("_OCCLUSIONMAP");
+            // the source glow is a faint green: brightness x 3 as a mask, tinted cyan by the emission colour
+            m.SetTexture("_EmissionMap", Generated(p + "emissive_vw.png", true, new[] { p + "emissive.jpg" }, (px, i) =>
+            {
+                var e = px[0][i];
+                byte l = (byte)Mathf.Min(255, Mathf.Max(e.r, Mathf.Max(e.g, e.b)) * 3);
+                return new Color32(l, l, l, 255);
+            }, 2048));
+            m.SetColor("_EmissionColor", new Color(0.3f, 0.85f, 1f) * 1.6f);
+            m.EnableKeyword("_EMISSION");
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            m.enableInstancing = true;
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>Dart palette for the Wasp textures: warm, lightly saturated panel colours -> slate; saturated reds -> orange.</summary>
+        static Color32 Recolor(Color32 c32)
+        {
+            Color c = c32;
+            Color.RGBToHSV(c, out float h, out float s, out float v);
+            if (s > 0.35f && (h < 0.03f || h > 0.95f) && v > 0.12f)
+                return (Color32)Color.HSVToRGB(0.065f, Mathf.Min(1f, s * 1.05f), Mathf.Min(1f, v * 1.35f));
+            // olive / cream / tan: hue around 0.12, weak to mid saturation
+            float hue = Mathf.Clamp01(1f - Mathf.Abs(h - 0.12f) / 0.09f);
+            float w = Mathf.SmoothStep(0f, 1f, hue) * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.06f, 0.18f, s));
+            var slate = new Color(0.36f, 0.41f, 0.48f) * Mathf.Lerp(0.55f, 1.05f, v);
+            var outc = Color.Lerp(c, slate, w);
+            outc.a = 1f;
+            return outc;
+        }
+
+        /// <summary>Sci-Fi Pilot Chair (glTF set: base colour, metallicRoughness, OpenGL normal).</summary>
+        static Material ChairMaterial()
+        {
+            var m = Mat("Ship_Dart_Cockpit_Seat", "Universal Render Pipeline/Lit");
+            m.SetTexture("_BaseMap", ImportTexture(CockpitDir + "/Chair_baseColor.jpg", true, maxSize: 2048));
+            m.SetColor("_BaseColor", Color.white);
+            m.SetTexture("_MetallicGlossMap", PackGltfMetallicRoughness(CockpitDir + "/Chair_metallicRoughness.png", CockpitDir + "/Chair_metallic_smoothness.png"));
+            m.SetFloat("_Metallic", 1f);
+            m.SetFloat("_Smoothness", 1f);
+            m.SetFloat("_SmoothnessTextureChannel", 0f);
+            m.EnableKeyword("_METALLICSPECGLOSSMAP");
+            m.SetTexture("_BumpMap", ImportTexture(CockpitDir + "/Chair_normal.jpg", false, true, false, 2048));
+            m.EnableKeyword("_NORMALMAP");
+            m.enableInstancing = true;
+            EditorUtility.SetDirty(m);
             return m;
         }
 
