@@ -126,9 +126,38 @@ namespace Voidward.EditorTools
             return m;
         }
 
-        /// <summary>Fab "SpaceShip" by JazOone3D (Tools/Blender/fab_spaceship.py): 10.5 m long, nose +Z, origin = bounds centre.</summary>
+        /// <summary>Fab "SpaceShip" by JazOone3D (Tools/Blender/fab_spaceship.py): 15 m long, nose +Z, origin = bounds centre, canopy cut out.</summary>
         static Mesh FabShipMesh() => ModelMesh(ShipModelDir + "/Ship_Dart_Fab.fbx");
 
+        /// <summary>The canopy panes cut out of the hull (original UVs), rendered as glass.</summary>
+        static Mesh FabShipCanopyMesh() => ModelMesh(ShipModelDir + "/Ship_Dart_Fab_Canopy.fbx");
+
+        /// <summary>Cockpit tub that follows the hull's inside between the two bulkheads (vw_blender vertex contract, VW_Hull).</summary>
+        static Mesh FabShipCockpitMesh() => ImportedMesh(ShipModelDir + "/Ship_Dart_Fab_Cockpit.fbx", "Ship_Dart_Fab_Cockpit");
+
         static Material FabShipMaterial() => PbrMaterial("Ship_Dart_Fab", FabShipDir, "FabShip");
+
+        /// <summary>Smoked canopy glass: dark blue tint, faint so the cockpit shows through, soft rim.</summary>
+        static Material FabShipGlassMaterial()
+        {
+            var m = Mat("Ship_Dart_Fab_Glass", "VOIDWARD/Glass");
+            m.SetColor("_BaseColor", new Color(0.16f, 0.27f, 0.38f, 0.32f));
+            m.SetColor("_RimColor", new Color(0.55f, 0.75f, 0.95f, 1f));
+            m.SetFloat("_RimPower", 3.5f);
+            return m;
+        }
+
+        /// <summary>VW_Hull for interiors: same panel detail, no blue rim (it reads as glow inside a cockpit), softer spec.</summary>
+        static Material InteriorMaterial()
+        {
+            var m = Mat("VW_HullInterior", "VOIDWARD/ToonFlat");
+            m.CopyPropertiesFromMaterial(MatHull);
+            m.shaderKeywords = MatHull.shaderKeywords;
+            m.SetFloat("_RimStrength", 0f);
+            m.SetFloat("_SpecStrength", 0.6f);
+            m.SetFloat("_ReflStrength", 0.5f);
+            m.enableInstancing = true;
+            return m;
+        }
     }
 }
