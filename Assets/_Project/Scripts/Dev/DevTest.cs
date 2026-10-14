@@ -28,6 +28,8 @@ namespace Voidward.Dev
         Lab,
         /// <summary>Seated as pilot (like Space) with the galaxy map open (#46).</summary>
         Galaxy,
+        /// <summary>Seated as lead pilot in a flown galaxy warp (#79): Mk II drive, fuel loaded, cruising at 60 %.</summary>
+        Warp,
     }
 
     /// <summary>Camera views of <see cref="DevTest.PlanetSurvey"/> (one sheet column each).</summary>
@@ -144,6 +146,16 @@ namespace Voidward.Dev
                 case DevScenario.Planet: yield return PlanetCo(); break;
                 case DevScenario.Lab: BuildLab(); break;
                 case DevScenario.Galaxy: if (Voidward.UI.UIRoot.Instance != null) Voidward.UI.UIRoot.Instance.OpenGalaxyMap(); break;
+                case DevScenario.Warp:
+                    if (IsServer)
+                    {
+                        SetDrive(2);
+                        StartWarp();
+                        yield return null;
+                        SetThrottle(0.6f);
+                    }
+                    else while (!WarpBubble.Active && !Timeout(30f)) yield return null;
+                    break;
             }
             Ready = true;
             Log("end quickstart ready " + scenario);
@@ -356,6 +368,150 @@ namespace Voidward.Dev
                 return $"core {s.Core} nav {s.Nav} cool {s.Cooling} tank {s.Tank} | exotic {d.Exotic.Value:0}/{d.Capacity} | " +
                        $"next {DriveMath.Eta(d.EtaTo(g + 1))} ({WarpDrive.FuelTo(g + 1)}) skip {DriveMath.Eta(d.EtaTo(g + 2))} ({WarpDrive.FuelTo(g + 2)}) " +
                        $"home {DriveMath.Eta(d.EtaTo(DriveMath.Home))} | factor {s.Factor:0.00}";
+            }
+        }
+
+        // ------------------------------------------------------------------ warp flight (#79)
+
+        public static WarpFlight Flight => WarpFlight.Instance;
+
+        /// <summary>
+        /// Server: start a flown galaxy warp now (target = RunManager.WarpNextGalaxy / WarpSkipGalaxy), skipping the
+        /// countdown; loads the Exotic Matter it needs. Logs "[Dev] end warp &lt;WarpInfo&gt;".
+        /// </summary>
+        public static void StartWarp(int target = RunManager.WarpNextGalaxy)
+        {
+            Log("begin warp");
+            if (!IsServer || Run == null || Flight == null) { Log("end warp FAILED: needs the host in a run"); return; }
+            int stop = Run.StopOf(target);
+            var d = WarpDrive.Instance;
+            if (stop < 0 || d == null) { Log("end warp FAILED: not a galaxy target"); return; }
+            if (!d.TankCanHold(stop)) d.ServerSetTiers(d.TierOf(DriveSlot.Core), d.TierOf(DriveSlot.Navigation), d.TierOf(DriveSlot.Cooling), DriveComponentDef.MaxTier);
+            if (!d.HasFuelFor(stop)) d.Exotic.Value = Mathf.Min(d.Capacity, WarpDrive.FuelTo(stop));
+            Run.ServerWarp(target);
+            DevRunner.Get().Run(WarpCo());
+        }
+
+        static IEnumerator WarpCo()
+        {
+            yield return null;
+            yield return null;
+            Log("end warp " + WarpInfo);
+        }
+
+        /// <summary>Server: jump the bubble to the start of the next zone of this kind (+50 m).</summary>
+        public static void WarpSegment(WarpZone zone)
+        {
+            var f = Flight;
+            var r = f != null ? f.Route : null;
+            if (!IsServer || r == null) { Log("WarpSegment FAILED: no warp flight"); return; }
+            float s = r.NextZone(zone, f.Progress.Value);
+            if (s < 0f) { Log("WarpSegment FAILED: no " + zone + " ahead"); return; }
+            f.ServerSetProgress(s + 50f);
+            Log("warp segment " + WarpInfo);
+        }
+
+        /// <summary>Server: jump the bubble so the next obstacle of this kind is `ahead` metres in front of it.</summary>
+        public static void WarpAhead(WarpHazard kind, float ahead = 500f)
+        {
+            var f = Flight;
+            var r = f != null ? f.Route : null;
+            if (!IsServer || r == null) { Log("WarpAhead FAILED: no warp flight"); return; }
+            var list = new List<WarpObstacle>();
+            float from = f.Progress.Value + ahead + 1f;
+            for (int c = WarpRoute.ChunkOf(from); c * WarpRoute.ChunkLength < r.Length; c++)
+            {
+                foreach (var o in r.Chunk(c))
+                {
+                    if (o.Kind != kind || o.S < from || f.IsDestroyed(o.Id)) continue;
+                    f.ServerSetProgress(o.S - ahead);
+                    Log($"warp ahead {kind} id {o.Id} r {o.Radius:0} lat {o.Lat} | " + WarpInfo);
+                    return;
+                }
+            }
+            Log("WarpAhead FAILED: no " + kind + " ahead");
+        }
+
+        /// <summary>Server: jump the bubble next to the next signal (in drop-out range).</summary>
+        public static void WarpSignalAhead(float ahead = 600f)
+        {
+            var f = Flight;
+            var r = f != null ? f.Route : null;
+            if (!IsServer || r == null) { Log("WarpSignalAhead FAILED: no warp flight"); return; }
+            foreach (var s in r.Signals)
+            {
+                if (s.S < f.Progress.Value + ahead) continue;
+                f.ServerSetProgress(s.S - ahead);
+                Log($"warp signal {s.Label} id {s.Id} | " + WarpInfo);
+                return;
+            }
+            Log("WarpSignalAhead FAILED: no signal ahead");
+        }
+
+        /// <summary>Server: jump the bubble to a fraction of the route (0..1).</summary>
+        public static void WarpProgress(float fraction)
+        {
+            var f = Flight;
+            if (!IsServer || f == null || !f.Active.Value) { Log("WarpProgress FAILED: no warp flight"); return; }
+            f.ServerSetProgress(f.Length.Value * Mathf.Clamp01(fraction));
+            Log("warp progress " + WarpInfo);
+        }
+
+        /// <summary>Server: warp throttle 0..1, held by the cruise control (so it stays without pilot input).</summary>
+        public static void SetThrottle(float throttle, bool cruise = true)
+        {
+            var f = Flight;
+            if (!IsServer || f == null || !f.Active.Value) { Log("SetThrottle FAILED: no warp flight"); return; }
+            f.ServerSetThrottle(throttle, cruise);
+        }
+
+        /// <summary>Server: move the lead ship sideways to (y, z) in the corridor (it keeps that lane without pilot input).</summary>
+        public static void WarpLeadTo(float y, float z)
+        {
+            var f = Flight;
+            if (!IsServer || f == null || !f.Active.Value) { Log("WarpLeadTo FAILED: no warp flight"); return; }
+            foreach (var s in ShipCore.All)
+                if (s != null && s.NetworkObjectId == f.Lead.Value)
+                    s.GetComponent<NetTeleport>().ServerTeleport(new Vector3(0f, y, z), Quaternion.LookRotation(WarpBubble.Axis));
+        }
+
+        /// <summary>Server: drop out at the signal in range, or start the resume countdown (as the lead pilot's [G] key).</summary>
+        public static void WarpDropOut()
+        {
+            if (!IsServer || Flight == null || !Flight.Active.Value) { Log("WarpDropOut FAILED: no warp flight"); return; }
+            Flight.ServerDevDropOut();
+            Log("warp dropout " + WarpInfo);
+        }
+
+        /// <summary>Server: jump the bubble just before the next interceptor patrol (it spawns ~1.2 km ahead once the bubble moves).</summary>
+        public static void WarpPatrolAhead()
+        {
+            var f = Flight;
+            var r = f != null ? f.Route : null;
+            if (!IsServer || r == null) { Log("WarpPatrolAhead FAILED: no warp flight"); return; }
+            for (int c = WarpRoute.ChunkOf(f.Progress.Value + 1300f) + 1; c * WarpRoute.ChunkLength < r.Length; c++)
+            {
+                if (!r.PatrolIn(c, out _, out int galaxy)) continue;
+                f.ServerSetProgress(c * WarpRoute.ChunkLength - 1250f);
+                Log($"warp patrol chunk {c} galaxy {galaxy} | " + WarpInfo);
+                return;
+            }
+            Log("WarpPatrolAhead FAILED: no patrol ahead");
+        }
+
+        /// <summary>"1 -> 2 | 34.2/225.0 km 15% GALAXY HALO | throttle 0.60 heat 0.12 cruise True stall False hot False | lead 12 hazard -1 | out False | exotic 7.2 | scan 655".</summary>
+        public static string WarpInfo
+        {
+            get
+            {
+                var f = Flight;
+                if (f == null || !f.Active.Value) return "no warp";
+                var r = f.Route;
+                var zone = r.ZoneAt(f.LocalProgress, out _);
+                var d = WarpDrive.Instance;
+                return $"{f.From.Value} -> {f.To.Value} | {f.LocalProgress / 1000f:0.0}/{f.Length.Value / 1000f:0.0} km {f.Progress01 * 100f:0}% {WarpRoute.ZoneLabel(zone)} | " +
+                       $"throttle {f.Throttle.Value:0.00} heat {f.Heat.Value:0.00} cruise {f.Cruise.Value} stall {f.Stalled.Value} hot {f.Overheated.Value} | " +
+                       $"lead {f.Lead.Value} hazard {f.Hazard.Value} | out {f.DroppedOut.Value} | exotic {(d != null ? d.Exotic.Value : 0f):0.0} | scan {f.ScanRange:0} | destroyed {f.Destroyed.Count}";
             }
         }
 

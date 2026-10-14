@@ -26,6 +26,7 @@ namespace Voidward.Ship
             Vector3 v = (transform.position - lastPos) / Mathf.Max(Time.deltaTime, 0.0001f);
             lastPos = transform.position;
             float fwd = Mathf.Clamp01(Vector3.Dot(v, transform.forward) / 60f);
+            if (WarpBubble.Flying) fwd = Mathf.Max(fwd, WarpBubble.Throttle * 1.2f); // the bubble barely moves in world space (#79)
             bool active = ship.IsSpawned && !ship.Derelict.Value && (PilotOccupied() || fwd > 0.05f);
             smoothed = Mathf.Lerp(smoothed, active ? 0.35f + fwd : 0f, 6f * Time.deltaTime);
             for (int i = 0; i < Thrusters.Length; i++)

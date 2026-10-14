@@ -365,9 +365,23 @@ namespace Voidward.World
         void LateUpdate()
         {
             var cam = Camera.main;
-            bool show = cam != null && GameState.Phase == GamePhase.Playing && builtSeed != int.MinValue;
-            PlaceSky(milkyWay, MilkyWayDir, milkyWayDeg, show, cam);
-            PlaceSky(destination, DestinationDir, destinationDeg, show, cam);
+            var flight = WarpFlight.Instance;
+            bool warp = WarpBubble.Active && flight != null;
+            bool show = cam != null && GameState.Phase == GamePhase.Playing && (builtSeed != int.MinValue || warp);
+            if (!warp)
+            {
+                PlaceSky(milkyWay, MilkyWayDir, milkyWayDeg, show, cam);
+                PlaceSky(destination, DestinationDir, destinationDeg, show, cam);
+                return;
+            }
+            // Warp flight (#79): the destination swings in ahead of the bubble and grows as the crew closes in
+            // (from the LMC the destination is the Milky Way itself).
+            float t = flight.Progress01;
+            float swing = Mathf.SmoothStep(0f, 0.9f, Mathf.Clamp01(t * 4f));
+            Vector3 ahead = (WarpBubble.Axis + Vector3.up * 0.12f).normalized;
+            bool home = flight.To.Value > GalaxyDef.Count;
+            PlaceSky(milkyWay, home ? Vector3.Slerp(MilkyWayDir, ahead, swing) : MilkyWayDir, home ? Mathf.Lerp(milkyWayDeg, 120f, t * t) : milkyWayDeg, show, cam);
+            PlaceSky(destination, Vector3.Slerp(DestinationDir, ahead, swing), Mathf.Lerp(destinationDeg, 75f, t * t), show && !home, cam);
         }
 
         static void PlaceSky(Transform t, Vector3 dir, float deg, bool show, Camera cam)

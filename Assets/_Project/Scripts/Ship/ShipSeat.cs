@@ -182,6 +182,15 @@ namespace Voidward.Ship
         void TickPilot(bool input)
         {
             if (flight == null || Ship == null) return;
+            if (WarpBubble.Active && Ship.NetworkObjectId == WarpBubble.LeadShip)
+            {
+                // Lead pilot of the warp bubble (#79): W/S = warp throttle, X = cut, C = cruise control, G = drop out / resume.
+                WarpBubble.PilotThrottleAxis = input ? VwInput.Move.ReadValue<Vector2>().y : 0f;
+                WarpBubble.PilotBrake = input && VwInput.Held(VwInput.Brake);
+                if (input && VwInput.Pressed(VwInput.Cruise)) WarpBubble.PilotCruiseToggle = true;
+                if (input && VwInput.Pressed(VwInput.DropOut)) WarpBubble.PilotDropOut = true;
+                WarpBubble.PilotInputTime = Time.unscaledTime;
+            }
             if (!input) { pilotLook = Vector2.zero; AimAssist.Clear(); flight.SetPilotInput(Vector3.zero, Vector3.zero, false, false); return; }
             Vector2 mv = VwInput.Move.ReadValue<Vector2>();
             float vert = VwInput.Vertical.ReadValue<float>();

@@ -14,8 +14,8 @@ Two endings only: **Homecoming** or **death** (= the loop resets). Target run le
 
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
-> galaxy map, suspend save) and the crew warp drive with Home ETA (#78) are playable; still to come are the flown
-> warp (#79-#81, parts of #73), prologue/loop/homecoming
+> galaxy map, suspend save), the crew warp drive with Home ETA (#78) and the flown warp between galaxies (#79) are
+> playable; still to come are system cruise and in-galaxy warp (#80), the home-flight finale (#81), prologue/loop/homecoming
 > (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
@@ -125,10 +125,23 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
   compass, cockpit NAV, galaxy map) shows the real flight time home and drops with every better part; each
   backpack part shows its ETA change. Warden enclaves guard the best core of their galaxy; crates, wrecks,
   anomalies, crystal veins, alien nests and Nomad traders give Exotic Matter, nav/cooling/tank parts.
-* **Warping (placeholder until the flown warp of #79/#80):** the pilot sets a course on the galaxy map, after
-  a 5 s countdown the whole crew warps. Systems of a galaxy can be revisited (their crates stay looted).
-  The warp to the next galaxy is one-way and burns Exotic Matter; **skipping a galaxy** costs much more
-  (and needs a bigger tank). There are no mandatory objectives.
+* **Warping:** the pilot sets a course on the galaxy map, after a 5 s countdown the whole crew warps. Warps to
+  another system of the galaxy are still instant (#80). Systems can be revisited (their crates stay looted).
+* **Warp flight between galaxies (#79):** the warp to the next galaxy is one-way, burns Exotic Matter along the
+  route and is **flown** (~10 min with the core found in that galaxy). The pilot who set the course leads the
+  **warp bubble**: W/S = warp throttle, X = cut, the nose steers the bubble sideways; every other ship holds its
+  slot in the bubble and its crew shoots rocks and interceptors. The route: the departure galaxy's **halo**
+  (asteroid fields, debris clouds, comets, interceptor patrols) - the **deep void** (full throttle; rare
+  space-time **rifts** with one gap to fly through, **gravity anomalies** that pull you in and slingshot you on
+  a close pass, lone giant rocks) - the **arrival halo** with a welcome party. Obstacles appear at the edge of the
+  **nav computer's** scanner range (better nav = see further = fly faster safely). A collision at speed hurts
+  (shield, then hull) and forces an **emergency stop**; small rocks and debris can be shot apart. Above the
+  **cooling's** sustainable throttle the drive heats up; overheating means an emergency stop until it cools
+  (faster with someone at an engineer station). **[C] cruise control** holds the throttle in free space and
+  switches off at the next obstacle warning. **Signals** (wreck, Exotic gas cloud, rogue planet) show up on the
+  scanner edge: **[G]** drops out of warp next to one (loot it, then [G] again resumes after 5 s). **Skipping a
+  galaxy** is a much longer flight through both halos of the galaxy in between and costs much more fuel.
+  Drive parts can't be swapped during a warp. There are no mandatory objectives.
 * **Warden enclave:** fly to the far end of the enclave system to wake its Warden: destroy its three
   glowing core pods (weak points) to drop its shield, then the hull. It drops a hoard of top-tier crates.
 * **Oxygen** drains outside ships and outside breathable atmospheres (Ice and Crystal worlds are
@@ -158,7 +171,9 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
 | Look / steer | Mouse | Mouse (pitch/yaw) |
 | Roll | Q / E (zero-g) | Q / E |
 | Sprint / boost | Shift | Shift |
-| Brake | X (EVA) | X |
+| Brake | X (EVA) | X (in a warp: cut the warp throttle) |
+| Warp throttle (lead pilot, #79) | – | W / S |
+| Warp cruise control / drop out at a signal | – | C / G |
 | Fire / alt-fire | LMB / RMB | weapon 1 / weapon 2 |
 | Interact / enter-exit seat | F | F (leave seat) |
 | Tools | 1 Drill · 2 Blaster · 3 Rifle · 4 Medkit | – |

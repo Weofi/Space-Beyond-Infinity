@@ -232,7 +232,7 @@ namespace Voidward.Player
                     cameraPoint.SetPositionAndRotation(CurrentSeat.ViewPoint.position, CurrentSeat.ViewPoint.rotation);
             }
             if (IsOwner && cameraPoint != null) { ApplyShake(); ApplyRecoil(); ApplyHitStop(); }
-            float fov = GameState.FieldOfView + GameState.FovPunch;
+            float fov = GameState.FieldOfView + GameState.FovPunch + WarpBubble.FovBoost;
             if (IsOwner && vcam != null && Mathf.Abs(vcam.Lens.FieldOfView - fov) > 0.05f)
             {
                 var lens = vcam.Lens;
