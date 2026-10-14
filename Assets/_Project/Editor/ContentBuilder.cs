@@ -197,6 +197,7 @@ namespace Voidward.EditorTools
             catalog.Recipes = recipes.ToArray();
             catalog.Ships = ships;
             catalog.WarpDrive = BuildWarpDrive();
+            catalog.Story = BuildStory();
             catalog.LootTables = new[] { loot["loot_t1"], loot["loot_t2"], loot["loot_t3"], loot["loot_pirate"], loot["loot_drone"], loot["loot_alien"], loot["loot_guardian"], loot["loot_gunship"] };
             catalog.ToonMaterial = MatToon;
             catalog.TerrainMaterial = MatTerrain;
@@ -398,6 +399,45 @@ namespace Voidward.EditorTools
             d.CruiseSpeed = new[] { 1000f, 1400f, 1800f, 2200f, 2600f, 3000f };
             d.HopMinutes = 1.5f;
             d.HopSpeedExponent = 0.35f;
+            EditorUtility.SetDirty(d);
+            return d;
+        }
+
+        /// <summary>Story texts of the time loop (#86): deja-vu radio, echoes from earlier loops, crew logbook, reset banners.</summary>
+        static StoryDef BuildStory()
+        {
+            var d = Asset<StoryDef>($"{DataDir}/Story.asset");
+            StoryDef.RadioLine R(string who, string text) => new StoryDef.RadioLine { Speaker = who, Text = text };
+            StoryDef.Echo E(int galaxy, int minLoop, string who, string text) => new StoryDef.Echo { Galaxy = galaxy, MinLoop = minLoop, Speaker = who, Text = text };
+            d.DejaVu = new[]
+            {
+                R("VEGA", "Wormhole exit... again? We were here. I remember this light."),
+                R("LYRA", "Same stars, same silence. Third time? Fourth? Logbook says we keep coming back."),
+                R("ALTAIR", "Again. Fine. We know the way now - let's make it count this time."),
+                R("DENEB", "The loop holds us, but it can't take what we remember. Go."),
+            };
+            d.Echoes = new[]
+            {
+                E(1, 2, "ECHO // VEGA", "If you hear this: the derelict Ark is worth claiming. Don't leave M33 without it."),
+                E(1, 3, "ECHO // LYRA", "Exotic Matter first, sightseeing later. The tank decides how far we get."),
+                E(2, 2, "ECHO // ALTAIR", "Andromeda's Wardens keep a Mk III core. Clear the enclave before you warp on."),
+                E(2, 4, "ECHO // VEGA", "Swarms everywhere here. Stay in the ship until the guns are better."),
+                E(3, 2, "ECHO // DENEB", "Nebulae blind the nav. Throttle down in the fields - a hull breach costs more time."),
+                E(4, 2, "ECHO // LYRA", "Leo I is dark. Something hunts between the stars. Keep the shields up."),
+                E(5, 2, "ECHO // ALTAIR", "The last enclave holds the Home Drive. Without it the flight home takes forever."),
+                E(DriveMath.Home, 2, "ECHO // VEGA", "The Rift wakes near the end. Don't drop out, don't slow down. Just fly."),
+            };
+            d.LogLoopStart = "Loop {loop}. Woke at the wormhole exit in {galaxy}. Home ETA {eta}.";
+            d.LogGalaxy = "Reached {galaxy}. Home ETA {eta}.";
+            d.LogWarden = "Wardens of {galaxy} defeated.";
+            d.LogDrive = "Installed {part}. Home ETA {eta}.";
+            d.LogShipLost = "Lost the {ship}.";
+            d.LogFlightHome = "Left {galaxy} for home. The Rift is waking.";
+            d.LogCrewLost = "The whole crew was lost in {galaxy}.";
+            d.LogRiftCaught = "The Rift caught us on the flight home.";
+            d.LogHomecoming = "Home. Sol is outside the window.";
+            d.ResetCrewLost = "Crew lost";
+            d.ResetRiftCaught = "Caught by the Rift";
             EditorUtility.SetDirty(d);
             return d;
         }

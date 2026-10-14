@@ -155,6 +155,8 @@ namespace Voidward.World
             }
             float after = EtaTo(DriveMath.Home);
             FeedbackRpc($"Installed {item.DisplayName}\nHome ETA {DriveMath.Eta(after)} ({DriveMath.Delta(after - before)})", "craft", RpcTarget.Everyone);
+            var story = ContentCatalog.Instance != null ? ContentCatalog.Instance.Story : null;
+            if (RunManager.Instance != null && story != null && item.Drive.Tier > old) RunManager.Instance.ServerLog(story.LogDrive, null, item.DisplayName);
         }
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]

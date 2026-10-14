@@ -16,6 +16,7 @@ namespace Voidward.Core
         public static event Action<int> WarpCompleted;        // 1-based galaxy after the warp
         public static event Action BossSpawned;
         public static event Action BossDefeated;
+        public static event Action<string> LogbookEntry;      // crew logbook entry of the loop (#86), already formatted
 
         // ---- Local player ----
         public static event Action<GameObject> LocalPawnSpawned;   // the local player's pawn GameObject
@@ -44,6 +45,7 @@ namespace Voidward.Core
         public static void RaiseWarpCompleted(int galaxy) => WarpCompleted?.Invoke(galaxy);
         public static void RaiseBossSpawned() => BossSpawned?.Invoke();
         public static void RaiseBossDefeated() => BossDefeated?.Invoke();
+        public static void RaiseLogbookEntry(string text) => LogbookEntry?.Invoke(text);
         public static void RaiseLocalPawnSpawned(GameObject go) => LocalPawnSpawned?.Invoke(go);
         public static void RaiseLocalPawnDespawned() => LocalPawnDespawned?.Invoke();
         public static void RaiseLocalPlayerBoardedShip() => LocalPlayerBoardedShip?.Invoke();
