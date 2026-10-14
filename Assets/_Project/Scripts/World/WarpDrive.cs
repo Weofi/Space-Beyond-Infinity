@@ -134,6 +134,7 @@ namespace Voidward.World
             var inv = NetInventory.ForClient(c);
             if (inv == null || invSlot < 0 || invSlot >= inv.Slots.Count) return;
             if (!AtShip(c, inv)) { FeedbackRpc("Get to a ship to work on the warp drive", "ui_back", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
+            if (WarpFlight.Instance != null && WarpFlight.Instance.Active.Value) { FeedbackRpc("Drive parts can't be swapped during a warp", "ui_back", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
             var item = inv.Slots[invSlot].Def;
             if (item == null || item.Kind != ItemKind.DriveComponent || item.Drive == null) return;
             if (!inv.Remove(item.Id, 1)) return;

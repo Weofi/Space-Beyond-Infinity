@@ -82,6 +82,8 @@ namespace Voidward.Ship
             bool piloted = inputAge < 0.25f;
             var s = core.Stats;
 
+            if (WarpBubble.Flying) { WarpStep(piloted && !core.Derelict.Value, s, dt); return; }
+
             Vector3 g = GravitySource.GravityAtPoint(rb.position);
             rb.AddForce(g, ForceMode.Acceleration);
 
@@ -145,6 +147,101 @@ namespace Voidward.Ship
             Vfx.Explosion(point, Mathf.Clamp(dmg * 0.08f, 1.5f, 6f), new Color(1f, 0.7f, 0.4f));
             Sfx.Play(dmg > 30f ? "explosion_big" : "explosion", point, 1f, Random.Range(0.85f, 1.05f));
             if (inputAge < 0.25f) Vfx.Shake(Mathf.Clamp(dmg / 50f, 0.25f, 1f)); // only the pilot feels it here
+        }
+
+        // ------------------------------------------------------------ warp bubble (#79)
+
+        /// <summary>The nose of the lead ship stays within this cone around the direction of travel.</summary>
+        const float WarpNoseDeg = 35f;
+
+        /// <summary>This peer simulates the ship (its pilot's client, or the server while unpiloted).</summary>
+        public bool IsSimulating => IsSpawned && rb != null && !rb.isKinematic;
+
+        float radius = -1f;
+        /// <summary>Rough hull radius for corridor impacts (from the solid colliders).</summary>
+        public float Radius
+        {
+            get
+            {
+                if (radius > 0f) return radius;
+                var b = new Bounds(transform.position, Vector3.zero);
+                foreach (var c in GetComponentsInChildren<Collider>())
+                    if (!c.isTrigger && c.enabled) b.Encapsulate(c.bounds);
+                radius = Mathf.Clamp(b.extents.magnitude * 0.55f, 3f, 40f);
+                return radius;
+            }
+        }
+
+        ShipCore warpLead;
+
+        /// <summary>
+        /// Flight inside the warp bubble: the corridor flows past, so the ship holds x near 0 and only moves sideways.
+        /// The lead ship's pilot steers with the nose (and strafes); every other ship holds its formation slot behind
+        /// the lead, its pilot can still turn it to aim. Throttle is the bubble's, not the engines'.
+        /// </summary>
+        void WarpStep(bool piloted, ShipStats s, float dt)
+        {
+            core.ReportThrottle(0f);
+            Vector3 axis = WarpBubble.Axis;
+            Vector3 pos = rb.position;
+            bool lead = core.NetworkObjectId == WarpBubble.LeadShip;
+
+            if (piloted)
+            {
+                Vector3 targetLocalAng = new Vector3(angularIn.x * s.Turn, angularIn.y * s.Turn, -angularIn.z * s.Roll) * Mathf.Deg2Rad;
+                Vector3 curLocal = transform.InverseTransformDirection(rb.angularVelocity);
+                rb.angularVelocity = transform.TransformDirection(Vector3.Lerp(curLocal, targetLocalAng, 1f - Mathf.Exp(-8f * dt)));
+            }
+            else rb.angularVelocity *= 1f - Mathf.Clamp01(3f * dt);
+
+            Vector3 target;
+            if (lead)
+            {
+                float lateralSpeed = Mathf.Max(60f, s.MaxSpeed * 1.35f);
+                Vector3 v = Vector3.zero;
+                if (piloted)
+                {
+                    Vector3 nose = Vector3.ProjectOnPlane(transform.forward, axis) / Mathf.Sin(WarpNoseDeg * Mathf.Deg2Rad);
+                    Vector3 strafe = Vector3.ProjectOnPlane(transform.right * linearIn.x + transform.up * linearIn.y, axis);
+                    v = Vector3.ClampMagnitude(nose + strafe, 1f) * lateralSpeed;
+                }
+                if (WarpBubble.Pull != null) v += WarpBubble.Pull(pos);
+                // Soft corridor walls.
+                Vector3 lat = Vector3.ProjectOnPlane(pos, axis);
+                float over = lat.magnitude - WarpBubble.HalfWidth;
+                if (over > 0f) v -= lat.normalized * over * 3f;
+                v -= axis * Vector3.Dot(pos, axis) * 1.5f;
+                target = v;
+            }
+            else
+            {
+                if (warpLead == null || !warpLead.IsSpawned || warpLead.NetworkObjectId != WarpBubble.LeadShip) warpLead = FindLead();
+                Vector3 anchor = warpLead != null ? warpLead.transform.position : Vector3.zero;
+                Vector3 goal = anchor + WarpBubble.FormationOffset(FormationSlot(), core.Class == ShipClass.Ark);
+                target = Vector3.ClampMagnitude((goal - pos) * 2.5f, 260f);
+            }
+            rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, target, 1f - Mathf.Exp(-5f * dt));
+
+            // Nose: the lead stays within its cone; unpiloted ships turn back to the direction of travel.
+            float ang = Vector3.Angle(transform.forward, axis);
+            if (!piloted) rb.MoveRotation(Quaternion.Slerp(rb.rotation, Quaternion.LookRotation(axis, Vector3.ProjectOnPlane(transform.up, axis).normalized + Vector3.up * 0.01f), 1.5f * dt));
+            else if (lead && ang > WarpNoseDeg)
+                rb.MoveRotation(Quaternion.RotateTowards(rb.rotation, Quaternion.LookRotation(axis, transform.up), ang - WarpNoseDeg));
+        }
+
+        ShipCore FindLead()
+        {
+            foreach (var o in ShipCore.All) if (o != null && o.IsSpawned && o.NetworkObjectId == WarpBubble.LeadShip) return o;
+            return null;
+        }
+
+        /// <summary>Formation slot 1.. (ships other than the lead, ordered by network id, as WarpFlight places them).</summary>
+        int FormationSlot()
+        {
+            int slot = 1;
+            foreach (var o in ShipCore.All)
+                if (o != null && o != core && o.NetworkObjectId != WarpBubble.LeadShip && o.NetworkObjectId < core.NetworkObjectId) slot++;
+            return slot;
         }
 
         void LevelTo(Vector3 up, float strength, float dt)

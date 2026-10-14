@@ -34,6 +34,8 @@ namespace Voidward.Core
         public static InputAction Map { get; private set; }         // M: galaxy map
         public static InputAction Roll { get; private set; }        // 1D axis Q/E (ships)
         public static InputAction Brake { get; private set; }       // X (ships)
+        public static InputAction Cruise { get; private set; }      // C: warp cruise control (#79)
+        public static InputAction DropOut { get; private set; }     // G: drop out of warp at a signal / resume (#79)
         public static InputAction Flashlight { get; private set; }  // L: helmet lamp
         public static InputAction Vertical { get; private set; }    // 1D axis Space(+)/LeftCtrl(-): jetpack / ship thrust
         public static readonly InputAction[] Hotbar = new InputAction[5]; // digits 1-5
@@ -104,6 +106,8 @@ namespace Voidward.Core
             Map = Button(gameplay, "Map", "<Keyboard>/m", "<Gamepad>/select");
             Brake = Button(gameplay, "Brake", "<Keyboard>/x", "<Gamepad>/buttonEast");
             Flashlight = Button(gameplay, "Flashlight", "<Keyboard>/l", "<Gamepad>/dpad/up");
+            Cruise = Button(gameplay, "Cruise", "<Keyboard>/c", "<Gamepad>/dpad/right");
+            DropOut = Button(gameplay, "DropOut", "<Keyboard>/g", "<Gamepad>/dpad/left");
 
             Roll = gameplay.AddAction("Roll", InputActionType.Value);
             Roll.AddCompositeBinding("1DAxis")
@@ -203,7 +207,7 @@ namespace Voidward.Core
         public static (string label, InputAction action)[] Rebindable => new[]
         {
             ("Interact", Interact), ("Jump / Jetpack", Jump), ("Sprint / Boost", Sprint), ("Inventory", Inventory), ("Galaxy Map", Map),
-            ("Ping", Ping), ("Brake", Brake), ("Flashlight", Flashlight), ("Fire", Fire), ("Alt Fire", AltFire)
+            ("Ping", Ping), ("Brake", Brake), ("Warp Cruise", Cruise), ("Warp Drop Out", DropOut), ("Flashlight", Flashlight), ("Fire", Fire), ("Alt Fire", AltFire)
         };
 
         public static void SaveOverrides()

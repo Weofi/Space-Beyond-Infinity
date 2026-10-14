@@ -527,13 +527,24 @@ namespace Voidward.UI
                 UpdateMeter(rm, pawn);
                 var plan = rm.Plan;
                 var sys = rm.CurrentSystem;
-                sectorTitle.text = $"GALAXY {rm.GalaxyIndex.Value}/{GalaxyDef.Count}  -  SYSTEM {rm.SystemIndex.Value + 1}/{(plan != null ? plan.Systems.Length : 0)}";
-                sectorName.text = sys != null ? sys.Name : "";
+                var wf = WarpFlight.Instance;
+                if (wf != null && WarpBubble.Active)
+                {
+                    sectorTitle.text = $"WARP FLIGHT  -  {Mathf.RoundToInt(wf.Progress01 * 100f)}%";
+                    sectorName.text = rm.WarpLabel(wf.To.Value == rm.GalaxyIndex.Value + 1 ? RunManager.WarpNextGalaxy : RunManager.WarpSkipGalaxy);
+                }
+                else
+                {
+                    sectorTitle.text = $"GALAXY {rm.GalaxyIndex.Value}/{GalaxyDef.Count}  -  SYSTEM {rm.SystemIndex.Value + 1}/{(plan != null ? plan.Systems.Length : 0)}";
+                    sectorName.text = sys != null ? sys.Name : "";
+                }
                 respawnText.text = HudKit.Num(rm.RespawnsLeft.Value.ToString()) + " <size=70%><color=#94A3B8>RESPAWNS</color></size>";
                 bool warping = rm.WarpCountdown.Value >= 0f;
-                jumpPlate.gameObject.SetActive(warping);
+                string flightMsg = WarpMessage();
+                jumpPlate.gameObject.SetActive(warping || flightMsg != null);
                 if (warping) jumpText.text = "WARP IN " + HudKit.Num(Mathf.CeilToInt(rm.WarpCountdown.Value).ToString()) +
                     $"\n<size=40%><color=#CBD5E1>{rm.WarpLabel(rm.WarpTarget.Value).ToUpperInvariant()}</color></size>";
+                else if (flightMsg != null) jumpText.text = flightMsg;
                 UpdateObjective(pawn);
             }
             else jumpPlate.gameObject.SetActive(false);
@@ -671,6 +682,14 @@ namespace Voidward.UI
             shieldGauge.Set(sh, Mathf.CeilToInt(ship.Shield.Value).ToString());
             float fuel = s.MaxFuel > 0f ? ship.Fuel.Value / s.MaxFuel : 0f;
             fuelGauge.Set(fuel, Mathf.CeilToInt(ship.Fuel.Value).ToString(), fuel < 0.15f);
+            if (WarpBubble.Flying)
+            {
+                // In the warp bubble the bar is the warp throttle and the number the corridor speed.
+                speedFill.fillAmount = WarpBubble.Throttle;
+                speedFill.color = HudKit.Energy;
+                speedText.text = HudKit.Num(HudKit.F(WarpBubble.Speed, "0"));
+                return;
+            }
             float spd = ship.Flight != null ? ship.Flight.Speed : 0f;
             speedFill.fillAmount = s.MaxSpeed > 0f ? Mathf.Clamp01(spd / (s.MaxSpeed * 1.6f)) : 0f;
             speedFill.color = spd > s.MaxSpeed * 1.02f ? HudKit.Fuel : HudKit.TextHi;
@@ -698,6 +717,8 @@ namespace Voidward.UI
         /// <summary>Progress through the system corridor (arrival -> far end) plus galaxy and run clock.</summary>
         void UpdateMeter(RunManager rm, PlayerPawn pawn)
         {
+            var flight = WarpFlight.Instance;
+            if (flight != null && WarpBubble.Active && flight.Route != null) { UpdateWarpMeter(flight); return; }
             int key = GalaxyGenerator.GalaxySeed(rm.RunSeed.Value, rm.GalaxyIndex.Value) ^ (rm.SystemIndex.Value * 7919 + 1);
             if (key != layoutKey && rm.RunSeed.Value != 0)
             {
@@ -734,6 +755,65 @@ namespace Voidward.UI
             etaText.text = sb.ToString();
         }
 
+        // ---------------------------------------------------------------- warp flight (#79)
+
+        static string Short(int stop)
+        {
+            if (stop > GalaxyDef.Count) return "SOL";
+            var def = ContentCatalog.GetGalaxy(stop);
+            return def != null ? def.Designation.ToUpperInvariant() : "?";
+        }
+
+        /// <summary>System meter = route progress; the line below: throttle, heat, ETA, Exotic Matter, cruise, signal.</summary>
+        void UpdateWarpMeter(WarpFlight f)
+        {
+            var r = f.Route;
+            float pf = f.Progress01;
+            meterFill.fillAmount = pf;
+            float w = meterTrack.rect.width;
+            pipPlayer.anchoredPosition = new Vector2(pf * w, 13f);
+            pipEnd.anchoredPosition = new Vector2(w, 0f);
+            var zone = r.ZoneAt(f.LocalProgress, out _);
+            meterText.color = zone == WarpZone.Void ? HudKit.Energy : HudKit.Fuel;
+            meterText.text = $"{Short(f.From.Value)} > {Short(f.To.Value)}   {WarpRoute.ZoneLabel(zone)}";
+
+            etaTimer -= Time.deltaTime;
+            if (etaTimer > 0f) return;
+            etaTimer = 0.2f;
+            float throttle = f.Throttle.Value, heat = f.Heat.Value;
+            float secs = throttle > 0.05f ? f.SecondsLeft(throttle) : f.PlannedSecondsLeft;
+            var drive = WarpDrive.Instance;
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"THROTTLE <color=#F8FAFC>{Mathf.RoundToInt(throttle * 100f)}%</color>   ");
+            sb.Append($"HEAT <color={(heat > 0.75f ? "#EF4444" : heat > 0.5f ? "#FBBF24" : "#F8FAFC")}>{Mathf.RoundToInt(heat * 100f)}%</color>   ");
+            sb.Append($"ETA <color=#F59E0B>{DriveMath.Eta(secs / 60f)}</color>   ");
+            if (drive != null) sb.Append($"EXOTIC <color=#C4A5FF>{Mathf.FloorToInt(drive.Exotic.Value)}/{drive.Capacity}</color>   ");
+            if (f.Cruise.Value) sb.Append("<color=#2DD4BF>CRUISE</color>");
+            if (f.NextSignal(out var sig) && !f.DroppedOut.Value)
+            {
+                float ahead = sig.S - f.LocalProgress;
+                bool inRange = Mathf.Abs(ahead) < WarpFlight.DropRange;
+                sb.Append($"\n<color=#FCD34D>SIGNAL  {sig.Label.ToUpperInvariant()}  {(ahead > 0f ? HudKit.Dist(ahead) : "ALONGSIDE")}</color>");
+                if (inRange && f.LocalIsLeadPilot) sb.Append("  <color=#38BDF8>[G] DROP OUT</color>");
+            }
+            etaText.text = sb.ToString();
+        }
+
+        /// <summary>Big centre message during a warp flight, null when there is nothing to say.</summary>
+        string WarpMessage()
+        {
+            var f = WarpFlight.Instance;
+            if (f == null || !WarpBubble.Active) return null;
+            string Sub(string s) => $"\n<size=40%><color=#CBD5E1>{s}</color></size>";
+            if (f.ResumeCountdown.Value >= 0f) return "WARP IN " + HudKit.Num(Mathf.CeilToInt(f.ResumeCountdown.Value).ToString()) + Sub("EVERYONE BACK TO THE SHIPS");
+            if (f.DroppedOut.Value) return "<size=70%>OUT OF WARP</size>" + Sub(f.LocalIsLeadPilot ? "[G] RESUME THE WARP" : "THE LEAD PILOT RESUMES THE WARP");
+            if (f.Overheated.Value) return "<size=70%><color=#EF4444>OVERHEAT</color></size>" + Sub($"COOLING DOWN  {Mathf.RoundToInt(f.Heat.Value * 100f)}%");
+            if (f.Stalled.Value) return "<size=70%><color=#EF4444>EMERGENCY STOP</color></size>" + Sub("DRIVE RESTARTING");
+            if (f.Hazard.Value >= 0 && f.Throttle.Value > 0.05f && Mathf.Repeat(Time.time, 0.5f) < 0.32f)
+                return "<size=55%><color=#FBBF24>OBSTACLE AHEAD</color></size>";
+            return null;
+        }
+
         /// <summary>Run clock text h:mm:ss (or m:ss in the first hour).</summary>
         public static string Clock(float seconds)
         {
@@ -749,7 +829,17 @@ namespace Voidward.UI
             var sys = rm != null ? rm.CurrentSystem : null;
             string text, header = "EXPEDITION";
             string map = $"<size=80%><color=#94A3B8>{Key("M")} galaxy map - warp on when the crew is ready</color></size>";
-            if (BossBrain.Instance != null)
+            var flight = WarpFlight.Instance;
+            bool lead = flight != null && WarpBubble.Active && flight.LocalIsLeadPilot;
+            if (flight != null && WarpBubble.Active)
+            {
+                header = "WARP FLIGHT";
+                text = flight.DroppedOut.Value ? "Out of warp at a signal - loot it, then back to the ships"
+                    : lead ? "You lead the bubble: throttle down in fields, steer through the gaps"
+                    : "Shoot rocks and interceptors - the lead pilot flies the bubble";
+                text += $"\n<size=80%><color=#94A3B8>Fields: slow down. Void: full throttle, watch the heat</color></size>";
+            }
+            else if (BossBrain.Instance != null)
             {
                 header = "WARDEN";
                 text = BossBrain.Instance.Phase.Value == 1 ? "Destroy the Warden's 3 core pods" : "Destroy the Warden";
@@ -763,7 +853,8 @@ namespace Voidward.UI
             objHeader.text = header;
             objText.text = text;
             bool pilot = pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Role == StationRole.Pilot;
-            string hint = pilot ? Key("LMB") + " " + Key("RMB") + " FIRE    " + Key("SHIFT") + " BOOST    " + Key("X") + " BRAKE    " + Key("F") + " LEAVE" : "";
+            string hint = lead ? Key("W") + Key("S") + " THROTTLE    " + Key("X") + " CUT    " + Key("C") + " CRUISE    " + Key("G") + " DROP OUT    " + Key("LMB") + " FIRE"
+                : pilot ? Key("LMB") + " " + Key("RMB") + " FIRE    " + Key("SHIFT") + " BOOST    " + Key("X") + " BRAKE    " + Key("F") + " LEAVE" : "";
             objHint.text = hint;
             objHint.gameObject.SetActive(hint.Length > 0);
         }

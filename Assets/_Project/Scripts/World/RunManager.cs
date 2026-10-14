@@ -57,6 +57,8 @@ namespace Voidward.World
         float autoStartTimer = 3f;
         int clearedEnclaves;
         ShipCore ark;
+        /// <summary>Ship of the pilot who set the galaxy warp course: it leads the warp bubble (#79).</summary>
+        ShipCore warpLead;
 
         // ---- client state ----
         SystemVisuals visuals;
@@ -170,10 +172,12 @@ namespace Voidward.World
         void UpdateShownSystem()
         {
             bool playing = Phase.Value == GamePhase.Playing && RunSeed.Value != 0;
-            int key = playing ? GalaxyGenerator.GalaxySeed(RunSeed.Value, GalaxyIndex.Value) ^ (SystemIndex.Value * 7919 + 1) : int.MinValue;
+            bool warping = playing && WarpFlight.Instance != null && WarpFlight.Instance.Active.Value;
+            int key = !playing ? int.MinValue : warping ? int.MinValue + 1 : GalaxyGenerator.GalaxySeed(RunSeed.Value, GalaxyIndex.Value) ^ (SystemIndex.Value * 7919 + 1);
             if (key == shownKey) return;
             shownKey = key;
             if (!playing) { if (visuals != null) visuals.Clear(); Sfx.Music(0); return; }
+            if (warping) { if (visuals != null) visuals.Clear(); Debug.Log("[Run] Warp flight"); return; } // the corridor is WarpCorridorView's
             GameState.GalaxyIndex = GalaxyIndex.Value;
             GameState.SystemIndex = SystemIndex.Value;
             if (visuals != null)
@@ -251,7 +255,7 @@ namespace Voidward.World
             TickPlayers(dt);
             TickHazards(dt);
             TickWarp(dt);
-            director.Tick(dt);
+            if (WarpFlight.Instance == null || !WarpFlight.Instance.Active.Value) director.Tick(dt);
             CheckRunOver();
         }
 
@@ -332,6 +336,8 @@ namespace Voidward.World
         void ResetRunState(int seed, int respawns, float runTime)
         {
             stats = new RunSummary();
+            if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
+            warpLead = null;
             distanceDone = 0f;
             clearedEnclaves = 0;
             RespawnsLeft.Value = respawns;
@@ -353,6 +359,7 @@ namespace Voidward.World
         public void ServerReturnToLobby()
         {
             if (!IsServer) return;
+            if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
             director.Clear();
             ClearShips();
             foreach (var p in PlayerPawn.All) if (p != null) { p.SetActiveServer(false); p.Inventory.ClearAll(); p.Inventory.Credits.Value = 0; }
@@ -371,6 +378,7 @@ namespace Voidward.World
         void EndRun(bool victory, string reason)
         {
             if (Phase.Value != GamePhase.Playing) return;
+            if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
             stats.Victory = victory;
             stats.EndReason = reason;
             stats.GalaxyReached = GalaxyIndex.Value;
@@ -418,20 +426,23 @@ namespace Voidward.World
         public static string GalaxyTitle(GalaxyDef def) =>
             def == null ? "" : $"GALAXY {def.Index}/{GalaxyDef.Count} - {def.DisplayName.ToUpperInvariant()} ({def.Designation})";
 
-        // ---------------------------------------------------------------- warp (placeholder until the flown warp of #79/#80)
+        // ---------------------------------------------------------------- warp (galaxy warps are flown since #79; system warps stay instant until #80)
 
         /// <summary>
         /// A pilot sets the warp course: another system of this galaxy, or (WarpNextGalaxy / WarpSkipGalaxy) the one-way
         /// warp to the next galaxy or the one after it - from the last galaxy the next stop is home. A galaxy warp needs
-        /// the Exotic Matter for the route in the crew's warp drive (#78). Starts a short countdown, then everyone warps.
+        /// the Exotic Matter for the route in the crew's warp drive (#78). Starts a short countdown, then everyone warps: to a
+        /// system at once, to a galaxy as the flown warp of WarpFlight (#79) led by this pilot's ship.
         /// </summary>
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void RequestWarpServerRpc(int target, RpcParams rp = default)
         {
             ulong c = rp.Receive.SenderClientId;
             if (Phase.Value != GamePhase.Playing || WarpCountdown.Value >= 0f) return;
+            if (WarpFlight.Instance != null && WarpFlight.Instance.Active.Value) { ToastRpc("Already in warp", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
             var seat = ShipSeat.SeatOf(c);
             if (seat == null || seat.Role != StationRole.Pilot) { ToastRpc("Only a pilot can set the warp course", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
+            warpLead = seat.Ship;
             if (!ValidWarpTarget(target)) return;
             if (!FuelOk(target, out string why)) { ToastRpc(why, RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
             WarpTarget.Value = target;
@@ -501,16 +512,57 @@ namespace Voidward.World
             int stop = StopOf(target);
             if (stop >= 0)
             {
-                if (!FuelOk(target, out string why) || !WarpDrive.Instance.ServerConsume(WarpDrive.FuelTo(stop)))
+                var flight = WarpFlight.Instance;
+                if (flight != null && flight.Active.Value) return;
+                if (!FuelOk(target, out string why) || WarpDrive.Instance == null)
                 {
                     AnnounceClientRpc("Warp aborted - " + why, "ui_back");
                     return;
                 }
-                // Placeholder for the flown home flight and landing (#81, #74).
-                if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew made it back to the Milky Way!"); return; }
-                WarpTo(stop, 0);
+                if (flight == null)
+                {
+                    // No flight controller (should not happen): the old instant warp.
+                    WarpDrive.Instance.ServerConsume(WarpDrive.FuelTo(stop));
+                    ServerArrive(stop);
+                    return;
+                }
+                BeginWarpFlight(stop);
             }
             else WarpTo(GalaxyIndex.Value, target);
+        }
+
+        /// <summary>Server: leave the system for the flown galaxy warp (#79). The fuel burns along the route.</summary>
+        void BeginWarpFlight(int stop)
+        {
+            distanceDone += Mathf.Max(0f, maxXThisSystem - director.Layout.StartX);
+            if (ark != null && ark.IsSpawned && ark.Derelict.Value) { ark.NetworkObject.Despawn(true); ark = null; }
+            director.Clear();
+            DestroyedAsteroids.Clear();
+            asteroidDamage.Clear();
+            var lead = warpLead != null && warpLead.IsSpawned ? warpLead : null;
+            warpLead = null;
+            string label = WarpLabel(stop == GalaxyIndex.Value + 1 ? WarpNextGalaxy : WarpSkipGalaxy);
+            WarpFlight.Instance.ServerBegin(GalaxyIndex.Value, stop, lead);
+            GameState.Objective = "Warp flight";
+            WarpFlightStartedClientRpc(label);
+        }
+
+        [ClientRpc]
+        void WarpFlightStartedClientRpc(string destination)
+        {
+            Vfx.JumpFlash(Camera.main != null ? Camera.main.transform.position : Vector3.zero);
+            Sfx.PlayUI("jump_gate");
+            Vfx.Shake(0.6f);
+            EventBus.RaiseNotification($"WARP - {destination}\nLead pilot: W/S throttle, steer through the gaps, [C] cruise control, [G] drop out at signals");
+        }
+
+        /// <summary>Server: the flown warp reached its stop (WarpFlight): enter the galaxy, or the homecoming after the last one.</summary>
+        public void ServerArrive(int stop)
+        {
+            if (!IsServer || Phase.Value != GamePhase.Playing) return;
+            // Placeholder for the home flight finale and landing (#81, #74).
+            if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew made it back to the Milky Way!"); return; }
+            WarpTo(stop, 0);
         }
 
         /// <summary>Server, dev/test: warp the crew straight to any galaxy and system.</summary>
@@ -518,6 +570,7 @@ namespace Voidward.World
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
             WarpCountdown.Value = -1f;
+            if (WarpFlight.Instance != null && WarpFlight.Instance.Active.Value) WarpFlight.Instance.ServerAbort();
             WarpTo(Mathf.Clamp(galaxy, 1, GalaxyDef.Count), Mathf.Max(0, system));
         }
 
@@ -601,7 +654,8 @@ namespace Voidward.World
             if (drive != null)
             {
                 s.DriveTiers = new[] { drive.TierOf(DriveSlot.Core), drive.TierOf(DriveSlot.Navigation), drive.TierOf(DriveSlot.Cooling), drive.TierOf(DriveSlot.Tank) };
-                s.Exotic = drive.Exotic.Value;
+                // Saved mid-flight: the crew continues before the warp, with the Exotic Matter it has burnt so far.
+                s.Exotic = drive.Exotic.Value + (WarpFlight.Instance != null ? WarpFlight.Instance.FuelBurned : 0f);
             }
             foreach (var pawn in PlayerPawn.All)
             {

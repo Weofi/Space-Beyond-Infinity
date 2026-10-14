@@ -261,6 +261,31 @@ namespace Voidward.World
 
         public void Track(NetworkObject no) { if (no != null) objects.Add(no); }
 
+        /// <summary>Number of tracked objects (mark before spawning a warp signal site, then TakeTracked).</summary>
+        public int TrackedCount => objects.Count;
+
+        /// <summary>Hand the objects tracked since `mark` over to the caller (they are no longer cleared with the system).</summary>
+        public List<NetworkObject> TakeTracked(int mark)
+        {
+            mark = Mathf.Clamp(mark, 0, objects.Count);
+            var taken = objects.GetRange(mark, objects.Count - mark);
+            objects.RemoveRange(mark, objects.Count - mark);
+            return taken;
+        }
+
+        /// <summary>A sunless rogue planet met in the void between galaxies (#79): frozen or crystal, with its points of interest.</summary>
+        public PlanetBody SpawnRoguePlanet(int seed, float radius, Vector3 pos, int loot)
+        {
+            var cat = ContentCatalog.Instance;
+            if (cat == null || cat.Biomes.Length == 0) return null;
+            var biome = cat.Biomes[Mathf.Abs(seed) % 2 == 0 ? 0 : Mathf.Min(3, cat.Biomes.Length - 1)];
+            var planet = PlanetBody.SpawnServer(seed, radius, biome, pos);
+            if (planet == null) return null;
+            Track(planet.NetworkObject);
+            PopulatePlanet(planet, biome, seed, loot);
+            return planet;
+        }
+
         // ================================================================ per frame
 
         public void Tick(float dt)

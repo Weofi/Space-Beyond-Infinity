@@ -142,7 +142,14 @@ namespace Voidward.UI
 
             bool pilot = LocalIsPilot();
             bool warping = rm.WarpCountdown.Value >= 0f;
-            if (warping)
+            var flight = WarpFlight.Instance;
+            bool flying = flight != null && flight.Active.Value;
+            if (flying)
+            {
+                Line(info, UIKit.Text(info, $"In warp flight - {Mathf.RoundToInt(flight.Progress01 * 100f)}% of the way", 24, TextAlignmentOptions.Left, UIKit.Warn), 34);
+                warping = true;
+            }
+            else if (warping)
             {
                 Line(info, UIKit.Text(info, $"Warp to <b>{rm.WarpLabel(rm.WarpTarget.Value)}</b> in {Mathf.CeilToInt(rm.WarpCountdown.Value)} s", 24, TextAlignmentOptions.Left, UIKit.Warn), 34);
                 UIKit.LayoutElement(UIKit.Button(info, "Cancel warp", () => rm.CancelWarpServerRpc(), 56, UIKit.Bad, 24).gameObject, -1, 56);
