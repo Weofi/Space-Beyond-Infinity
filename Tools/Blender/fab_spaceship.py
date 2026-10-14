@@ -33,8 +33,9 @@ LENGTH = 15.0                    # metres nose to engine rings: room for a seate
 S = LENGTH / 10.5                # the numbers below were measured at 10.5 m
 GLASS_Z = (1.75 * S, 4.35 * S)   # canopy span along Unity z
 GLASS_X, GLASS_Y = 0.9 * S, -0.6 * S
-TUB_Z = (1.55 * S, 4.32 * S)     # bulkheads: rear (seat back) and front (right at the glass front edge, the nose stays visible)
+TUB_Z = (1.55 * S, 4.38 * S)     # bulkheads: rear (seat back) and front (just past the glass front edge and the spine tip)
 INSET = 0.025                    # tub walls inside the hull skin
+SPINE_X = 0.21                   # half width of the raised spine between the roof panes (glass, see below)
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -106,7 +107,15 @@ for f in glass:
     if sum(g.calc_area() for g in isl) > 0.5 * S * S:
         panes.extend(isl)
 glass_idx = {f.index for f in panes}
-print(f"[fab_spaceship] canopy faces {len(glass_idx)} area {sum(f.calc_area() for f in panes):.2f} m2")
+# the raised spine between the two roof panes blocks the pilot's view: it becomes glass too (one roof pane).
+# Its faces are long slivers reaching a bit past the panes, so the window runs up to the bulkheads.
+z_lo = min(U(v.co).z for f in panes for v in f.verts)
+z_hi = max(U(v.co).z for f in panes for v in f.verts)
+for f in bm.faces:
+    vs = [U(v.co) for v in f.verts]
+    if all(max(z_lo - 0.3, TUB_Z[0] + 0.05) < u.z < min(z_hi + 0.1, TUB_Z[1] - 0.02) and abs(u.x) < SPINE_X for u in vs) and U(f.calc_center_median()).y > -0.35 * S:
+        glass_idx.add(f.index)
+print(f"[fab_spaceship] canopy faces {len(glass_idx)} (panes {len(panes)}) area {sum(f.calc_area() for f in panes):.2f} m2")
 bm.free()
 
 # split the glass into its own object
