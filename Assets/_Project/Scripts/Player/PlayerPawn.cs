@@ -481,14 +481,52 @@ namespace Voidward.Player
 
         // ================================================================ Interaction
 
+        static readonly RaycastHit[] interactHits = new RaycastHit[16];
+
+        /// <summary>
+        /// What the view ray points at for [F]. Triggers without an interactable (gravity, zones) and the hull colliders of
+        /// a ship are looked through to that ship's own seats and terminals (#94: the hull and wing boxes used to hide the
+        /// cockpit trigger, so entering needed the exact spot); any other solid collider blocks.
+        /// </summary>
+        bool FindInteractable(out RaycastHit hit, out IInteractable it)
+        {
+            int n = Physics.RaycastNonAlloc(ViewRay, interactHits, InteractRange, ~0, QueryTriggerInteraction.Collide);
+            System.Array.Sort(interactHits, 0, n, HitDistance.Instance);
+            ShipCore throughShip = null;
+            for (int i = 0; i < n; i++)
+            {
+                hit = interactHits[i];
+                if (hit.collider.transform.IsChildOf(transform)) continue;
+                it = hit.collider.GetComponentInParent<IInteractable>();
+                if (it != null && !ReferenceEquals(it, this)) return true;
+                var ship = hit.collider.GetComponentInParent<ShipCore>();
+                if (ship != null && (throughShip == null || throughShip == ship))
+                {
+                    if (!hit.collider.isTrigger) throughShip = ship;
+                    continue;
+                }
+                if (hit.collider.isTrigger) continue;
+                it = null;
+                return true;   // a solid non-ship collider blocks (resource nodes still get their hint)
+            }
+            hit = default;
+            it = null;
+            return false;
+        }
+
+        sealed class HitDistance : System.Collections.Generic.IComparer<RaycastHit>
+        {
+            public static readonly HitDistance Instance = new HitDistance();
+            public int Compare(RaycastHit a, RaycastHit b) => a.distance.CompareTo(b.distance);
+        }
+
         void UpdateInteraction(bool input)
         {
             focused = null;
             Prompt = "";
-            if (Physics.Raycast(ViewRay, out var hit, InteractRange, ~0, QueryTriggerInteraction.Collide))
+            if (FindInteractable(out var hit, out var it))
             {
-                var it = hit.collider.GetComponentInParent<IInteractable>();
-                if (it != null && !ReferenceEquals(it, this) && it.CanInteract(this))
+                if (it != null && it.CanInteract(this))
                 {
                     focused = it;
                     Prompt = $"[{VwInput.BindingDisplay(VwInput.Interact)}] {it.Prompt}";

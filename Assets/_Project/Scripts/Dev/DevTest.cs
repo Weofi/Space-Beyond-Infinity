@@ -1033,6 +1033,24 @@ namespace Voidward.Dev
         /// <summary>Grab the player's screen (incl. HUD) at the end of this frame, downscaled. Logs "[Dev] shot path".</summary>
         public static void Screen(string name) => DevRunner.Get().Run(ScreenCo(name));
 
+        /// <summary>
+        /// The player's current view (main camera pose and FOV, no HUD) rendered at full 1920x1080 (#94): judge
+        /// cockpit display readability at game resolution, not in the small editor game view.
+        /// </summary>
+        public static string PilotView(string name)
+        {
+            var cam = Camera.main;
+            if (cam == null) { Log("PilotView needs a main camera"); return null; }
+            var t = cam.transform;
+            var tex = DevShots.Render(new DevPose(t.position, t.position + t.forward * 10f, cam.fieldOfView), 1920, 1080, t.up);
+            string path = DevShots.Save(tex, name);
+            DevShots.Kill(tex);
+            return path;
+        }
+
+        /// <summary>The local pawn's interaction prompt ("[F] Board ...", "" when nothing is in reach).</summary>
+        public static string InteractPrompt => Pawn != null ? Pawn.Prompt : "";
+
         static IEnumerator ScreenCo(string name)
         {
             yield return new WaitForEndOfFrame();

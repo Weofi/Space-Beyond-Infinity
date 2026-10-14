@@ -82,6 +82,8 @@ namespace Voidward.World
         void Update()
         {
             WarpBubble.CoreTier = TierOf(DriveSlot.Core);
+            WarpBubble.Exotic = Exotic.Value;
+            WarpBubble.ExoticCapacity = Capacity;
             etaTimer -= Time.deltaTime;
             if (etaTimer > 0f) return;
             etaTimer = 0.5f;
