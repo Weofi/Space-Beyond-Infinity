@@ -69,6 +69,9 @@ namespace Voidward.Ship
         public HealthComponent Hull { get; private set; }
         public NetInventory Cargo { get; private set; }
         public ShipFlight Flight { get; private set; }
+        /// <summary>The cockpit has live displays (#94): the pilot reads ship status there, not on the HUD's ship card.</summary>
+        public bool HasCockpitScreens => cockpitScreens ??= GetComponentInChildren<CockpitScreen>(true) != null;
+        bool? cockpitScreens;
 
         public static readonly List<ShipCore> All = new List<ShipCore>();
         /// <summary>Server: a ship was destroyed (before despawn).</summary>

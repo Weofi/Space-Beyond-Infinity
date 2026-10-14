@@ -1033,6 +1033,48 @@ namespace Voidward.Dev
         /// <summary>Grab the player's screen (incl. HUD) at the end of this frame, downscaled. Logs "[Dev] shot path".</summary>
         public static void Screen(string name) => DevRunner.Get().Run(ScreenCo(name));
 
+        /// <summary>
+        /// The player's current view (main camera pose and FOV, no HUD) rendered at full 1920x1080 (#94): judge
+        /// cockpit display readability at game resolution, not in the small editor game view.
+        /// </summary>
+        public static string PilotView(string name)
+        {
+            var cam = Camera.main;
+            if (cam == null) { Log("PilotView needs a main camera"); return null; }
+            var t = cam.transform;
+            var tex = DevShots.Render(new DevPose(t.position, t.position + t.forward * 10f, cam.fieldOfView), 1920, 1080, t.up);
+            string path = DevShots.Save(tex, name);
+            DevShots.Kill(tex);
+            return path;
+        }
+
+        /// <summary>
+        /// Look around inside the seated ship's cockpit (#94): one sheet with four views from the pilot's eye
+        /// (ship-local, eye at (0, 0, eyeZ)): back over the seat, left shoulder, up through the canopy, right console.
+        /// </summary>
+        public static string CockpitViews(string name, float eyeZ = 3.67f)
+        {
+            var s = SeatShip;
+            if (s == null) { Log("CockpitViews needs a ship"); return null; }
+            var t = s.transform;
+            var eye = new Vector3(0f, 0f, eyeZ);
+            var looks = new[] { new Vector3(0f, -0.65f, -2.1f), new Vector3(-1.5f, -0.3f, -1.1f), new Vector3(-1.2f, 1.2f, 0.5f), new Vector3(1.6f, -0.2f, 0.9f) };
+            var tiles = new System.Collections.Generic.List<Texture2D>();
+            foreach (var l in looks)
+            {
+                var from = eye + (l.z < -1.5f ? new Vector3(0f, 0.05f, 0.25f) : Vector3.zero);
+                tiles.Add(DevShots.Render(new DevPose(t.TransformPoint(from), t.TransformPoint(eye + l), 90f), 640, 360, t.up));
+            }
+            var sheet = DevShots.Sheet(tiles, 2);
+            string path = DevShots.Save(sheet, name);
+            foreach (var x in tiles) DevShots.Kill(x);
+            DevShots.Kill(sheet);
+            return path;
+        }
+
+        /// <summary>The local pawn's interaction prompt ("[F] Board ...", "" when nothing is in reach).</summary>
+        public static string InteractPrompt => Pawn != null ? Pawn.Prompt : "";
+
         static IEnumerator ScreenCo(string name)
         {
             yield return new WaitForEndOfFrame();

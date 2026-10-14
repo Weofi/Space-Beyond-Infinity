@@ -1064,21 +1064,26 @@ namespace Voidward.EditorTools
             var core = go.GetComponent<ShipCore>();
             Visual(go.transform, "Hull", hull, FabShipMaterial());
             var canopy = FabShipCanopyMesh();
-            if (canopy != null) Visual(go.transform, "Canopy", canopy, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            var tub = FabShipCockpitMesh();
-            var interior = InteriorMaterial();
-            if (tub != null) Visual(go.transform, "CockpitTub", tub, interior);
-            Visual(go.transform, "Cockpit", FabDartCockpitMesh(), interior);
-            AddLight(go.transform, "CockpitLight", new Vector3(0, -0.75f, 3.7f), new Color(0.55f, 0.8f, 1f), 0.5f, 2.4f);
+            if (canopy != null)
+            {
+                Visual(go.transform, "Canopy", canopy, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                // the same panes seen from inside the cockpit (back faces): nearly clear, rim + sun glint
+                Visual(go.transform, "CanopyInner", canopy, FabShipGlassInnerMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            bool fitted = FabDartInterior(go.transform);
 
             Box(go, new Vector3(0, -0.5f, 0.45f), new Vector3(3.4f, 2.2f, 14f));     // fuselage
             Box(go, new Vector3(0, -0.45f, -3.3f), new Vector3(8.3f, 3.1f, 8.6f));   // engine pods
             Box(go, new Vector3(0, -1.3f, 0f), new Vector3(17.8f, 0.7f, 6.9f));      // wings
 
             // Seated eye just under the canopy roof (high enough to see the nose over the front frame); anchor = eye - 1.2.
-            Seat(go.transform, "PilotSeat", StationRole.Pilot, new Vector3(0, -1.2f, 2.88f), new Vector3(0, 0f, 2.92f), new Vector3(-3.3f, -0.3f, 5.4f),
-                new Vector3(0, 0f, 3.4f), new Vector3(5.1f, 4.3f, 7.9f));
-            Dashboard(go.transform, new Vector3(0, -0.68f, 4.05f), 1.2f);
+            // the fitted cockpit (dart_cockpit.py COCKPIT_SHIFT) puts the pilot 0.75 m further forward, mid-canopy
+            float seatZ = fitted ? 0.75f : 0f;
+            // [F] trigger: hugs the canopy (the interaction ray looks through the ship's own hull colliders), so a player
+            // standing on the wing beside the cockpit is outside it and can aim at the glass
+            Seat(go.transform, "PilotSeat", StationRole.Pilot, new Vector3(0, -1.2f, 2.88f + seatZ), new Vector3(0, 0f, 2.92f + seatZ), new Vector3(-3.3f, -0.3f, 5.4f),
+                fitted ? new Vector3(0, -0.3f, 4.4f) : new Vector3(0, 0f, 3.4f), fitted ? new Vector3(2.6f, 1.9f, 4.4f) : new Vector3(5.1f, 4.3f, 7.9f));
+            if (!fitted) Dashboard(go.transform, new Vector3(0, -0.68f, 4.05f), 1.2f);
             var term = Child(go.transform, "CargoTerminal", new Vector3(0, 0.4f, -5.1f));
             Box(term, Vector3.zero, new Vector3(4.3f, 4.3f, 4.3f), true);
             term.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
@@ -1094,7 +1099,96 @@ namespace Voidward.EditorTools
             return SavePrefab(go);
         }
 
-        /// <summary>Cockpit fittings inside the Fab Dart's tub: floor plate, pilot seat, dash console, side consoles, stick and throttle.</summary>
+        /// <summary>
+        /// The Dart's cockpit interior under one "Interior" root (#94): the hull-following tub plus the fittings from
+        /// Tools/Blender/dart_cockpit.py (Wasp Interdictor consoles and wall linings, McCloskey pilot chair; stick and
+        /// throttle as their own objects with the pivot at the base, for #40: side stick right, throttle left), the own
+        /// full-width dashboard with panel seams and light strips, the rear bay behind the seat, the canopy frame (roll
+        /// bar, bows, sill rails), and six live CockpitScreens, one job each: flight, radar and nav in
+        /// the dashboard's three bays, hull/shield, fuel and drive in the Wasp's monitor bezels below. A LODGroup culls it all once the ship is small on screen.
+        /// Returns false (procedural fittings + text dashboard) when the fitting FBX files are missing.
+        /// </summary>
+        static bool FabDartInterior(Transform ship)
+        {
+            var root = Child(ship, "Interior", Vector3.zero);
+            var tub = FabShipCockpitMesh();
+            var interior = InteriorMaterial();
+            if (tub != null) Visual(root.transform, "CockpitTub", tub, interior);
+            var console = DartCockpitMesh("Console");
+            bool fitted = console != null;
+            if (fitted)
+            {
+                var center = WaspMaterial("center");
+                Visual(root.transform, "Console", console, center);
+                Visual(root.transform, "Walls", DartCockpitMesh("Walls"), WaspMaterial("cockpit"));
+                Visual(root.transform, "Seat", DartCockpitMesh("Seat"), ChairMaterial());
+                var dash = DartCockpitMesh("Dash");
+                if (dash != null)
+                {
+                    Visual(root.transform, "Dash", dash, WaspMaterial("cockpit"));
+                    var seams = DartCockpitMesh("DashSeams");
+                    if (seams != null) Visual(root.transform, "DashSeams", seams, SeamMaterial());
+                    // HDR just above 1 keeps the hue under bloom (3x burnt out to white / pale yellow)
+                    Visual(root.transform, "DashGlowCyan", DartCockpitMesh("DashGlowCyan"), GlowMaterial("VW_CockpitGlowCyan", new Color(0.2f, 0.75f, 1f) * 1.8f));
+                    Visual(root.transform, "DashGlowAmber", DartCockpitMesh("DashGlowAmber"), GlowMaterial("VW_CockpitGlowAmber", new Color(1f, 0.42f, 0.1f) * 1.3f));
+                }
+                // rear bay behind the seat, roll bar + canopy bows and sill rails
+                var rear = DartCockpitMesh("Rear");
+                if (rear != null) Visual(root.transform, "RearBay", rear, WaspMaterial("cockpit"));
+                var frame = DartCockpitMesh("Frame");
+                if (frame != null) Visual(root.transform, "CanopyFrame", frame, WaspMaterial("cockpit"));
+                // pivots printed by dart_cockpit.py
+                Visual(Child(root.transform, "Stick", new Vector3(0.6f, -0.737f, 4.26f)).transform, "Grip", DartCockpitMesh("Stick"), center);
+                Visual(Child(root.transform, "Throttle", new Vector3(-0.638f, -0.743f, 4.303f)).transform, "Lever", DartCockpitMesh("Throttle"), center);
+
+                // big displays in the dashboard bays (frames printed by dart_cockpit.py), the Wasp monitors below them
+                var screens = Child(root.transform, "Screens", Vector3.zero).transform;
+                CockpitScreenAt(screens, ScreenKind.Flight, new Vector3(0f, -0.478f, 4.755f), new Vector3(0f, -0.406f, 0.914f), new Vector2(0.40f, 0.22f));
+                CockpitScreenAt(screens, ScreenKind.Radar, new Vector3(-0.403f, -0.478f, 4.683f), new Vector3(-0.372f, -0.371f, 0.835f), new Vector2(0.30f, 0.22f));
+                CockpitScreenAt(screens, ScreenKind.Nav, new Vector3(0.403f, -0.478f, 4.683f), new Vector3(0.372f, -0.371f, 0.835f), new Vector2(0.30f, 0.22f));
+                CockpitScreenAt(screens, ScreenKind.Hull, new Vector3(-0.309f, -0.761f, 4.614f), new Vector3(-0.177f, -0.47f, 0.865f), new Vector2(0.142f, 0.192f));
+                CockpitScreenAt(screens, ScreenKind.Fuel, new Vector3(0f, -0.663f, 4.63f), new Vector3(0f, -0.413f, 0.911f), new Vector2(0.197f, 0.088f));
+                CockpitScreenAt(screens, ScreenKind.Drive, new Vector3(0.309f, -0.761f, 4.614f), new Vector3(0.177f, -0.47f, 0.865f), new Vector2(0.142f, 0.192f));
+
+                AddLight(root.transform, "CockpitLight", new Vector3(0, -0.3f, 3.85f), new Color(0.75f, 0.85f, 1f), 0.35f, 2.2f);
+                AddLight(root.transform, "ScreenGlow", new Vector3(0, -0.45f, 4.4f), new Color(0.35f, 0.85f, 1f), 0.45f, 1.2f);
+                AddLight(root.transform, "FootwellGlow", new Vector3(0, -1.4f, 4.6f), new Color(1f, 0.55f, 0.2f), 0.3f, 1.4f);
+                AddLight(root.transform, "RearBayGlow", new Vector3(0, -0.9f, 2.9f), new Color(0.35f, 0.8f, 1f), 0.5f, 1.5f);
+            }
+            else
+            {
+                Visual(root.transform, "Cockpit", FabDartCockpitMesh(), interior);
+                AddLight(root.transform, "CockpitLight", new Vector3(0, -0.75f, 3.7f), new Color(0.55f, 0.8f, 1f), 0.5f, 2.4f);
+            }
+            var lod = root.AddComponent<LODGroup>();
+            lod.SetLODs(new[] { new LOD(0.035f, root.GetComponentsInChildren<Renderer>()) });
+            lod.RecalculateBounds();
+            return fitted;
+        }
+
+        /// <summary>A live display facing along `look` (the pilot's view direction into the screen), pulled 2 mm out of its bezel.</summary>
+        static CockpitScreen CockpitScreenAt(Transform parent, ScreenKind kind, Vector3 pos, Vector3 look, Vector2 size)
+        {
+            var rot = Quaternion.LookRotation(look.normalized, Vector3.up);
+            var go = Child(parent, "Screen" + kind, pos - look.normalized * 0.002f, rot);
+            var sc = go.AddComponent<CockpitScreen>();
+            sc.Kind = kind;
+            sc.Size = size;
+            sc.ElementMaterial = ScreenMaterial();
+            return sc;
+        }
+
+        static Material ScreenMaterial() => Mat("VW_Screen", "VOIDWARD/Screen");
+
+        /// <summary>Unlit HDR glow for light strips and LEDs (bloom picks it up).</summary>
+        static Material GlowMaterial(string name, Color hdr)
+        {
+            var m = Mat(name, "VOIDWARD/Unlit");
+            m.SetColor("_BaseColor", hdr);
+            return m;
+        }
+
+        /// <summary>Procedural fallback fittings inside the Fab Dart's tub: floor plate, pilot seat, dash console, side consoles, stick and throttle.</summary>
         static Mesh FabDartCockpitMesh()
         {
             var mb = Hero(0.04f);

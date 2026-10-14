@@ -215,6 +215,8 @@ namespace Voidward.World
             {
                 WarpBubble.Active = WarpBubble.Flying = false;
                 WarpBubble.Throttle = WarpBubble.Speed = WarpBubble.Intensity = WarpBubble.FovBoost = 0f;
+                WarpBubble.Heat = WarpBubble.Progress01 = 0f;
+                WarpBubble.Overheated = false;
                 wasPiloting = false;
                 if (IsServer && Active.Value && RunManager.Instance != null && RunManager.Instance.Phase.Value != GamePhase.Playing) ServerAbort();
                 return;
@@ -242,6 +244,9 @@ namespace Voidward.World
             WarpBubble.Speed = DroppedOut.Value ? 0f : Throttle.Value * FullSpeed;
             WarpBubble.Intensity = Mathf.Clamp01(WarpBubble.Speed / 900f);
             WarpBubble.FovBoost = Mathf.Lerp(WarpBubble.FovBoost, WarpBubble.Intensity * 14f, 1f - Mathf.Exp(-3f * dt));
+            WarpBubble.Heat = Heat.Value;
+            WarpBubble.Overheated = Overheated.Value;
+            WarpBubble.Progress01 = Progress01;
             TickLocalPilot(dt);
         }
 

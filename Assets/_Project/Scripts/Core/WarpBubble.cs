@@ -34,6 +34,10 @@ namespace Voidward.Core
         public static Func<Vector3, Vector3> Pull;
         /// <summary>Core tier of the crew's warp drive (WarpDrive writes it on every peer): system cruise speed (#80).</summary>
         public static int CoreTier = 1;
+        /// <summary>Cockpit displays (#94): drive heat 0..1, overheated, route progress 0..1, Exotic Matter in the tank / tank size.</summary>
+        public static float Heat, Progress01, Exotic;
+        public static bool Overheated;
+        public static int ExoticCapacity;
 
         // ---- lead pilot input (set by the pilot seat, read and sent by WarpFlight on the same client) ----
         /// <summary>W/S axis of the lead pilot this frame (-1..1).</summary>
@@ -52,6 +56,9 @@ namespace Voidward.Core
             Throttle = Speed = Intensity = FovBoost = 0f;
             Pull = null;
             CoreTier = 1;
+            Heat = Progress01 = Exotic = 0f;
+            Overheated = false;
+            ExoticCapacity = 0;
             PilotThrottleAxis = 0f;
             PilotBrake = PilotCruiseToggle = PilotDropOut = false;
             PilotInputTime = -99f;

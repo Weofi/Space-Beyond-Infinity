@@ -675,8 +675,10 @@ namespace Voidward.UI
         {
             ShipCore ship = pawn.CurrentShipSeat != null ? pawn.CurrentShipSeat.Ship : ShipCore.OwnedBy(pawn.OwnerClientId);
             shownShip = ship;
-            shipPlate.gameObject.SetActive(ship != null);
-            if (ship == null) return;
+            // the pilot of a ship with live cockpit displays (#94) reads them instead of the ship card
+            bool cockpit = ship != null && pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Role == StationRole.Pilot && ship.HasCockpitScreens;
+            shipPlate.gameObject.SetActive(ship != null && !cockpit);
+            if (ship == null || cockpit) return;
             var s = ship.Stats;
             shipName.text = ship.ShipName.Value.ToString();
             shipRole.text = pawn.CurrentShipSeat != null ? pawn.CurrentShipSeat.Role.ToString() : HudKit.Dist(Vector3.Distance(ship.transform.position, pawn.transform.position)) + " AWAY";
