@@ -2802,9 +2802,18 @@ namespace Voidward.EditorTools
                     break;
                 case EnemyKind.DroneSwarm:
                     go = EnemyRoot(k, Team.Pirates, 18);
-                    mesh = DroneMesh();
+                    // Warden sentinel (#98, Tools/Blender/warden_sentinel.py): ceramic pod + spinning halo ring
+                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Sentinel.fbx", "Enemy_Sentinel"), DroneMesh);
                     go.AddComponent<SphereCollider>().radius = 1.3f;
-                    muzzle = new Vector3(0, 0, 1.3f);
+                    muzzle = new Vector3(0, 0, 1.0f);
+                    var halo = ImportedMesh(ModelDir + "/Aliens/Enemy_Sentinel_Ring.fbx", "Enemy_Sentinel_Ring");
+                    if (halo != null)
+                    {
+                        var ring = Visual(go.transform, "Halo", halo, MatHull);
+                        ring.transform.localRotation = Quaternion.Euler(0f, 22f, 0f);
+                        var spin = ring.AddComponent<SpinPart>();
+                        spin.Axis = Vector3.forward; spin.Speed = 70f; spin.Wobble = 6f;
+                    }
                     break;
                 case EnemyKind.PirateGunship:
                     go = EnemyRoot(k, Team.Pirates, 260);
