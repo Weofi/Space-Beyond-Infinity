@@ -1,6 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 using Voidward.Core;
+using Voidward.Data;
 
 namespace Voidward.EditorTools
 {
@@ -91,6 +92,48 @@ namespace Voidward.EditorTools
             return m;
         }
 
+        /// <summary>Unit quad for VW_GlowSprite with generous bounds (the shader turns it to the camera).</summary>
+        static Mesh GlowQuadMesh()
+        {
+            string path = MeshDir + "/GlowQuad.asset";
+            var m = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (m == null)
+            {
+                m = new Mesh { name = "GlowQuad" };
+                AssetDatabase.CreateAsset(m, path);
+            }
+            m.Clear();
+            m.SetVertices(new[] { new Vector3(-0.5f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f), new Vector3(0.5f, 0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f) });
+            m.SetUVs(0, new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) });
+            m.SetTriangles(new[] { 0, 2, 1, 0, 3, 2 }, 0);
+            m.bounds = new Bounds(Vector3.zero, Vector3.one * 2f);
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>Camera-facing glow sprite (VW_GlowSprite) with a Kenney texture; null when the texture is missing.</summary>
+        static Material GlowMat(string name, string file, Color tint, float twinkle = 0.15f)
+        {
+            var tex = VfxTexture(file, 256);
+            if (tex == null) return null;
+            var m = Mat(name, "VOIDWARD/GlowSprite");
+            m.SetTexture("_MainTex", tex);
+            m.SetColor("_BaseColor", tint);
+            m.SetFloat("_Twinkle", twinkle);
+            return m;
+        }
+
+        /// <summary>Projectile materials (#96) into the catalog: head glow/flare, energy trail, missile smoke trail.</summary>
+        static void AssignProjectileMaterials(ContentCatalog cat)
+        {
+            cat.FxGlowMaterial = GlowMat("VW_Fx_HeadGlow", "K_Dot.png", Color.white);
+            cat.FxFlareMaterial = GlowMat("VW_Fx_HeadFlare", "K_Glint.png", Color.white, 0.3f);
+            cat.FxBeamTrailMaterial = VfxMat("VW_Fx_BeamTrail", "K_Dot.png", true, 0f, 0.2f, 256);
+            cat.FxSmokeTrailMaterial = VfxMat("VW_Fx_SmokeTrail", "K_Dot.png", false, 0f, 0.6f, 256);
+            cat.FxStreakMaterial = VfxMat("VW_Fx_Streak", "K_Spark.png", true, 0f, 0f, 256);
+            if (cat.FxStreakMaterial != null) cat.FxStreakMaterial.SetFloat("_NearFade", 4f);
+        }
+
         /// <summary>Textured layers of the pooled effects (#96).</summary>
         static void AssignVfxMaterials(VfxManager vfx)
         {
@@ -105,7 +148,7 @@ namespace Voidward.EditorTools
             vfx.SparkMaterial = VfxMat("VW_Fx_Spark", "K_Spark.png", true, 0f, 0.1f, 256);
             vfx.MuzzleMaterial = VfxMat("VW_Fx_Muzzle", "K_MuzzleStrip.png", true, 0f, 0.1f);
             // the hard Kenney rings read as a thin shock front, not a solid disc: keep them faint
-            if (vfx.RingMaterial != null) vfx.RingMaterial.SetColor("_BaseColor", new Color(0.3f, 0.3f, 0.3f, 1f));
+            if (vfx.RingMaterial != null) vfx.RingMaterial.SetColor("_BaseColor", new Color(0.18f, 0.18f, 0.18f, 1f));
             if (vfx.RippleMaterial != null) vfx.RippleMaterial.SetColor("_BaseColor", new Color(0.55f, 0.55f, 0.55f, 1f));
         }
     }

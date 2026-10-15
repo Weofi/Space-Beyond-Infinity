@@ -12,7 +12,7 @@ Sources (download them yourself, see Assets/_Project/Art/CREDITS.md):
 Outputs (Assets/_Project/Art):
   Sky/Starmap_8k.jpg        8192x4096 sRGB star map (values are 0..1, so an 8-bit JPG q95 keeps them; 13 MB instead of 130)
   VFX/FB_<name>.png         flipbook sheets as RGBA PNG (straight alpha)
-  VFX/K_<name>.png          single Kenney sprites (white, alpha)
+  VFX/K_<name>.png          single Kenney sprites (white, alpha; K_Spark is the rotated streak: flame along +U for stretched billboards)
   VFX/K_MuzzleStrip.png     muzzle_02..05 (rotated: flame along +U, the stretched billboard's velocity axis) as a 4x1 strip
   VFX/K_SmokeSheet.png      smoke_01..08 as a 4x2 sheet (random frame per particle)
 
@@ -24,7 +24,7 @@ import sys
 import numpy as np
 
 FLIPBOOKS = ["Explosion02_5x5", "Explosion01_5x5", "WispySmoke01_8x8"]
-SPRITES = {"Flash": "star_09", "Glint": "star_06", "Ring": "circle_03", "Ripple": "light_03", "Spark": "trace_04", "Dot": "star_05"}
+SPRITES = {"Flash": "star_09", "Glint": "star_06", "Ring": "circle_03", "Ripple": "light_03", "Spark": "Rotated/trace_04_rotated", "Dot": "star_05"}
 MUZZLES = ["muzzle_02_rotated", "muzzle_03_rotated", "muzzle_04_rotated", "muzzle_05_rotated"]
 SMOKES = ["smoke_%02d" % i for i in range(1, 9)]
 

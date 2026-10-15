@@ -43,6 +43,7 @@ namespace Voidward.World
         float streakBudget;
         int cloudSignal = -1;
         Material rockMat, toonMat, glowMat, collapseMat;
+        Material streakMat; // #96: textured streak (Kenney) for comet tails and Rift tendrils, falls back to glowMat
         GameObject rift;
         Transform riftBody, riftHalo;
         readonly List<Transform> tendrils = new List<Transform>();
@@ -269,7 +270,7 @@ namespace Voidward.World
                     Renderer(body, cometMesh, toonMat, true);
                     var tail = new GameObject("Tail");
                     tail.transform.SetParent(go.transform, false);
-                    Renderer(tail, cometTail, glowMat, false);
+                    Renderer(tail, cometTail, streakMat, false);
                     Proxy(go, SurfaceKind.Rock);
                     break;
                 }
@@ -318,6 +319,7 @@ namespace Voidward.World
             rockMat = cat.TerrainMaterial != null ? cat.TerrainMaterial : cat.ToonMaterial;
             toonMat = cat.ToonMaterial;
             glowMat = cat.ParticleMaterial;
+            streakMat = cat.FxStreakMaterial != null ? cat.FxStreakMaterial : glowMat;
             collapseMat = cat.CollapseMaterial;
             if (rockMeshes != null) return;
 
@@ -345,7 +347,10 @@ namespace Voidward.World
                 mb.AddRock(Matrix4x4.identity, 1f, 9091, new Color(0.78f, 0.88f, 0.98f));
                 cometMesh = mb.Build("WarpComet");
             }
-            cometTail = GlowStreak("WarpCometTail", 14f, 1.8f, new Color(0.55f, 0.85f, 1f, 0.55f));
+            bool textured = streakMat != glowMat;
+            // the textured streak is thin: wider quads and HDR vertex colour keep tails/tendrils as bright as before
+            float wide = textured ? 3f : 1f, hot = textured ? 3f : 1f;
+            cometTail = GlowStreak("WarpCometTail", 14f, 1.8f * wide, new Color(0.55f * hot, 0.85f * hot, 1f * hot, 0.55f), textured);
             {
                 var mb = new MeshBuilder { Gloss = 0.9f };
                 mb.AddSphere(Matrix4x4.identity, 1f, 2, new Color(0.02f, 0.015f, 0.03f));
@@ -360,11 +365,14 @@ namespace Voidward.World
                 riftSphere = mb.Build("WarpRiftMaw");
             }
             riftRing = Ring("WarpRiftHalo", new[] { 0.92f, 1.0f, 1.25f, 1.9f }, new[] { 0f, 0.85f, 0.4f, 0f }, RiftColor, 96);
-            tendrilMesh = GlowStreak("WarpRiftTendril", 1f, 0.5f, new Color(0.8f, 0.45f, 1f, 0.8f));
+            tendrilMesh = GlowStreak("WarpRiftTendril", 1f, 0.5f * wide, new Color(0.8f * hot, 0.45f * hot, 1f * hot, 0.8f), textured);
         }
 
-        /// <summary>Two crossed soft quads along +X (length in X from 0 to len; unit size = a round glow when len = width = 1).</summary>
-        static Mesh GlowStreak(string name, float len, float width, Color col)
+        /// <summary>
+        /// Two crossed soft quads along +X (length in X from 0 to len; unit size = a round glow when len = width = 1).
+        /// along: UV u runs along the streak (for the textured streak material, #96) instead of the soft-dot mapping.
+        /// </summary>
+        static Mesh GlowStreak(string name, float len, float width, Color col, bool along = false)
         {
             var verts = new List<Vector3>();
             var cols = new List<Color>();
@@ -384,7 +392,7 @@ namespace Voidward.World
                 tris.Add(b); tris.Add(b + 2); tris.Add(b + 1); tris.Add(b); tris.Add(b + 3); tris.Add(b + 2);
                 tris.Add(b); tris.Add(b + 1); tris.Add(b + 2); tris.Add(b); tris.Add(b + 2); tris.Add(b + 3);
             }
-            if (!round) for (int i = 0; i < uvs.Count; i++) uvs[i] = new Vector2(0.5f, uvs[i].y); // soft across, full along
+            if (!round && !along) for (int i = 0; i < uvs.Count; i++) uvs[i] = new Vector2(0.5f, uvs[i].y); // soft across, full along
             var m = new Mesh { name = name };
             m.SetVertices(verts); m.SetColors(cols); m.SetUVs(0, uvs); m.SetTriangles(tris, 0);
             m.RecalculateBounds();
@@ -544,10 +552,12 @@ namespace Voidward.World
             {
                 var go = new GameObject("Tendril");
                 go.transform.SetParent(rift.transform, false);
-                Renderer(go, tendrilMesh, glowMat, false);
+                Renderer(go, tendrilMesh, streakMat, false);
                 tendrils.Add(go.transform);
             }
         }
+
+        float streakScale = 1f;
 
         void UpdateStreaks(float rift)
         {
@@ -569,9 +579,13 @@ namespace Voidward.World
                 var shape = streaks.shape;
                 shape.enabled = false;
                 var pr = go.GetComponent<ParticleSystemRenderer>();
-                pr.sharedMaterial = glowMat;
+                // #96: a thin textured streak (Kenney) instead of a stretched soft dot; same look without it
+                var cat = ContentCatalog.Instance;
+                bool textured = cat != null && cat.FxStreakMaterial != null;
+                streakScale = textured ? 1.8f : 1f;
+                pr.sharedMaterial = textured ? cat.FxStreakMaterial : glowMat;
                 pr.renderMode = ParticleSystemRenderMode.Stretch;
-                pr.velocityScale = 0.035f;
+                pr.velocityScale = textured ? 0.045f : 0.035f;
                 pr.lengthScale = 1f;
                 pr.shadowCastingMode = ShadowCastingMode.Off;
                 streaks.Play();
@@ -591,7 +605,7 @@ namespace Voidward.World
                 if (lat.sqrMagnitude < 400f) lat = lat.normalized * 20f;
                 ep.position = new Vector3(cp.x + Random.Range(250f, 900f), cp.y + lat.x, cp.z + lat.y);
                 ep.velocity = -WarpBubble.Axis * speed * Random.Range(0.85f, 1.2f);
-                ep.startSize = Random.Range(0.35f, 0.9f);
+                ep.startSize = Random.Range(0.35f, 0.9f) * streakScale;
                 ep.startLifetime = 1.6f;
                 ep.startColor = Color.Lerp(Color.Lerp(new Color(0.6f, 0.85f, 1f, 0.5f), new Color(0.85f, 0.7f, 1f, 0.7f), Random.value), new Color(0.75f, 0.3f, 1f, 0.8f), rift * 0.8f) * (0.5f + 0.6f * intensity);
                 streaks.Emit(ep, 1);

@@ -162,6 +162,9 @@ namespace Voidward.EditorTools
             MatPlume = Mat("VW_Plume", "VOIDWARD/Plume");
             MatPlume.SetColor("_BaseColor", new Color(1.6f, 1.9f, 2.6f, 1f));
             MatPlume.SetFloat("_EdgeSoftness", 1.4f);
+            MatPlume.SetFloat("_Diamonds", 0.9f);
+            MatPlume.SetFloat("_DiamondCount", 4f);
+            MatPlume.SetFloat("_Flicker", 0.22f);
             MatPlume.enableInstancing = true;
             MatGlass = Mat("VW_Glass", "VOIDWARD/Glass");
             BuildPlanetMaterials();
@@ -211,6 +214,7 @@ namespace Voidward.EditorTools
             catalog.UnlitMaterial = MatUnlit;
             catalog.ParticleMaterial = MatParticle;
             catalog.GlassMaterial = MatGlass;
+            AssignProjectileMaterials(catalog);
             catalog.RebuildLookup();
             EditorUtility.SetDirty(catalog);
         }

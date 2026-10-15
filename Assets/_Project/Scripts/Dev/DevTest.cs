@@ -1236,6 +1236,30 @@ namespace Voidward.Dev
         }
 
         /// <summary>
+        /// Projectile look test (#96, server): ship laser, enemy laser, blaster, missile, flak and boss orb fly side by side
+        /// across the view in front of the seated ship (or camera); one sheet of four tiles (0.04 / 0.08 / 0.2 / 0.4 s)
+        /// from a camera looking across the lanes. Wait with dev-wait.sh name.
+        /// </summary>
+        public static void ProjectileViews(string name)
+        {
+            var s = SeatShip;
+            Transform t = s != null ? s.transform : (Camera.main != null ? Camera.main.transform : null);
+            if (t == null) { Log("ProjectileViews needs a ship or a camera"); return; }
+            Vector3 c = t.position + t.forward * 60f + t.up * 6f, r = t.right, u = t.up;
+            var kinds = new[] { ProjectileKind.LaserBolt, ProjectileKind.EnemyLaser, ProjectileKind.Blaster, ProjectileKind.Missile, ProjectileKind.Flak, ProjectileKind.BossOrb };
+            var cam = new DevPose(c - r * 40f - t.forward * 28f, c - r * 40f, 60f);
+            Sequence(name, 0.9f, (f, time) =>
+            {
+                if (f != 0) return;
+                for (int i = 0; i < kinds.Length; i++)
+                {
+                    Vector3 lane = c + u * ((i - 2.5f) * 3.5f) - r * 70f;
+                    Fire(kinds[i], lane, lane + r * 200f);
+                }
+            }, new[] { 0.04f, 0.08f, 0.2f, 0.4f }, cam);
+        }
+
+        /// <summary>
         /// Locomotion look test (#95): the local pawn is carried along the ground ahead (walk 1.6, jog 6, sprint 9.5 m/s,
         /// one second each) with its body shown, a side camera follows; ONE sheet with a tile per gait (+ a backwards
         /// walk). Wait with dev-wait.sh name. The pawn must stand on a planet (scenario Planet).
