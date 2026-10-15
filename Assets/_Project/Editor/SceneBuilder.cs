@@ -36,7 +36,9 @@ namespace Voidward.EditorTools
             brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, 1.2f);
             var urpCam = cam.GetUniversalAdditionalCameraData();
             urpCam.renderPostProcessing = true;
-            urpCam.antialiasing = AntialiasingMode.FastApproximateAntialiasing;
+            // SMAA keeps PBR specular edges clean without TAA ghosting at warp speeds / floating-origin jumps (#96).
+            urpCam.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+            urpCam.antialiasingQuality = AntialiasingQuality.High;
             camGo.transform.position = new Vector3(0, 40, -420);
 
             // Menu backdrop: low-poly diorama (astronauts + landed Dart on a cratered moon) with the blue crystal planet rising behind.
@@ -128,6 +130,7 @@ namespace Voidward.EditorTools
             vfx.SmokeMaterial = Mat("VW_Smoke", "VOIDWARD/AlphaParticle");
             vfx.DebrisMaterial = MatToon;
             vfx.DecalMaterial = Mat("VW_Scorch", "VOIDWARD/Scorch");
+            AssignVfxMaterials(vfx);
             var chip = new MeshBuilder();
             chip.Surface(0.25f);
             chip.AddRock(Matrix4x4.identity, 0.5f, 7, Color.white);
@@ -273,17 +276,20 @@ namespace Voidward.EditorTools
             AssetDatabase.DeleteAsset(path);
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
             AssetDatabase.CreateAsset(profile, path);
+            // PBR grade (#96): ACES filmic curve in HDR grading, so emissives/sun/bloom roll off instead of clipping;
+            // contrast/saturation are low because ACES adds its own. Per-galaxy values: PaletteDef (SystemVisuals).
             var bloom = profile.Add<Bloom>(true);
-            bloom.intensity.Override(0.9f);
-            bloom.threshold.Override(1f);
-            bloom.scatter.Override(0.7f);
+            bloom.intensity.Override(0.7f);
+            bloom.threshold.Override(1.1f);
+            bloom.scatter.Override(0.72f);
+            bloom.highQualityFiltering.Override(true);
             bloom.tint.Override(new Color(0.85f, 0.93f, 1f));
             var tone = profile.Add<Tonemapping>(true);
-            tone.mode.Override(TonemappingMode.Neutral);
+            tone.mode.Override(TonemappingMode.ACES);
             var ca = profile.Add<ColorAdjustments>(true);
-            ca.saturation.Override(10f);
-            ca.postExposure.Override(0.1f);
-            ca.contrast.Override(18f);
+            ca.saturation.Override(4f);
+            ca.postExposure.Override(0.35f);
+            ca.contrast.Override(6f);
             var wb = profile.Add<WhiteBalance>(true);
             wb.temperature.Override(-4f);
             // Crushed, slightly cool shadows; highlights stay warm (sunlight).
@@ -291,7 +297,7 @@ namespace Voidward.EditorTools
             smh.shadows.Override(new Vector4(0.95f, 0.98f, 1.06f, -0.04f));
             smh.highlights.Override(new Vector4(1.04f, 1.02f, 0.97f, 0f));
             var vig = profile.Add<Vignette>(true);
-            vig.intensity.Override(0.28f);
+            vig.intensity.Override(0.22f);
             vig.smoothness.Override(0.45f);
             vig.color.Override(Color.black);
             foreach (var c in profile.components) AssetDatabase.AddObjectToAsset(c, profile);
@@ -324,6 +330,9 @@ namespace Voidward.EditorTools
                 {
                     urp.shadowDistance = 350f;
                     urp.supportsHDR = true;
+                    // #96: crisper sun shadows on PBR hulls, grading in HDR before the ACES curve
+                    urp.mainLightShadowmapResolution = 4096;
+                    urp.colorGradingMode = ColorGradingMode.HighDynamicRange;
                     // Ocean shader reads scene depth (shore/water depth) and color (refraction).
                     urp.supportsCameraDepthTexture = true;
                     urp.supportsCameraOpaqueTexture = true;
@@ -331,7 +340,27 @@ namespace Voidward.EditorTools
                 }
             }
             ConfigureAmbientOcclusion();
+            EnableRealtimeProbes();
             AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>
+        /// Realtime reflection probes on every quality level (#96): the system's sky probe (SystemVisuals) and the cabin
+        /// probes only render with it; without it PBR metal reflects Unity's default sky.
+        /// </summary>
+        static void EnableRealtimeProbes()
+        {
+            var q = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/QualitySettings.asset");
+            if (q.Length == 0) return;
+            var so = new SerializedObject(q[0]);
+            var levels = so.FindProperty("m_QualitySettings");
+            for (int i = 0; levels != null && i < levels.arraySize; i++)
+            {
+                var p = levels.GetArrayElementAtIndex(i).FindPropertyRelative("realtimeReflectionProbes");
+                if (p != null) p.boolValue = true;
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
+            QualitySettings.realtimeReflectionProbes = true;
         }
 
         /// <summary>Soft contact shadows: tune the SSAO renderer feature (VW_ToonFlat provides the DepthNormals pass it samples).</summary>

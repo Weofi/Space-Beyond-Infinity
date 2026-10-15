@@ -17,6 +17,10 @@ namespace Voidward.Data
         public Color NebulaA = new Color(0.9f, 0.4f, 0.7f);
         public Color NebulaB = new Color(0.3f, 0.5f, 0.95f);
         public Color StarColor = new Color(1f, 0.95f, 0.9f);
+        [Tooltip("Star map brightness (#96): 1 = the full NASA sky, lower for star-poor galaxies.")]
+        public float StarField = 1f;
+        [Tooltip("Nebula strength multiplier on the skybox default.")]
+        public float NebulaField = 1f;
 
         [Header("Lighting / fog")]
         public Color SunColor = new Color(1f, 0.9f, 0.8f);

@@ -53,5 +53,7 @@ namespace Voidward.Data
         public PaletteDef Palette;
         [Tooltip("Tint of the destination galaxy on the sky (the next galaxy, or the Milky Way in the last one).")]
         public Color NextGalaxyTint = new Color(0.8f, 0.85f, 1f);
+        [Tooltip("Image of the destination galaxy on the sky (#96, NASA/ESA photo, masked); null = the procedural dot spiral.")]
+        public Texture2D NextGalaxyImage;
     }
 }

@@ -56,6 +56,11 @@ namespace Voidward.Combat
             public TrailRenderer Trail;
         }
 
+        static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        MaterialPropertyBlock fxBlock;
+        static readonly AnimationCurve TaperCurve = AnimationCurve.Linear(0f, 1f, 1f, 0f);
+        static readonly AnimationCurve SmokeCurve = new AnimationCurve(new Keyframe(0f, 0.35f), new Keyframe(0.25f, 1f), new Keyframe(1f, 2.4f));
+
         readonly List<Proj> serverProjs = new List<Proj>();
         readonly List<Proj> visualProjs = new List<Proj>();
         readonly Dictionary<int, Proj> visualById = new Dictionary<int, Proj>();
@@ -157,6 +162,7 @@ namespace Voidward.Combat
             go.transform.rotation = Quaternion.LookRotation((to - from).normalized + Vector3.one * 1e-5f);
             go.transform.localScale = new Vector3(0.05f, 0.05f, Vector3.Distance(from, to));
             go.GetComponent<MeshRenderer>().sharedMaterial = MatFor(c);
+            if (go.transform.childCount > 0) go.transform.GetChild(0).GetComponent<MeshRenderer>().enabled = false;
             StartCoroutine(ReturnLater(go, 0.05f));
         }
 
@@ -318,15 +324,8 @@ namespace Voidward.Combat
             p.Visual.transform.localScale = new Vector3(spec.Width, spec.Width, spec.Length);
             p.Visual.GetComponent<MeshRenderer>().sharedMaterial = MatFor(spec.Color);
             p.Trail = p.Visual.GetComponent<TrailRenderer>();
-            bool trail = kind == ProjectileKind.Missile || kind == ProjectileKind.Meteor || kind == ProjectileKind.BossOrb;
             p.Trail.Clear();
-            p.Trail.emitting = trail;
-            p.Trail.enabled = trail;
-            if (trail)
-            {
-                p.Trail.widthMultiplier = spec.Width * 0.8f;
-                p.Trail.sharedMaterial = MatFor(spec.Color * 0.6f);
-            }
+            DressVisual(p.Visual, p.Trail, kind, spec);
             PlaceVisual(p);
             visualProjs.Add(p);
             visualById[id] = p;
@@ -420,10 +419,103 @@ namespace Voidward.Combat
                 tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 tr.widthCurve = AnimationCurve.Linear(0, 1, 1, 0);
                 tr.enabled = false;
+                // head glow (#96): a camera-facing quad, dressed per projectile kind in DressVisual
+                var glowGo = new GameObject("Glow");
+                glowGo.transform.SetParent(go.transform, false);
+                glowGo.AddComponent<MeshFilter>().sharedMesh = QuadMesh();
+                var gr = glowGo.AddComponent<MeshRenderer>();
+                gr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                gr.receiveShadows = false;
+                gr.enabled = false;
                 go.transform.SetParent(poolRoot, false);
             }
             go.SetActive(true);
             return go;
+        }
+
+        /// <summary>
+        /// Textured look of a projectile (#96): a camera-facing glow/flare on the head (Kenney sprites), a short tapered
+        /// energy trail for bolts and a growing smoke trail for missiles. Without the catalog materials: the old trails.
+        /// </summary>
+        void DressVisual(GameObject go, TrailRenderer tr, ProjectileKind kind, Spec spec)
+        {
+            var cat = ContentCatalog.Instance;
+            bool energy = kind == ProjectileKind.LaserBolt || kind == ProjectileKind.EnemyLaser || kind == ProjectileKind.Blaster;
+            bool heavy = kind == ProjectileKind.Missile || kind == ProjectileKind.BossOrb || kind == ProjectileKind.Flak;
+            if (fxBlock == null) fxBlock = new MaterialPropertyBlock();
+
+            var glow = go.transform.childCount > 0 ? go.transform.GetChild(0).GetComponent<MeshRenderer>() : null;
+            Material head = cat == null ? null : (heavy && cat.FxFlareMaterial != null ? cat.FxFlareMaterial : cat.FxGlowMaterial);
+            if (glow != null)
+            {
+                glow.enabled = head != null && kind != ProjectileKind.Meteor;
+                if (glow.enabled)
+                {
+                    glow.sharedMaterial = head;
+                    // size in multiples of the bolt width (the parent is scaled Width x Width x Length)
+                    float k = energy ? 7f : kind == ProjectileKind.Missile ? 5f : kind == ProjectileKind.Flak ? 6f : kind == ProjectileKind.Spit ? 2.4f : 1.6f;
+                    glow.transform.localScale = new Vector3(k, k, k);
+                    // the head sits at the front end of the bolt (the mesh spans z -0.5..0.5), a missile's flame at the back
+                    glow.transform.localPosition = new Vector3(0f, 0f, kind == ProjectileKind.Missile ? -0.5f : energy ? 0.35f : 0f);
+                    fxBlock.SetColor(BaseColorId, spec.Color * (energy ? 0.55f : kind == ProjectileKind.BossOrb ? 0.45f : 0.8f));
+                    glow.SetPropertyBlock(fxBlock);
+                }
+            }
+
+            bool glowTrail = energy || kind == ProjectileKind.BossOrb || kind == ProjectileKind.Meteor;
+            bool beam = glowTrail && cat != null && cat.FxBeamTrailMaterial != null;
+            bool smoke = kind == ProjectileKind.Missile && cat != null && cat.FxSmokeTrailMaterial != null;
+            bool legacy = !beam && !smoke && (kind == ProjectileKind.Missile || kind == ProjectileKind.Meteor || kind == ProjectileKind.BossOrb);
+            bool on = beam || smoke || legacy;
+            tr.emitting = on;
+            tr.enabled = on;
+            if (!on) return;
+            tr.SetPropertyBlock(null);
+            if (beam)
+            {
+                tr.sharedMaterial = cat.FxBeamTrailMaterial;
+                tr.textureMode = LineTextureMode.Stretch;
+                // bolts: a short streak; orbs and meteors: a longer glowing tail
+                tr.time = energy ? 0.07f : 0.35f;
+                tr.minVertexDistance = 0.3f;
+                tr.widthCurve = TaperCurve;
+                tr.widthMultiplier = spec.Width * (energy ? 1.6f : 0.9f);
+                tr.colorGradient = Fade(Color.white, 1f);
+                fxBlock.SetColor(BaseColorId, spec.Color * (energy ? 0.5f : 0.35f));
+                tr.SetPropertyBlock(fxBlock);
+            }
+            else if (smoke)
+            {
+                tr.sharedMaterial = cat.FxSmokeTrailMaterial;
+                tr.textureMode = LineTextureMode.Tile; // soft dots in a row read as puffs
+                tr.textureScale = new Vector2(0.35f, 1f);
+                tr.time = 1.4f;
+                tr.minVertexDistance = 0.6f;
+                tr.widthCurve = SmokeCurve;
+                tr.widthMultiplier = spec.Width * 1.8f;
+                var g = new Gradient();
+                // hot at the nozzle, then pale grey exhaust (unlit, so it stays readable against black space)
+                g.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.8f, 0.5f), 0f), new GradientColorKey(new Color(0.8f, 0.8f, 0.82f), 0.1f), new GradientColorKey(new Color(0.6f, 0.6f, 0.64f), 1f) },
+                          new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.7f, 0.25f), new GradientAlphaKey(0f, 1f) });
+                tr.colorGradient = g;
+            }
+            else
+            {
+                tr.sharedMaterial = MatFor(spec.Color * 0.6f);
+                tr.textureMode = LineTextureMode.Stretch;
+                tr.time = 0.6f;
+                tr.minVertexDistance = 0.5f;
+                tr.widthCurve = TaperCurve;
+                tr.widthMultiplier = spec.Width * 0.8f;
+                tr.colorGradient = Fade(Color.white, 1f);
+            }
+        }
+
+        static Gradient Fade(Color c, float a0)
+        {
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) }, new[] { new GradientAlphaKey(a0, 0f), new GradientAlphaKey(0f, 1f) });
+            return g;
         }
 
         void ReturnVisual(GameObject go)
@@ -459,7 +551,18 @@ namespace Voidward.Combat
             return m;
         }
 
-        static Mesh boltMesh;
+        static Mesh boltMesh, quadMesh;
+
+        static Mesh QuadMesh()
+        {
+            if (quadMesh != null) return quadMesh;
+            quadMesh = new Mesh { name = "GlowQuad" };
+            quadMesh.SetVertices(new[] { new Vector3(-0.5f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f), new Vector3(0.5f, 0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f) });
+            quadMesh.SetUVs(0, new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) });
+            quadMesh.SetTriangles(new[] { 0, 2, 1, 0, 3, 2 }, 0);
+            quadMesh.bounds = new Bounds(Vector3.zero, Vector3.one * 2f); // the shader expands it towards the camera
+            return quadMesh;
+        }
 
         /// <summary>Unit bolt along Z (scaled by width/length): outer glow sheath + bright inner core, smooth normals for the fresnel.</summary>
         static Mesh BoltMesh()

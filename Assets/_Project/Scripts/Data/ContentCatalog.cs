@@ -73,6 +73,17 @@ namespace Voidward.Data
         public Material ParticleMaterial;
         public Material GlassMaterial;
 
+        [Header("Projectile VFX (#96, optional: missing = the plain bolt)")]
+        public Material FxGlowMaterial;        // soft camera-facing head glow (VW_GlowSprite)
+        public Material FxFlareMaterial;       // four-point flare for missiles / orbs
+        public Material FxBeamTrailMaterial;   // short additive energy trail of bolts
+        public Material FxSmokeTrailMaterial;  // missile smoke trail
+        public Material FxStreakMaterial;      // warp speed lines (stretched Kenney streak)
+
+        [Header("Journey sky (#96, optional: missing = procedural dot spirals)")]
+        public Material SkyImageMaterial;      // additive, unfogged textured quad
+        public Texture2D MilkyWayImage;
+
         static ContentCatalog instance;
         public static ContentCatalog Instance
         {

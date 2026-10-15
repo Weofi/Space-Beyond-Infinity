@@ -785,11 +785,23 @@ namespace Voidward.EditorTools
         {
             var list = new Transform[at.Length];
             var mesh = PlumeMesh();
+            // #96: a soft camera-facing glow in the nozzle (hidden with the plume when the engine is cold)
+            var glowMat = GlowMat("VW_Fx_NozzleGlow", "K_Dot.png", new Color(0.55f, 0.9f, 2.2f), 0.2f);
+            var quad = GlowQuadMesh();
             for (int i = 0; i < at.Length; i++)
             {
                 var g = Visual(parent, "Thruster", mesh, MatPlume);
                 g.transform.localPosition = at[i];
                 g.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                if (glowMat != null && quad != null)
+                {
+                    var glow = Visual(g.transform, "NozzleGlow", quad, glowMat);
+                    glow.transform.localPosition = new Vector3(0f, 0f, -0.05f);
+                    glow.transform.localScale = Vector3.one * 1.7f;
+                    var r = glow.GetComponent<MeshRenderer>();
+                    r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    r.receiveShadows = false;
+                }
                 list[i] = g.transform;
             }
             return list;
