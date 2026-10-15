@@ -826,7 +826,53 @@ namespace Voidward.Dev
             var rot = Quaternion.LookRotation(Vector3.ProjectOnPlane(forward, up).normalized, up);
             p.transform.SetPositionAndRotation(pos, rot);
             var rb = p.GetComponent<Rigidbody>();
-            if (rb != null) { rb.position = pos; rb.rotation = rot; rb.linearVelocity = Vector3.zero; }
+            if (rb != null) { rb.position = pos; rb.rotation = rot; if (!rb.isKinematic) rb.linearVelocity = Vector3.zero; }
+        }
+
+        /// <summary>
+        /// Server (#97): the local player boards a ship of a class in a seat of a role (index-th seat of that role).
+        /// Takes an existing ship of the class (a working one before a derelict), else spawns one 45 m to the right of
+        /// the player's ship. claim = restore a derelict first. Logs "[Dev] end board Ark Pilot ...".
+        /// </summary>
+        public static ShipCore Board(ShipClass cls, StationRole role = StationRole.Pilot, bool claim = false, int index = 0)
+        {
+            Log($"begin board {cls} {role}");
+            if (!IsServer || Pawn == null) { Log("end board FAILED: needs the host + a pawn"); return null; }
+            ShipCore ship = null;
+            foreach (var s in ShipCore.All)
+                if (s != null && s.IsSpawned && s.Class == cls && (ship == null || (ship.Derelict.Value && !s.Derelict.Value))) ship = s;
+            if (ship == null)
+            {
+                var prefab = ContentCatalog.GetShipPrefab(cls);
+                if (prefab == null) { Log("end board FAILED: no prefab for " + cls); return null; }
+                var near = SeatShip != null ? SeatShip.transform : Pawn.transform;
+                var go = UnityEngine.Object.Instantiate(prefab, near.position + near.right * 45f, near.rotation);
+                go.GetComponent<NetworkObject>().Spawn(true);
+                ship = go.GetComponent<ShipCore>();
+            }
+            if (claim && ship.Derelict.Value) ship.Derelict.Value = false;
+            ulong me = Net.LocalClientId;
+            int k = 0;
+            foreach (var seat in ShipSeat.All)
+            {
+                if (seat == null || seat.Ship != ship || seat.Role != role || k++ < index) continue;
+                var prev = ShipSeat.SeatOf(me);
+                if (prev != null && prev != seat) prev.Vacate();
+                seat.Occupant.Value = me;
+                if (role == StationRole.Pilot) ship.NetworkObject.ChangeOwnership(me);
+                Log($"end board {cls} {role} {seat.name} | ship {ship.NetworkObjectId} derelict {ship.Derelict.Value}");
+                return ship;
+            }
+            Log($"end board FAILED: {cls} has no {role} seat #{index}");
+            return ship;
+        }
+
+        /// <summary>Server (#97): switch a ship of a class (the first found) to derelict or back (ShipDerelictLook).</summary>
+        public static void SetDerelict(ShipClass cls, bool on)
+        {
+            if (!IsServer) return;
+            foreach (var s in ShipCore.All)
+                if (s != null && s.IsSpawned && s.Class == cls) { s.Derelict.Value = on; Log($"derelict {cls} {on}"); return; }
         }
 
         /// <summary>Server: god mode on/off (no damage, no oxygen loss).</summary>
@@ -1092,14 +1138,15 @@ namespace Voidward.Dev
 
         /// <summary>
         /// Look around inside the seated ship's cockpit (#94): one sheet with four views from the pilot's eye
-        /// (ship-local, eye at (0, 0, eyeZ)): back over the seat, left shoulder, up through the canopy, right console.
+        /// (ship-local, eye at (0, 0, eyeZ); without eyeZ the occupied seat's view point, #97): back over the seat,
+        /// left shoulder, up through the canopy, right console.
         /// </summary>
-        public static string CockpitViews(string name, float eyeZ = 3.67f)
+        public static string CockpitViews(string name, float eyeZ = float.NaN)
         {
             var s = SeatShip;
             if (s == null) { Log("CockpitViews needs a ship"); return null; }
             var t = s.transform;
-            var eye = new Vector3(0f, 0f, eyeZ);
+            var eye = SeatEye(s, eyeZ);
             var looks = new[] { new Vector3(0f, -0.65f, -2.1f), new Vector3(-1.5f, -0.3f, -1.1f), new Vector3(-1.2f, 1.2f, 0.5f), new Vector3(1.6f, -0.2f, 0.9f) };
             var tiles = new System.Collections.Generic.List<Texture2D>();
             foreach (var l in looks)
@@ -1117,9 +1164,9 @@ namespace Voidward.Dev
         /// <summary>
         /// The seated crew body as the other players see it (#95): one sheet of four views around the local pawn's seat
         /// (side through the canopy, front over the dashboard, right shoulder onto the stick hand, left onto the throttle),
-        /// with the head shown (as on a remote peer) for the shots. Ship-local, eye at (0, 0, eyeZ).
+        /// with the head shown (as on a remote peer) for the shots. Ship-local, eye at (0, 0, eyeZ) or the seat's view point.
         /// </summary>
-        public static string SeatBodyViews(string name, float eyeZ = 3.67f)
+        public static string SeatBodyViews(string name, float eyeZ = float.NaN)
         {
             var s = SeatShip;
             var seat = Pawn != null ? Pawn.CurrentShipSeat : null;
@@ -1128,7 +1175,7 @@ namespace Voidward.Dev
             bool local = pose != null && pose.Local;
             if (pose != null) pose.Local = false;
             var t = s.transform;
-            var eye = new Vector3(0f, 0f, eyeZ);
+            var eye = SeatEye(s, eyeZ);
             var views = new[]
             {
                 (new Vector3(1.7f, 0.5f, -0.45f), new Vector3(0f, -0.5f, 0.25f), 55f),
@@ -1145,6 +1192,15 @@ namespace Voidward.Dev
             foreach (var x in tiles) DevShots.Kill(x);
             DevShots.Kill(sheet);
             return path;
+        }
+
+        /// <summary>Ship-local eye for the cockpit views: (0, 0, eyeZ), or the occupied seat's view point when eyeZ is NaN.</summary>
+        static Vector3 SeatEye(ShipCore ship, float eyeZ)
+        {
+            if (!float.IsNaN(eyeZ)) return new Vector3(0f, 0f, eyeZ);
+            var seat = Pawn != null ? Pawn.CurrentShipSeat : null;
+            var vp = seat != null ? seat.transform.Find("ViewPoint") : null;
+            return vp != null ? ship.transform.InverseTransformPoint(vp.position) : new Vector3(0f, 0f, 3.67f);
         }
 
         /// <summary>

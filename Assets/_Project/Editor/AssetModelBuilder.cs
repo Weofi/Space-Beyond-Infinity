@@ -349,6 +349,18 @@ namespace Voidward.EditorTools
             return m;
         }
 
+        /// <summary>The interior material of a dead ship (#97, Derelict Ark): light strips and panels almost dark, dimmer surfaces.</summary>
+        static Material InteriorDerelictMaterial()
+        {
+            var m = Mat("VW_HullInterior_Derelict", "VOIDWARD/ToonFlat");
+            var src = InteriorMaterial();
+            m.CopyPropertiesFromMaterial(src);
+            m.shaderKeywords = src.shaderKeywords;
+            m.SetFloat("_GlowIntensity", 0.15f);
+            m.enableInstancing = true;
+            return m;
+        }
+
         /// <summary>VW_Hull for interiors: same panel detail, no blue rim (it reads as glow inside a cockpit), softer spec.</summary>
         static Material InteriorMaterial()
         {

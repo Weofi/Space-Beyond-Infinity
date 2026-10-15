@@ -225,20 +225,22 @@ Direction since #91: **asset-based, detailed PBR sci-fi**. The procedural "styli
   - Cockpit: the pilot sits inside under the canopy (seat, dash screens, side consoles, stick); no windscreen, the front frame works as glare shield.
   - Visual Features: Twin nose cannons, big rear engine rings, ribbed dorsal intakes.
   - Palette: Grey and dark slate plating with orange accents, warm orange emissive intakes (alternative liveries in the source pack: black/blue, black/red).
-- **Mule (Cargo Hauler) (core):**
-  - Silhouette: Asymmetrical industrial block-form with forward-offset cab and an exposed rear container superstructure.
-  - Scale: 15.0m length, 9.4m width, 5.8m height.
-  - Visual Features: Quad swiveling external engine pods, external roll-cage trusses, magnetic cargo clamps carrying faceted freight containers.
-  - Palette: Heavy-machinery ochre yellow `#F59E0B`, weathered graphite structure `#334155`, hazard diagonal accents on airlock and clamps.
-- **Ark (Multi-Station Co-op Frigate) (core):**
-  - Silhouette: Heavy catamaran command ship with wide forward observation bridge and twin outrigger engine pylons.
-  - Scale: 32.0m length, 20.5m width, 9.2m height.
-  - Walkable Interior Architecture (Gravity Volume):
-    1. *Bridge / Cockpit (Forward):* Seated pilot station, wrap-around faceted glass canopy, central navigation holographic projector.
-    2. *Dorsal Turret Well (Mid Upper):* Ladder access to an elevated 360-degree glass bubble containing the gunner seat and dual heavy pulse turrets.
-    3. *Engineering Core (Aft Center):* Recessed bay containing the glowing hyperdrive jump coil, shield emitter generator, and resource refinement hopper.
-    4. *Cargo Bay & Airlock (Lower Deck):* Rear ramp extending to planet terrain, 6 cargo magnetic lock pads, oxygen replenishment shower booth.
-  - Palette: Deep navy plating `#1E293B`, off-white dorsal armor slabs `#F1F5F9`, luminescent cyan conduit lines `#38BDF8`.
+- **Mule (Cargo Hauler) (core):** asset since #97 (Fab "DROPSHIP R35" by GrafxBOX, Grey livery).
+  - Silhouette: Armoured wedge dropship with a long nose, two big engine pods on stub wings, landing gear and a rear cargo ramp.
+  - Scale: 15.0m length, 11.4m width (engine pods), 5.3m height.
+  - Cockpit: the upper nose is a smoked glass canopy; the pilot sits under it on a raised deck with the Dart's fittings (chair, consoles, side stick + throttle, dashboard with live screens). Cargo terminal at the ramp.
+  - Visual Features: Four engine nozzles on the pods, chin laser under the nose, orange spine and pod armour.
+  - Palette: Black and gunmetal plating with orange accents, cyan engine glow.
+- **Ark (Multi-Station Co-op Frigate, later the home ship Nostos) (core):** asset since #97 (Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci).
+  - Silhouette: Long hauler with a tall forward cab (bridge), a row of cargo pods on the spine, four engine nacelles on front and rear wings.
+  - Scale: 36.0m length, 24.9m width (wings), 8.0m height.
+  - Walkable Interior Architecture (one deck, Gravity Volumes):
+    1. *Bridge (cab):* raised pilot platform behind the wide front window (Dart fittings), flak turret station at the rear left; flak turret on the cab roof.
+    2. *Corridor (fuselage, 3 m wide):* fabricator and cargo lockers on the right wall, structural frames, light panels, pipe runs.
+    3. *Engineering nook (stern):* engineer console, laser turret station; laser turret on the tail.
+    4. *Airlock (left flank):* door between the wings with a boarding ramp down to the ground; hull access panel beside it.
+  - Derelict: the same ship, scorched and dark (no glow), red flickering emergency light inside until power is restored.
+  - Palette: Gunmetal plating with tan trim, cyan glow; slate interior panels with cyan light strips and orange warning lights.
 - **Cockpit Dashboard Conventions (core):**
   - Diegetic instrumentation: Angled, detailed dashboard consoles positioned within player field of view.
   - Glow screens: Emissive screens displaying pitch/horizon ladder, analog throttle bar, fuel cylinder, and 3D wireframe radar sphere.

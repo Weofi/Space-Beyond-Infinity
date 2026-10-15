@@ -2016,7 +2016,7 @@ namespace Voidward.EditorTools
 
             // ---- interior: deck shell + fittings
             var interior = Child(go.transform, "Interior", Vector3.zero);
-            Visual(interior.transform, "Deck", ArkDeckMesh(), InteriorMaterial());
+            var deckR = Visual(interior.transform, "Deck", ArkDeckMesh(), InteriorMaterial()).GetComponent<MeshRenderer>();
             var fit = Child(interior.transform, "Fittings", ArkEye - new Vector3(0f, 0f, 3.67f));
             bool fitted = DartFittings(fit.transform, false, true);
             if (!fitted) Dashboard(interior.transform, ArkEye + new Vector3(0f, -0.55f, 0.85f), 1.4f);
@@ -2123,8 +2123,9 @@ namespace Voidward.EditorTools
             var cargo = Child(go.transform, "CargoTerminal", new Vector3(ArkHallX - 0.35f, ArkFloor + 1.0f, 2.2f));
             Box(cargo, Vector3.zero, new Vector3(0.9f, 2f, 2.2f), true);
             cargo.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
-            var outside = Child(go.transform, "HullTerminal", new Vector3(-5.9f, -2.3f, (ArkDoorZ0 + ArkDoorZ1) * 0.5f));
-            Box(outside, Vector3.zero, new Vector3(2.6f, 2.6f, 3f), true);
+            // on the flank beside the airlock, where a player at the ramp looks (a trigger around the player gets no ray hit)
+            var outside = Child(go.transform, "HullTerminal", new Vector3(-ArkSkinX - 0.2f, ArkFloor + 0.3f, ArkDoorZ1 + 1.1f));
+            Box(outside, Vector3.zero, new Vector3(0.7f, 2.0f, 1.4f), true);
             outside.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
 
             core.MuzzlesA = new[] { Child(go.transform, "MuzzleL", new Vector3(-3.55f, -1.48f, 14.4f)).transform, Child(go.transform, "MuzzleR", new Vector3(3.55f, -1.48f, 14.4f)).transform };
@@ -2157,8 +2158,8 @@ namespace Voidward.EditorTools
             lod.RecalculateBounds();
 
             var look = go.AddComponent<ShipDerelictLook>();
-            look.Renderers = new Renderer[] { hullR };
-            look.Derelict = new[] { ArkDerelictMaterial() };
+            look.Renderers = new Renderer[] { hullR, deckR };
+            look.Derelict = new[] { ArkDerelictMaterial(), InteriorDerelictMaterial() };
             cabin.AddRange(fit.GetComponentsInChildren<Light>());
             look.Lights = cabin.ToArray();
             return SavePrefab(go);
@@ -2278,6 +2279,10 @@ namespace Voidward.EditorTools
             Hazard(mb, T(tunX, ArkFloor + 0.004f, dMid), tunW, 0.3f, 6, 0.01f);
             for (int s = -1; s <= 1; s += 2)
                 Glow(mb, () => mb.AddBox(T(-ArkHallX + 0.09f, ArkDoorTop - 0.1f, dMid + s * (dLen * 0.5f + 0.2f)), new Vector3(0.04f, 0.14f, 0.1f), new Color(1f, 0.55f, 0.15f)), 1.5f);
+            // hull access panel on the flank beside the airlock (HullTerminal)
+            With(mb, Satin, 0.5f, 0.5f, () => mb.AddBox(T(-ArkSkinX - 0.03f, ArkFloor + 0.3f, ArkDoorZ1 + 1.1f), new Vector3(0.08f, 0.9f, 0.7f), Graphite));
+            Glow(mb, () => mb.AddBox(T(-ArkSkinX - 0.075f, ArkFloor + 0.4f, ArkDoorZ1 + 1.1f), new Vector3(0.01f, 0.5f, 0.5f), Cyan), 0.7f);
+            Glow(mb, () => mb.AddBox(T(-ArkSkinX - 0.075f, ArkFloor - 0.08f, ArkDoorZ1 + 1.1f), new Vector3(0.01f, 0.06f, 0.5f), new Color(1f, 0.55f, 0.15f)), 1.2f);
             var rampFrom = new Vector3(-ArkSkinX, ArkFloor, dMid);
             var rampTo = new Vector3(-5.5f, -3.15f, dMid);
             var rampDir = rampFrom - rampTo;
