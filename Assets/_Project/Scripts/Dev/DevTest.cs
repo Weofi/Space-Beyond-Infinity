@@ -1183,6 +1183,59 @@ namespace Voidward.Dev
         }
 
         /// <summary>
+        /// Light/sky look test (#96): one sheet of four views around the seated ship (front three-quarter, rear onto the
+        /// engines, wide with the sky behind, close along the hull for reflections). No HUD.
+        /// </summary>
+        public static string ShipViews(string name)
+        {
+            var s = SeatShip;
+            if (s == null) { Log("ShipViews needs a ship"); return null; }
+            var t = s.transform;
+            var views = new[]
+            {
+                (new Vector3(14f, 5f, 22f), new Vector3(0f, 0f, 1f), 45f),
+                (new Vector3(-9f, 4f, -24f), new Vector3(0f, 0.5f, -2f), 45f),
+                (new Vector3(30f, 12f, -55f), new Vector3(-20f, 25f, 80f), 70f),
+                (new Vector3(4.5f, 2.2f, 7f), new Vector3(0f, 0.3f, -3f), 40f),
+            };
+            var tiles = new System.Collections.Generic.List<Texture2D>();
+            foreach (var (from, to, fov) in views)
+                tiles.Add(DevShots.Render(new DevPose(t.TransformPoint(from), t.TransformPoint(to), fov), 640, 360, t.up));
+            var sheet = DevShots.Sheet(tiles, 2);
+            string path = DevShots.Save(sheet, name);
+            foreach (var x in tiles) DevShots.Kill(x);
+            DevShots.Kill(sheet);
+            return path;
+        }
+
+        /// <summary>
+        /// VFX look test (#96): in front of the seated ship (or the camera) an explosion, a muzzle flash burst, a metal and a
+        /// rock impact, a laser impact and a shield hit/break fire at t = 0; one sheet of six tiles over 2.5 s from a fixed
+        /// camera (0.05 / 0.15 / 0.35 / 0.7 / 1.3 / 2.5 s). Wait with dev-wait.sh name.
+        /// </summary>
+        public static void VfxViews(string name, float distance = 40f)
+        {
+            var s = SeatShip;
+            Transform t = s != null ? s.transform : (Camera.main != null ? Camera.main.transform : null);
+            if (t == null) { Log("VfxViews needs a ship or a camera"); return; }
+            Vector3 c = t.position + t.forward * (distance + 20f), r = t.right, u = t.up;
+            var cam = new DevPose(t.position + t.forward * 20f + u * 2f, c, 50f);
+            Sequence(name, 2.6f, (f, time) =>
+            {
+                if (f == 0)
+                {
+                    Vfx.Explosion(c - r * 11f + u * 2f, 4f);
+                    Vfx.Impact(c + u * 7f, -t.forward, SurfaceKind.Metal, new Color(1f, 0.7f, 0.3f), 1.5f);
+                    Vfx.Impact(c + r * 4f + u * 7f, -t.forward, SurfaceKind.Rock, new Color(1f, 0.7f, 0.3f), 1.5f);
+                    Vfx.LaserImpact(c - u * 6f);
+                    Vfx.ShieldHit(c + r * 12f + u * 3f);
+                    Vfx.ShieldBreak(c + r * 12f - u * 5f, 3f);
+                }
+                if (f % 4 == 0 && time < 0.8f) Vfx.MuzzleFlash(c - r * 2f, -r, new Color(2f, 1.8f, 1.2f), 2f);
+            }, new[] { 0.05f, 0.15f, 0.35f, 0.7f, 1.3f, 2.5f }, cam);
+        }
+
+        /// <summary>
         /// Locomotion look test (#95): the local pawn is carried along the ground ahead (walk 1.6, jog 6, sprint 9.5 m/s,
         /// one second each) with its body shown, a side camera follows; ONE sheet with a tile per gait (+ a backwards
         /// walk). Wait with dev-wait.sh name. The pawn must stand on a planet (scenario Planet).

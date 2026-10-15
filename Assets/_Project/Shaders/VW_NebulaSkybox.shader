@@ -15,6 +15,13 @@ Shader "VOIDWARD/NebulaSkybox"
         _DustStrength ("Dust Lanes", Range(0,1)) = 0.7
         _BodyStrength ("Distant Bodies", Range(0,1)) = 1
         _Seed ("Variation Seed", Float) = 0
+        [NoScaleOffset] _StarMap ("Star Map (cube, #96)", Cube) = "black" {}
+        _StarMapStrength ("Star Map Strength", Range(0,4)) = 1
+        _StarMapBoost ("Bright Star Boost (HDR)", Range(0,40)) = 10
+        _StarRotX ("Star Map Rotation Row X", Vector) = (1,0,0,0)
+        _StarRotY ("Star Map Rotation Row Y", Vector) = (0,1,0,0)
+        _StarRotZ ("Star Map Rotation Row Z", Vector) = (0,0,1,0)
+        _ReflectionBoost ("Reflection Fill (probe renders only)", Range(0,2)) = 1
     }
     SubShader
     {
@@ -31,6 +38,7 @@ Shader "VOIDWARD/NebulaSkybox"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma shader_feature_local _STARMAP
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; };
@@ -50,7 +58,15 @@ Shader "VOIDWARD/NebulaSkybox"
                 float _DustStrength;
                 float _BodyStrength;
                 float _Seed;
+                float _StarMapStrength;
+                float _StarMapBoost;
+                float4 _StarRotX;
+                float4 _StarRotY;
+                float4 _StarRotZ;
+                float _ReflectionBoost;
             CBUFFER_END
+            TEXTURECUBE(_StarMap); SAMPLER(sampler_StarMap);
+            float _VWReflectionPass; // global: 1 while a reflection probe renders (SystemVisuals)
 
             Varyings vert(Attributes IN)
             {
@@ -65,18 +81,19 @@ Shader "VOIDWARD/NebulaSkybox"
                 return OUT;
             }
 
+            // Integer-style hash (Hoskins "hash without sine"): no visible cell lattice like the old product hash.
             float hash31(float3 p)
             {
-                p = frac(p * 0.3183099 + 0.1 + _Seed * 0.013);
-                p *= 17.0;
-                return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+                p = frac(p * 0.1031 + _Seed * 0.0131);
+                p += dot(p, p.zyx + 31.32);
+                return frac((p.x + p.y) * p.z);
             }
 
             float vnoise(float3 p)
             {
                 float3 i = floor(p);
                 float3 f = frac(p);
-                f = f * f * (3.0 - 2.0 * f);
+                f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0); // quintic: no creases at cell borders
                 float n000 = hash31(i);
                 float n100 = hash31(i + float3(1,0,0));
                 float n010 = hash31(i + float3(0,1,0));
@@ -92,17 +109,27 @@ Shader "VOIDWARD/NebulaSkybox"
                 return lerp(lerp(nx00, nx10, f.y), lerp(nx01, nx11, f.y), f.z);
             }
 
+            // Rotated octaves hide the axis-aligned value-noise grain.
+            static const float3x3 OctaveRot = float3x3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
+
             float fbm(float3 p)
             {
                 float sum = 0.0;
                 float amp = 0.5;
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < 5; i++)
                 {
                     sum += vnoise(p) * amp;
-                    p *= 2.13;
+                    p = mul(OctaveRot, p) * 2.03;
                     amp *= 0.5;
                 }
-                return sum;
+                return sum / 0.97;
+            }
+
+            // Domain-warped fbm: wispy, filament-like clouds instead of round blobs.
+            float warped(float3 p)
+            {
+                float3 q = float3(fbm(p + 1.7), fbm(p + 9.2), fbm(p + 5.3));
+                return fbm(p + (q - 0.5) * 2.2);
             }
 
             float starLayer(float3 dir, float density, float threshold, float size)
@@ -126,13 +153,14 @@ Shader "VOIDWARD/NebulaSkybox"
                 float g = saturate(dir.y * 0.5 + 0.5);
                 float3 col = lerp(_HorizonColor.rgb, _ZenithColor.rgb, pow(g, 0.75));
 
-                // Faint nebula wisps, masked by a large-scale band so most of the sky stays black.
-                float band = smoothstep(0.45, 0.75, fbm(dir * 0.9 + _Seed * 0.3 + 5.3));
-                float n1 = fbm(dir * _NebulaScale + _Seed);
-                float n2 = fbm(dir * (_NebulaScale * 1.7) - _Seed * 0.7 + 31.7);
-                float neb = smoothstep(0.45, 0.9, n1) * band * _NebulaStrength;
-                float neb2 = smoothstep(0.52, 0.92, n2) * band * _NebulaStrength * 0.7;
-                col += _NebulaColorA.rgb * neb * 0.35;
+                // Nebula: domain-warped wisps in two palette colours, masked by a large-scale band so most of the sky stays dark.
+                float band = smoothstep(0.42, 0.72, fbm(dir * 0.9 + _Seed * 0.3 + 5.3));
+                float n1 = warped(dir * _NebulaScale + _Seed);
+                float n2 = warped(dir * (_NebulaScale * 1.7) - _Seed * 0.7 + 31.7);
+                float neb = smoothstep(0.42, 0.85, n1) * band * _NebulaStrength;
+                float neb2 = smoothstep(0.5, 0.9, n2) * band * _NebulaStrength * 0.7;
+                float glow = pow(saturate(n1 * band), 3.0) * _NebulaStrength; // hot cores
+                col += _NebulaColorA.rgb * (neb * 0.35 + glow * 0.25);
                 col += _NebulaColorB.rgb * neb2 * 0.3;
 
                 // Distant galaxies: rare soft elongated smudges with a bright core.
@@ -155,12 +183,21 @@ Shader "VOIDWARD/NebulaSkybox"
                 float lane = smoothstep(0.72, 0.95, ridge) * smoothstep(0.35, 0.65, fbm(dir * 0.7 - _Seed * 0.17 + 2.9)) * _DustStrength;
                 col *= 1.0 - lane * 0.85;
 
-                // Stars: dense faint dust + sparse bright stars, slightly tinted.
+                // Stars. With a star map (#96): the NASA SVS Deep Star Maps sky (Gaia/Hipparcos/Tycho), rotated per galaxy;
+                // its bright band reads as the disk of the galaxy the crew is in. Bright stars get an HDR boost for bloom.
+                float3 starLight;
+            #if defined(_STARMAP)
+                float3 sdir = float3(dot(_StarRotX.xyz, dir), dot(_StarRotY.xyz, dir), dot(_StarRotZ.xyz, dir));
+                float3 sm = SAMPLE_TEXTURECUBE(_StarMap, sampler_StarMap, sdir).rgb;
+                float sl = max(sm.r, max(sm.g, sm.b));
+                starLight = sm * (_StarMapStrength + sl * sl * _StarMapBoost) * lerp(float3(1, 1, 1), _StarColor.rgb, 0.5);
+            #else
                 float dust = starLayer(dir, _StarDensity * 2.2, 0.978, 4.0) * 0.55;
                 float bright = starLayer(dir, _StarDensity, 0.9965, 3.0) * 2.4;
                 float starTint = hash31(floor(dir * _StarDensity));
-                float3 sc = _StarColor.rgb * lerp(float3(0.8, 0.88, 1.0), float3(1.0, 0.92, 0.8), starTint);
-                col += sc * (dust + bright) * (1.0 - neb * 0.5) * (1.0 - lane * 0.9);
+                starLight = _StarColor.rgb * lerp(float3(0.8, 0.88, 1.0), float3(1.0, 0.92, 0.8), starTint) * (dust + bright);
+            #endif
+                col += starLight * (1.0 - neb * 0.5) * (1.0 - lane * 0.9);
 
                 // Distant bodies: a large planet with an atmosphere rim and a small moon, lit by the sun.
                 for (int b = 0; b < 2; b++)
@@ -194,6 +231,12 @@ Shader "VOIDWARD/NebulaSkybox"
                 float3 sunCol = _MainLightColor.rgb / max(max(_MainLightColor.r, _MainLightColor.g), max(_MainLightColor.b, 0.001));
                 float sd = saturate(dot(dir, _MainLightPosition.xyz));
                 col += sunCol * (smoothstep(0.99985, 0.99993, sd) * 30.0 + pow(sd, 900.0) * 1.5 + pow(sd, 40.0) * 0.06) * _SunDiscStrength;
+
+                // Reflection probe render only (#96): a soft, broad fill so PBR metal reflects shape instead of black
+                // (key from the sun side, nebula-tinted from the rest); the visible sky has _VWReflectionPass = 0.
+                float key = saturate(dot(dir, _MainLightPosition.xyz) * 0.5 + 0.5);
+                float3 fill = lerp(_NebulaColorB.rgb * 0.035 + 0.012, sunCol * 0.45, key * key * key) + _NebulaColorA.rgb * neb * 0.4;
+                col += fill * _ReflectionBoost * _VWReflectionPass;
 
                 return half4(col, 1);
             }

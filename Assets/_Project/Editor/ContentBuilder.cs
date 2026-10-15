@@ -148,6 +148,7 @@ namespace Voidward.EditorTools
             MatSkybox.SetFloat("_StarDensity", 220f);
             MatSkybox.SetFloat("_GalaxyStrength", 1f);
             MatSkybox.SetFloat("_SunDiscStrength", 1f);
+            ApplyStarMap(MatSkybox);
             MatCollapse = Mat("VW_Collapse", "VOIDWARD/Collapse");
             MatAtmosphere = Mat("VW_Atmosphere", "VOIDWARD/Atmosphere");
             MatAtmosphere.SetFloat("_Strength", 1f);
@@ -221,6 +222,7 @@ namespace Voidward.EditorTools
                 var p = Asset<PaletteDef>($"{DataDir}/Palettes/Palette_{name.Replace(" ", "")}.asset");
                 p.DisplayName = name; p.SkyZenith = zen; p.SkyHorizon = hor; p.NebulaA = a; p.NebulaB = b;
                 p.SunColor = sun; p.AmbientColor = amb; p.FogColor = fog; p.FogDensity = dens; p.UiPrimary = ui; p.StarColor = new Color(1f, 0.96f, 0.92f);
+                p.StarField = 1f; p.NebulaField = 1f;
                 return p;
             }
             void Grade(PaletteDef p, Color filter, float sat, float contrast, float exposure, float temp, Color bloom)
@@ -244,11 +246,16 @@ namespace Voidward.EditorTools
                   new Color(1f, 0.86f, 0.72f), new Color(0.12f, 0.09f, 0.12f), new Color(0.012f, 0.004f, 0.008f), 0.00006f, new Color(1f, 0.6f, 0.4f)),
             };
             // Per-galaxy grade: cool and clean -> teal and calm -> pink nebula -> cold and contrasty -> warm climax.
-            Grade(list[0], new Color(0.97f, 0.99f, 1f), 12f, 16f, 0.12f, -8f, new Color(0.8f, 0.9f, 1f));
-            Grade(list[1], new Color(0.95f, 1f, 0.98f), 8f, 18f, 0.08f, -3f, new Color(0.75f, 1f, 0.92f));
-            Grade(list[2], new Color(1f, 0.96f, 1f), 14f, 18f, 0.08f, 2f, new Color(1f, 0.85f, 0.98f));
-            Grade(list[3], new Color(0.95f, 0.97f, 1f), -6f, 26f, 0f, -10f, new Color(0.8f, 0.85f, 1f));
-            Grade(list[4], new Color(1f, 0.95f, 0.92f), 16f, 24f, 0.05f, 8f, new Color(1f, 0.82f, 0.7f));
+            // Tuned for PBR + ACES (#96): ACES brings its own contrast/saturation, so these stay small.
+            Grade(list[0], new Color(0.97f, 0.99f, 1f), 6f, 6f, 0.35f, -8f, new Color(0.8f, 0.9f, 1f));
+            Grade(list[1], new Color(0.95f, 1f, 0.98f), 3f, 7f, 0.3f, -3f, new Color(0.75f, 1f, 0.92f));
+            Grade(list[2], new Color(1f, 0.96f, 1f), 8f, 7f, 0.3f, 2f, new Color(1f, 0.85f, 0.98f));
+            Grade(list[3], new Color(0.95f, 0.97f, 1f), -10f, 12f, 0.2f, -10f, new Color(0.8f, 0.85f, 1f));
+            Grade(list[4], new Color(1f, 0.95f, 0.92f), 8f, 10f, 0.3f, 8f, new Color(1f, 0.82f, 0.7f));
+            // Sky density (#96): the dwarf galaxies show fewer stars, nebula-rich ones more cloud.
+            list[2].NebulaField = 1.3f;
+            list[3].StarField = 0.45f; list[3].NebulaField = 0.4f;
+            list[4].StarField = 1.1f; list[4].NebulaField = 1.2f;
             return list;
         }
 

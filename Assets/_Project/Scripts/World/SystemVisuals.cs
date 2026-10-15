@@ -26,14 +26,28 @@ namespace Voidward.World
         Light sun;
         Volume gradeVolume;
         VolumeProfile gradeProfile;
+        ReflectionProbe skyProbe;
         int builtSeed = int.MinValue;
+        static readonly int ReflectionPassId = Shader.PropertyToID("_VWReflectionPass");
 
-        void Awake() => Instance = this;
+        void Awake()
+        {
+            Instance = this;
+            RenderPipelineManager.beginCameraRendering += OnBeginCamera;
+        }
+
+        // Reflection probe renders see the sky with its soft fill (#96, VW_NebulaSkybox _ReflectionBoost): PBR metal
+        // reflects shape instead of black space; the visible sky never gets it.
+        static void OnBeginCamera(ScriptableRenderContext ctx, Camera cam) =>
+            Shader.SetGlobalFloat(ReflectionPassId, cam.cameraType == CameraType.Reflection ? 1f : 0f);
 
         void OnDestroy()
         {
             Clear();
+            RenderPipelineManager.beginCameraRendering -= OnBeginCamera;
+            Shader.SetGlobalFloat(ReflectionPassId, 0f);
             if (Instance == this) Instance = null;
+            if (skyProbe) Destroy(skyProbe.gameObject);
             DestroySky(destination);
             DestroySky(milkyWay);
             if (gradeVolume) Destroy(gradeVolume.gameObject);
@@ -53,7 +67,7 @@ namespace Voidward.World
             Material mat = cat == null ? null : (cat.TerrainMaterial != null ? cat.TerrainMaterial : cat.ToonMaterial); // rock detail material
 
             for (int i = 0; i < layout.Fields.Length; i++) BuildField(layout.Fields[i], i, layout, mat);
-            ApplyPalette(def != null ? def.Palette : null, layout.Seed);
+            ApplyPalette(def != null ? def.Palette : null, layout.Seed, galaxy);
             BuildJourneySky(cat, galaxy, def);
             // Music moods: calm start, rising tension, climax in the last two galaxies.
             Sfx.Music(new[] { 1, 1, 2, 2, 3, 3 }[Mathf.Clamp(galaxy, 0, 5)]);
@@ -225,7 +239,7 @@ namespace Voidward.World
             }
         }
 
-        void ApplyPalette(PaletteDef pal, int seed)
+        void ApplyPalette(PaletteDef pal, int seed, int galaxy)
         {
             var cat = ContentCatalog.Instance;
             if (pal == null || cat == null) return;
@@ -238,13 +252,52 @@ namespace Voidward.World
                 skyInstance.SetColor("_NebulaColorB", pal.NebulaB);
                 skyInstance.SetColor("_StarColor", pal.StarColor);
                 skyInstance.SetFloat("_Seed", (seed % 1000) * 0.37f);
+                skyInstance.SetFloat("_StarMapStrength", cat.SkyboxMaterial.GetFloat("_StarMapStrength") * pal.StarField);
+                skyInstance.SetFloat("_NebulaStrength", cat.SkyboxMaterial.GetFloat("_NebulaStrength") * pal.NebulaField);
+                // The star map turns per galaxy (#96): each galaxy has its own sky, the bright band is its disk.
+                var rot = Matrix4x4.Rotate(StarMapRotation(galaxy));
+                skyInstance.SetVector("_StarRotX", rot.GetRow(0));
+                skyInstance.SetVector("_StarRotY", rot.GetRow(1));
+                skyInstance.SetVector("_StarRotZ", rot.GetRow(2));
                 RenderSettings.skybox = skyInstance;
             }
             pal.ApplyEnvironment();
             if (sun == null) sun = RenderSettings.sun != null ? RenderSettings.sun : FindSun();
             if (sun != null) sun.color = pal.SunColor;
             DynamicGI.UpdateEnvironment();
+            RenderSkyProbe();
             ApplyGrade(pal);
+        }
+
+        /// <summary>Star map orientation of a galaxy (deterministic, the same on every peer and every system of the galaxy).</summary>
+        public static Quaternion StarMapRotation(int galaxy)
+        {
+            var rng = new System.Random(7703 + galaxy * 131);
+            return Quaternion.Euler((float)rng.NextDouble() * 360f, (float)rng.NextDouble() * 360f, (float)rng.NextDouble() * 360f);
+        }
+
+        /// <summary>
+        /// One sky-only realtime probe around the system (#96): reflections for PBR hulls come from the sky with its soft
+        /// fill (see OnBeginCamera); local probes (cabins) have a higher importance.
+        /// </summary>
+        void RenderSkyProbe()
+        {
+            if (skyProbe == null)
+            {
+                var go = new GameObject("SkyProbe");
+                skyProbe = go.AddComponent<ReflectionProbe>();
+                skyProbe.mode = ReflectionProbeMode.Realtime;
+                skyProbe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
+                skyProbe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;
+                skyProbe.cullingMask = 0;
+                skyProbe.clearFlags = ReflectionProbeClearFlags.Skybox;
+                skyProbe.hdr = true;
+                skyProbe.resolution = 256;
+                skyProbe.size = new Vector3(400000f, 400000f, 400000f);
+                skyProbe.importance = 0;
+                skyProbe.farClipPlane = 100f;
+            }
+            skyProbe.RenderProbe();
         }
 
         /// <summary>Per-sector color grade: a runtime global volume above the scene volume overrides only grading parameters.</summary>

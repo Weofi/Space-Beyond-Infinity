@@ -11,6 +11,8 @@ namespace Voidward.Core
     /// alpha-blended material, debris renders a small rock mesh with the lit toon material.
     /// Weapon feedback (#43): directional muzzle flashes with a short pooled point light, surface-aware impacts
     /// (metal sparks, rock chips, dirt, alien goo, shield) and pooled scorch decals (DecalPool).
+    /// Textured layers (#96): when the builder assigns them, fireballs and smoke play Unity Labs flipbooks (frame blended,
+    /// soft), flashes/rings/sparks/muzzle flames use Kenney sprites; a missing material keeps the untextured fallback.
     /// </summary>
     public class VfxManager : MonoBehaviour, IVfxService
     {
@@ -19,6 +21,17 @@ namespace Voidward.Core
         public Material DebrisMaterial;
         public Mesh DebrisMesh;
         public Material DecalMaterial;
+        [Header("Textured layers (#96, optional)")]
+        public Material FireballMaterial;
+        public Material FireballBMaterial;
+        public Material SmokeSheetMaterial;
+        public Material PuffMaterial;
+        public Material FlashMaterial;
+        public Material GlintMaterial;
+        public Material RingMaterial;
+        public Material RippleMaterial;
+        public Material SparkMaterial;
+        public Material MuzzleMaterial;
 
         /// <summary>UI listens: full-screen flash (color, seconds).</summary>
         public static event Action<Color, float> ScreenFlash;
@@ -26,7 +39,7 @@ namespace Voidward.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => ScreenFlash = null;
 
-        enum Kind { Flash, Fireball, Spark, Shock, Smoke, Debris, Shield, Sparkle, Muzzle, SparkCone, Chips, Dust, Goo }
+        enum Kind { Flash, Fireball, Spark, Shock, Smoke, Debris, Shield, Sparkle, Muzzle, SparkCone, Chips, Dust, Goo, FireballB, Ripple }
         readonly Dictionary<Kind, Queue<ParticleSystem>> pools = new Dictionary<Kind, Queue<ParticleSystem>>();
         readonly List<(ParticleSystem ps, Kind k, float until)> active = new List<(ParticleSystem, Kind, float)>();
         bool frozen;
@@ -150,6 +163,42 @@ namespace Voidward.Core
             return g;
         }
 
+        static readonly List<ParticleSystemVertexStream> FlipbookStreams = new List<ParticleSystemVertexStream>
+        {
+            ParticleSystemVertexStream.Position, ParticleSystemVertexStream.Color,
+            ParticleSystemVertexStream.UV, ParticleSystemVertexStream.UV2, ParticleSystemVertexStream.AnimBlend,
+        };
+
+        /// <summary>Use a textured material (#96): a flipbook played over the lifetime, or a random frame of a sprite sheet.</summary>
+        static bool Textured(ParticleSystem ps, Material mat, int tilesX = 1, int tilesY = 1, bool playOverLife = false)
+        {
+            if (mat == null) return false;
+            var r = ps.GetComponent<ParticleSystemRenderer>();
+            r.sharedMaterial = mat;
+            r.SetActiveVertexStreams(FlipbookStreams);
+            if (tilesX * tilesY > 1)
+            {
+                var t = ps.textureSheetAnimation;
+                t.enabled = true;
+                t.mode = ParticleSystemAnimationMode.Grid;
+                t.numTilesX = tilesX;
+                t.numTilesY = tilesY;
+                t.animation = ParticleSystemAnimationType.WholeSheet;
+                t.cycleCount = 1;
+                if (playOverLife)
+                {
+                    t.frameOverTime = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+                    t.startFrame = 0f;
+                }
+                else
+                {
+                    t.frameOverTime = 0f;
+                    t.startFrame = new ParticleSystem.MinMaxCurve(0f, tilesX * tilesY - 0.01f);
+                }
+            }
+            return true;
+        }
+
         ParticleSystem Create(Kind k)
         {
             var go = new GameObject("vfx_" + k);
@@ -271,8 +320,68 @@ namespace Voidward.Core
                     var dampD = ps.limitVelocityOverLifetime;
                     dampD.enabled = true; dampD.dampen = 0.03f; dampD.limit = 0f;
                     break;
+                case Kind.FireballB:
+                case Kind.Ripple:
+                    break;
             }
+            ApplyTexture(ps, k, main, size, col);
             return ps;
+        }
+
+        /// <summary>Textured look per kind (#96); kinds without a material keep the procedural soft sprite.</summary>
+        void ApplyTexture(ParticleSystem ps, Kind k, ParticleSystem.MainModule main, ParticleSystem.SizeOverLifetimeModule size, ParticleSystem.ColorOverLifetimeModule col)
+        {
+            var r = ps.GetComponent<ParticleSystemRenderer>();
+            switch (k)
+            {
+                case Kind.Flash:
+                    Textured(ps, FlashMaterial);
+                    main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                    break;
+                case Kind.Fireball:
+                case Kind.FireballB:
+                    if (Textured(ps, k == Kind.Fireball ? FireballMaterial : (FireballBMaterial != null ? FireballBMaterial : FireballMaterial), 5, 5, true))
+                    {
+                        // the flipbook carries the fire -> smoke change itself: colour stays, alpha fades at the very end
+                        size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.55f), new Keyframe(0.35f, 0.95f), new Keyframe(1f, 1.15f)));
+                        col.color = Fade(Color.white, Color.white, 0f, 0.8f);
+                        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                        var rot = ps.rotationOverLifetime;
+                        rot.enabled = true; rot.z = new ParticleSystem.MinMaxCurve(-0.4f, 0.4f);
+                        var damp = ps.limitVelocityOverLifetime;
+                        damp.enabled = true; damp.dampen = 0.08f; damp.limit = 0f;
+                        r.sortingFudge = 5f;
+                    }
+                    break;
+                case Kind.Smoke:
+                    if (Textured(ps, SmokeSheetMaterial, 8, 8, true)) col.color = Fade(Color.white, Color.white, 0f, 0.35f);
+                    break;
+                case Kind.Dust:
+                case Kind.Goo:
+                    Textured(ps, PuffMaterial, 4, 2);
+                    break;
+                case Kind.Spark:
+                case Kind.SparkCone:
+                    Textured(ps, SparkMaterial);
+                    break;
+                case Kind.Muzzle:
+                    Textured(ps, MuzzleMaterial, 4, 1);
+                    break;
+                case Kind.Shock:
+                    Textured(ps, RingMaterial);
+                    break;
+                case Kind.Ripple:
+                    if (Textured(ps, RippleMaterial != null ? RippleMaterial : RingMaterial))
+                    {
+                        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                        size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.3f, 0f, 3f), new Keyframe(1f, 1f, 0f, 0f)));
+                    }
+                    break;
+                case Kind.Shield:
+                case Kind.Sparkle:
+                    if (Textured(ps, GlintMaterial)) main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+                    break;
+            }
         }
 
         ParticleSystem Emit(Kind k, Vector3 pos, int count, float speed, float sizeMin, float sizeMax, float life, Color c, float radius = 0.1f, float duration = 3f, Quaternion? rot = null)
@@ -309,7 +418,15 @@ namespace Voidward.Core
             radius = Mathf.Max(0.3f, radius);
             Color hot = Color.Lerp(new Color(1f, 0.85f, 0.6f), tint, 0.35f);
             Emit(Kind.Flash, pos, 1, 0f, radius * 2.4f, radius * 2.8f, 0.14f, hot * 3.5f, 0.01f, 0.5f);
-            Emit(Kind.Fireball, pos, Mathf.Clamp((int)(radius * 5), 10, 90), radius * 2.4f, radius * 0.35f, radius * 0.95f, 0.85f, tint * 2.4f, radius * 0.3f);
+            if (FireballMaterial != null)
+            {
+                // flipbook fireballs (#96): a few big overlapping blasts + smaller secondary bursts around them
+                Color fire = Color.Lerp(Color.white, tint, 0.2f);
+                Emit(Kind.Fireball, pos, Mathf.Clamp((int)(radius * 1.2f), 3, 9), radius * 0.9f, radius * 1.4f, radius * 2.2f, 1.6f, fire, radius * 0.3f);
+                Emit(Kind.FireballB, pos, Mathf.Clamp((int)(radius * 1.6f), 3, 12), radius * 2.6f, radius * 0.6f, radius * 1.2f, 1.3f, fire, radius * 0.5f);
+            }
+            else
+                Emit(Kind.Fireball, pos, Mathf.Clamp((int)(radius * 5), 10, 90), radius * 2.4f, radius * 0.35f, radius * 0.95f, 0.85f, tint * 2.4f, radius * 0.3f);
             Emit(Kind.Spark, pos, Mathf.Clamp((int)(radius * 6), 10, 90), radius * 9f, radius * 0.03f + 0.05f, radius * 0.07f + 0.12f, 0.8f, new Color(2.6f, 1.9f, 1.1f), radius * 0.2f);
             Emit(Kind.Shock, pos, 1, 0f, radius * 4.5f, radius * 4.5f, 0.35f, tint * 0.9f, 0.01f, 0.6f);
             Emit(Kind.Smoke, pos, Mathf.Clamp((int)(radius * 3), 6, 40), radius * 1.1f, radius * 0.5f, radius * 1.1f, 2.6f, new Color(0.32f, 0.3f, 0.32f, 0.5f), radius * 0.4f, 3f);
@@ -432,7 +549,7 @@ namespace Voidward.Core
         public void ShieldHit(Vector3 pos)
         {
             Emit(Kind.Shield, pos, 18, 6f, 0.3f, 0.8f, 0.4f, new Color(0.5f, 1.6f, 3f), 0.5f);
-            Emit(Kind.Shock, pos, 1, 0f, 3.2f, 3.6f, 0.3f, new Color(0.4f, 1.2f, 2.4f), 0.01f, 0.5f);
+            Emit(RippleMaterial != null ? Kind.Ripple : Kind.Shock, pos, 1, 0f, 3.2f, 3.6f, 0.3f, new Color(0.4f, 1.2f, 2.4f), 0.01f, 0.5f);
         }
 
         public void ShieldBreak(Vector3 pos, float radius)
