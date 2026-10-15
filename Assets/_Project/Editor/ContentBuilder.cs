@@ -215,6 +215,7 @@ namespace Voidward.EditorTools
             catalog.ParticleMaterial = MatParticle;
             catalog.GlassMaterial = MatGlass;
             AssignProjectileMaterials(catalog);
+            AssignSkyImages(catalog, galaxies);
             catalog.RebuildLookup();
             EditorUtility.SetDirty(catalog);
         }

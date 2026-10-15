@@ -22,6 +22,8 @@ namespace Voidward.World
         readonly List<Mesh> meshes = new List<Mesh>();
         Transform destination, milkyWay;
         float destinationDeg, milkyWayDeg;
+        // image sprites (#96) face the camera with a fixed roll; NaN = procedural spiral (keeps its own tilt)
+        float destinationRoll = float.NaN, milkyWayRoll = float.NaN;
         Material skyInstance;
         Light sun;
         Volume gradeVolume;
@@ -347,7 +349,15 @@ namespace Voidward.World
             var mat = cat != null ? cat.ParticleMaterial : null;
             if (mat == null) return;
             int g = Mathf.Clamp(galaxy, 1, 5);
-            if (milkyWay == null) milkyWay = SkyGalaxy("MilkyWay", mat, 2, new Color(1f, 0.88f, 0.72f), 9001, Quaternion.LookRotation(MilkyWayDir) * Quaternion.Euler(64f, 0f, 18f));
+            if (milkyWay == null)
+            {
+                if (cat.MilkyWayImage != null && cat.SkyImageMaterial != null)
+                {
+                    milkyWay = SkyImage("MilkyWay", cat.SkyImageMaterial, cat.MilkyWayImage, new Color(1.1f, 1.1f, 1.1f));
+                    milkyWayRoll = 25f;
+                }
+                else milkyWay = SkyGalaxy("MilkyWay", mat, 2, new Color(1f, 0.88f, 0.72f), 9001, Quaternion.LookRotation(MilkyWayDir) * Quaternion.Euler(64f, 0f, 18f));
+            }
             milkyWayDeg = MilkyWaySize[g];
             DestroySky(destination);
             destination = null;
@@ -355,8 +365,40 @@ namespace Voidward.World
             if (destinationDeg > 0f)
             {
                 Color tint = def != null ? def.NextGalaxyTint : Color.white;
-                destination = SkyGalaxy("NextGalaxy", mat, g % 2 == 0 ? 3 : 2, tint, 4200 + g, Quaternion.LookRotation(DestinationDir) * Quaternion.Euler(52f + g * 6f, 0f, -30f + g * 11f));
+                if (def != null && def.NextGalaxyImage != null && cat.SkyImageMaterial != null)
+                {
+                    // photos are dim at a few degrees: HDR tint so the destination reads (and blooms a little)
+                    destination = SkyImage("NextGalaxy", cat.SkyImageMaterial, def.NextGalaxyImage, new Color(2.2f, 2.2f, 2.2f));
+                    destinationRoll = -30f + g * 23f;
+                }
+                else
+                {
+                    destination = SkyGalaxy("NextGalaxy", mat, g % 2 == 0 ? 3 : 2, tint, 4200 + g, Quaternion.LookRotation(DestinationDir) * Quaternion.Euler(52f + g * 6f, 0f, -30f + g * 11f));
+                    destinationRoll = float.NaN;
+                }
             }
+        }
+
+        /// <summary>A galaxy photo (#96) on a unit-radius quad (-1..1), own material instance; it owns mesh and material.</summary>
+        Transform SkyImage(string name, Material src, Texture2D tex, Color tint)
+        {
+            var mesh = new Mesh { name = name };
+            const float k = 1.35f; // the masked photos leave dark margins: a bit larger than the dot spiral
+            mesh.SetVertices(new[] { new Vector3(-k, -k, 0f), new Vector3(k, -k, 0f), new Vector3(k, k, 0f), new Vector3(-k, k, 0f) });
+            mesh.SetUVs(0, new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) });
+            mesh.SetColors(new[] { Color.white, Color.white, Color.white, Color.white });
+            mesh.SetTriangles(new[] { 0, 2, 1, 0, 3, 2 }, 0);
+            mesh.bounds = new Bounds(Vector3.zero, Vector3.one * (2f * k));
+            var go = new GameObject("Sky_" + name);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            var m = new Material(src) { name = "SkyImage_" + name };
+            m.SetTexture("_MainTex", tex);
+            m.SetColor("_BaseColor", tint);
+            mr.sharedMaterial = m;
+            mr.shadowCastingMode = ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+            return go.transform;
         }
 
         /// <summary>A spiral galaxy made of soft additive dots (unit radius) with a bright core.</summary>
@@ -406,6 +448,9 @@ namespace Voidward.World
             if (t == null) return;
             var mf = t.GetComponent<MeshFilter>();
             if (mf != null && mf.sharedMesh != null) Destroy(mf.sharedMesh);
+            var mr = t.GetComponent<MeshRenderer>();
+            if (mr != null && mr.sharedMaterial != null && mr.sharedMaterial.name.StartsWith("SkyImage_"))
+                Destroy(mr.sharedMaterial); // SkyImage instances (the dot spirals share the catalog material)
             Destroy(t.gameObject);
         }
 
@@ -424,8 +469,8 @@ namespace Voidward.World
             bool show = cam != null && GameState.Phase == GamePhase.Playing && (builtSeed != int.MinValue || WarpBubble.Active);
             if (!warp)
             {
-                PlaceSky(milkyWay, MilkyWayDir, milkyWayDeg, show, cam);
-                PlaceSky(destination, DestinationDir, destinationDeg, show, cam);
+                PlaceSky(milkyWay, MilkyWayDir, milkyWayDeg, show, cam, milkyWayRoll);
+                PlaceSky(destination, DestinationDir, destinationDeg, show, cam, destinationRoll);
                 return;
             }
             // Warp flight (#79): the destination swings in ahead of the bubble and grows as the crew closes in
@@ -434,16 +479,18 @@ namespace Voidward.World
             float swing = Mathf.SmoothStep(0f, 0.9f, Mathf.Clamp01(t * 4f));
             Vector3 ahead = (WarpBubble.Axis + Vector3.up * 0.12f).normalized;
             bool home = flight.To.Value > GalaxyDef.Count;
-            PlaceSky(milkyWay, home ? Vector3.Slerp(MilkyWayDir, ahead, swing) : MilkyWayDir, home ? Mathf.Lerp(milkyWayDeg, 120f, t * t) : milkyWayDeg, show, cam);
-            PlaceSky(destination, Vector3.Slerp(DestinationDir, ahead, swing), Mathf.Lerp(destinationDeg, 75f, t * t), show && !home, cam);
+            PlaceSky(milkyWay, home ? Vector3.Slerp(MilkyWayDir, ahead, swing) : MilkyWayDir, home ? Mathf.Lerp(milkyWayDeg, 120f, t * t) : milkyWayDeg, show, cam, milkyWayRoll);
+            PlaceSky(destination, Vector3.Slerp(DestinationDir, ahead, swing), Mathf.Lerp(destinationDeg, 75f, t * t), show && !home, cam, destinationRoll);
         }
 
-        static void PlaceSky(Transform t, Vector3 dir, float deg, bool show, Camera cam)
+        static void PlaceSky(Transform t, Vector3 dir, float deg, bool show, Camera cam, float roll = float.NaN)
         {
             if (t == null) return;
             t.gameObject.SetActive(show && deg > 0f);
             if (!show || deg <= 0f) return;
             t.position = cam.transform.position + dir * SkyDistance;
+            // photos face the viewer (they already show the galaxy's own inclination), rolled per galaxy
+            if (!float.IsNaN(roll)) t.rotation = Quaternion.LookRotation(dir, Vector3.up) * Quaternion.Euler(0f, 0f, roll);
             t.localScale = Vector3.one * (SkyDistance * Mathf.Tan(deg * 0.5f * Mathf.Deg2Rad));
         }
     }

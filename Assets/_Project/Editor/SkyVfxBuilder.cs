@@ -134,6 +134,50 @@ namespace Voidward.EditorTools
             if (cat.FxStreakMaterial != null) cat.FxStreakMaterial.SetFloat("_NearFade", 4f);
         }
 
+        /// <summary>
+        /// Journey sky images (#96): destination galaxy per GalaxyDef (index 1..4 -> M31, NGC 6822, Leo I, LMC) and the
+        /// Milky Way, converted by Tools/Blender/galaxy_textures.py; additive, unfogged material.
+        /// </summary>
+        static void AssignSkyImages(ContentCatalog cat, GalaxyDef[] galaxies)
+        {
+            Texture2D Img(string name)
+            {
+                string path = SkyDir + "/Galaxy_" + name + ".png";
+                var imp = AssetImporter.GetAtPath(path) as TextureImporter;
+                if (imp == null) return null;
+                int max = name == "MilkyWay" ? 2048 : 1024;
+                if (imp.wrapMode != TextureWrapMode.Clamp || imp.maxTextureSize != max || imp.textureCompression != TextureImporterCompression.CompressedHQ)
+                {
+                    imp.textureType = TextureImporterType.Default;
+                    imp.sRGBTexture = true;
+                    imp.alphaSource = TextureImporterAlphaSource.None;
+                    imp.mipmapEnabled = true;
+                    imp.wrapMode = TextureWrapMode.Clamp;
+                    imp.maxTextureSize = max;
+                    imp.textureCompression = TextureImporterCompression.CompressedHQ;
+                    imp.SaveAndReimport();
+                }
+                return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            }
+            var next = new[] { "M31", "NGC6822", "LeoI", "LMC", null };
+            for (int i = 0; i < galaxies.Length && i < next.Length; i++)
+            {
+                galaxies[i].NextGalaxyImage = next[i] != null ? Img(next[i]) : null;
+                EditorUtility.SetDirty(galaxies[i]);
+            }
+            cat.MilkyWayImage = Img("MilkyWay");
+            var m = Mat("VW_SkyImage", "VOIDWARD/FlipbookParticle");
+            m.SetColor("_BaseColor", Color.white);
+            m.SetFloat("_Additive", 1f);
+            m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            m.SetFloat("_Heat", 0f);
+            m.SetFloat("_SoftFade", 0f);
+            m.SetFloat("_NearFade", 0f);
+            m.SetFloat("_FogAmount", 0f);
+            cat.SkyImageMaterial = m;
+        }
+
         /// <summary>Textured layers of the pooled effects (#96).</summary>
         static void AssignVfxMaterials(VfxManager vfx)
         {

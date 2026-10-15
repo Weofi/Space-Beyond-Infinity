@@ -13,6 +13,7 @@ Shader "VOIDWARD/FlipbookParticle"
         _Additive ("Additive", Float) = 1
         _SoftFade ("Soft Fade Distance (m)", Range(0,4)) = 0.6
         _NearFade ("Camera Near Fade (m)", Range(0,6)) = 1.2
+        _FogAmount ("Fog Amount (0 = sky objects)", Range(0,1)) = 1
         [HideInInspector] _SrcBlend ("Src", Float) = 1
         [HideInInspector] _DstBlend ("Dst", Float) = 1
     }
@@ -51,6 +52,7 @@ Shader "VOIDWARD/FlipbookParticle"
                 float _Additive;
                 float _SoftFade;
                 float _NearFade;
+                float _FogAmount;
                 float _SrcBlend;
                 float _DstBlend;
             CBUFFER_END
@@ -63,7 +65,7 @@ Shader "VOIDWARD/FlipbookParticle"
                 OUT.uv = IN.uv;
                 OUT.blend = IN.blend;
                 OUT.screen = ComputeScreenPos(OUT.positionCS);
-                OUT.fog = ComputeFogFactor(OUT.positionCS.z);
+                OUT.fog = ComputeFogFactor(OUT.positionCS.z) * _FogAmount; // exp2 fog: factor 0 = no fog
                 return OUT;
             }
 

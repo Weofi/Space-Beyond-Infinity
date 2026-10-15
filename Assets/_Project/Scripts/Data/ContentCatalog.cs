@@ -80,6 +80,10 @@ namespace Voidward.Data
         public Material FxSmokeTrailMaterial;  // missile smoke trail
         public Material FxStreakMaterial;      // warp speed lines (stretched Kenney streak)
 
+        [Header("Journey sky (#96, optional: missing = procedural dot spirals)")]
+        public Material SkyImageMaterial;      // additive, unfogged textured quad
+        public Texture2D MilkyWayImage;
+
         static ContentCatalog instance;
         public static ContentCatalog Instance
         {
