@@ -605,21 +605,35 @@ namespace Voidward.EditorTools
             Glow(medkit, () => medkit.AddBox(T(0.085f, -0.055f, 0.072f), new Vector3(0.02f, 0.01f, 0.004f), Green), 1.4f);
             var meshes = new[] { SaveMesh(drill, "Tool_Drill"), SaveMesh(blaster, "Tool_Blaster"), SaveMesh(rifle, "Tool_Rifle"), SaveMesh(medkit, "Tool_Medkit") };
             // body (#95): the animated crew model with hand-held tools; the procedural astronaut without the UAL rig
-            if (CrewBody(body.transform, meshes) == null)
+            var crewBody = CrewBody(body.transform, meshes);
+            var helmet = crewBody != null ? crewBody.transform.Find("Helmet") : null;
+            if (helmet != null)
+            {
+                Set(crewLights, "strips", helmet.GetComponent<Renderer>());
+                var so = new SerializedObject(crewLights);
+                so.FindProperty("colorProperty").stringValue = "_RimColor";
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            if (crewBody == null)
             {
                 Visual(body.transform, "Astronaut", AstronautMesh(), MatHull);
                 var strips = Visual(body.transform, "CrewStrips", CrewStripMesh(), MatHull);
                 Set(crewLights, "strips", strips.GetComponent<MeshRenderer>());
             }
             string[] names = { "Drill", "Blaster", "Rifle", "Medkit" };
+            // asset tools (#95) at real size, grip origin in the lower right of the view; procedural ones as before
+            var gripAt = new[] { new Vector3(0.2f, -0.23f, 0.36f), new Vector3(0.19f, -0.18f, 0.33f), new Vector3(0.21f, -0.24f, 0.38f) };
+            var muzzles = new Vector3[4];
             for (int i = 0; i < 4; i++)
             {
-                var t = Child(cam.transform, "Tool_" + names[i], new Vector3(0.26f, -0.27f, 0.62f));
-                t.transform.localScale = Vector3.one * 0.45f;
-                var v = Visual(t.transform, "Mesh", meshes[i], MatHull);
-                v.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                bool asset = i < gripAt.Length && HasToolModel(i);
+                var t = Child(cam.transform, "Tool_" + names[i], asset ? gripAt[i] : new Vector3(0.26f, -0.27f, 0.62f), asset ? Quaternion.Euler(0f, -2f, 0f) : (Quaternion?)null);
+                ToolVisual(t.transform, i, meshes[i], 1f, out _);
+                if (!asset) t.transform.localScale = Vector3.one * 0.45f;
+                NoShadows(t);
                 t.SetActive(false);
                 tools[i] = t.transform;
+                muzzles[i] = asset ? t.transform.localPosition + t.transform.localRotation * ToolMuzzle[i] : new Vector3(0.26f, -0.25f, 0.78f);
             }
             var muzzle = Child(cam.transform, "Muzzle", new Vector3(0.26f, -0.25f, 0.78f));
 
@@ -636,6 +650,11 @@ namespace Voidward.EditorTools
             Set(pawn, "body", body.transform);
             SetArray(pawn, "toolModels", tools);
             Set(pawn, "muzzle", muzzle.transform);
+            var pso = new SerializedObject(pawn);
+            var tm = pso.FindProperty("toolMuzzles");
+            tm.arraySize = muzzles.Length;
+            for (int i = 0; i < muzzles.Length; i++) tm.GetArrayElementAtIndex(i).vector3Value = muzzles[i];
+            pso.ApplyModifiedPropertiesWithoutUndo();
             Set(pawn, "beam", lr);
 
             var lamp = AddLight(go.transform, "Headlamp", new Vector3(0, 1.74f, 0.4f), LampWhite, 180f, 60f, 58f);

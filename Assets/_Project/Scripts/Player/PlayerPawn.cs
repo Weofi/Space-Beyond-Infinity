@@ -42,6 +42,7 @@ namespace Voidward.Player
         [SerializeField] Transform body;
         [SerializeField] Transform[] toolModels = new Transform[4];
         [SerializeField] Transform muzzle;
+        [SerializeField] Vector3[] toolMuzzles = new Vector3[0];   // muzzle per tool (camera space, #95); empty = fixed
         [SerializeField] LineRenderer beam;
 
         // ---- Networked state ----
@@ -137,7 +138,7 @@ namespace Voidward.Player
             {
                 Local = this;
                 if (body != null)
-                    foreach (var r in body.GetComponentsInChildren<Renderer>())
+                    foreach (var r in body.GetComponentsInChildren<Renderer>(true))   // incl. the hidden hand tools
                         r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
             }
             else
@@ -590,6 +591,7 @@ namespace Voidward.Player
         {
             if (t == Tool.Rifle && (Gear == null || !Gear.HasRifle.Value)) { EventBus.RaiseNotification("No rifle yet - craft or buy one"); return; }
             CurrentTool = t;
+            if (muzzle != null && (int)t < toolMuzzles.Length) muzzle.localPosition = toolMuzzles[(int)t];
             for (int i = 0; i < toolModels.Length; i++)
                 if (toolModels[i]) toolModels[i].gameObject.SetActive(IsOwner && i == (int)t && CurrentSeat == null && Active.Value && !IsDown.Value);
         }

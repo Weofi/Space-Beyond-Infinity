@@ -93,10 +93,15 @@ namespace Voidward.EditorTools
             stage.AddComponent<MeshFilter>();
             stage.AddComponent<MeshRenderer>().sharedMaterial = MatHull;
 
-            foreach (var (item, mesh) in models) item.Icon = RenderIcon(cam, stage, mesh, item.Id);
-            catalog.IconDrill = RenderIcon(cam, stage, toolMeshes[0].mesh, toolMeshes[0].id);
-            catalog.IconBlaster = RenderIcon(cam, stage, toolMeshes[1].mesh, toolMeshes[1].id);
-            catalog.IconRifle = RenderIcon(cam, stage, toolMeshes[2].mesh, toolMeshes[2].id);
+            foreach (var (item, mesh) in models)
+            {
+                // drills and the rifle as gear items show the asset tools (#95)
+                int tool = item.Kind == ItemKind.Gear ? (item.Gear == GearKind.MiningTool ? 0 : item.Gear == GearKind.Rifle ? 2 : -1) : -1;
+                item.Icon = tool >= 0 ? RenderToolIcon(cam, stage, tool, mesh, item.Id) : RenderIcon(cam, stage, mesh, item.Id);
+            }
+            catalog.IconDrill = RenderToolIcon(cam, stage, 0, toolMeshes[0].mesh, toolMeshes[0].id);
+            catalog.IconBlaster = RenderToolIcon(cam, stage, 1, toolMeshes[1].mesh, toolMeshes[1].id);
+            catalog.IconRifle = RenderToolIcon(cam, stage, 2, toolMeshes[2].mesh, toolMeshes[2].id);
             foreach (var (item, _) in models) EditorUtility.SetDirty(item);
             EditorUtility.SetDirty(catalog);
             AssetDatabase.SaveAssets();
@@ -108,7 +113,31 @@ namespace Voidward.EditorTools
         {
             stage.GetComponent<MeshFilter>().sharedMesh = mesh;
             stage.transform.rotation = Quaternion.Euler(0f, 215f, 0f);
-            var b = stage.GetComponent<MeshRenderer>().bounds;
+            return CaptureIcon(cam, stage.GetComponent<MeshRenderer>().bounds, id);
+        }
+
+        /// <summary>A tool icon from its asset model (#95), else from the procedural mesh on the stage.</summary>
+        static Sprite RenderToolIcon(Camera cam, GameObject stage, int tool, Mesh fallback, string id)
+        {
+            var model = ToolModel(null, tool, "IconModel");
+            if (model == null) return RenderIcon(cam, stage, fallback, id);
+            stage.SetActive(false);
+            model.transform.rotation = Quaternion.Euler(0f, 215f, 0f);
+            Bounds b = default;
+            bool any = false;
+            foreach (var r in model.GetComponentsInChildren<Renderer>())
+            {
+                if (!any) { b = r.bounds; any = true; }
+                else b.Encapsulate(r.bounds);
+            }
+            var icon = CaptureIcon(cam, b, id);
+            Object.DestroyImmediate(model);
+            stage.SetActive(true);
+            return icon;
+        }
+
+        static Sprite CaptureIcon(Camera cam, Bounds b, string id)
+        {
             float radius = Mathf.Max(0.05f, b.extents.magnitude);
             float dist = radius / Mathf.Sin(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * 0.92f;
             cam.transform.position = b.center - Quaternion.Euler(24f, 0f, 0f) * Vector3.forward * dist;

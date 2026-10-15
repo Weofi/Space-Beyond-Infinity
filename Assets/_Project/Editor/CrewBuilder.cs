@@ -70,7 +70,7 @@ namespace Voidward.EditorTools
             imp.animationType = ModelImporterAnimationType.Human;
             imp.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
             imp.bakeAxisConversion = true;
-            imp.materialImportMode = ModelImporterMaterialImportMode.None;
+            if (animations) imp.materialImportMode = ModelImporterMaterialImportMode.None;   // the library's mannequin: CrewMaterial
             imp.importAnimation = animations;
             imp.importCameras = false;
             imp.importLights = false;
@@ -90,6 +90,7 @@ namespace Voidward.EditorTools
                     HumanoidImporter(imp, false);
                     imp.SaveAndReimport();
                 }
+                RemapMaterials(imp, SuitMaterials());
                 return SuitPath;
             }
             return UalPath;
@@ -250,19 +251,24 @@ namespace Voidward.EditorTools
             anim.runtimeAnimatorController = controller;
             anim.applyRootMotion = false;
             anim.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
-            var mat = CrewMaterial();
+            var mat = path == UalPath ? CrewMaterial() : null;   // the suit's own materials come from the importer remap
             foreach (var r in go.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
-                r.sharedMaterials = Enumerable.Repeat(mat, Mathf.Max(1, r.sharedMesh != null ? r.sharedMesh.subMeshCount : 1)).ToArray();
+                if (mat != null) r.sharedMaterials = Enumerable.Repeat(mat, Mathf.Max(1, r.sharedMesh != null ? r.sharedMesh.subMeshCount : 1)).ToArray();
                 r.updateWhenOffscreen = false;
                 r.skinnedMotionVectors = false;
+                // the imported bounds sit metres off the body: a 2.4 m cube around the standing body, in root bone space
+                var rb = r.rootBone != null ? r.rootBone : r.transform;
+                Vector3 c = rb.InverseTransformPoint(go.transform.position + go.transform.up * 0.95f);
+                Vector3 ls = rb.lossyScale;
+                r.localBounds = new Bounds(c, new Vector3(2.4f / Mathf.Abs(ls.x), 2.4f / Mathf.Abs(ls.y), 2.4f / Mathf.Abs(ls.z)));
             }
             return go;
         }
 
         /// <summary>
-        /// The on-foot body: crew model + CrewAnimator, the four tools as hand-held copies (grip in the right palm,
-        /// barrel along the hand). Null without the UAL FBX (then BuildPawn keeps the procedural astronaut).
+        /// The on-foot body: crew model + CrewAnimator, the tools as hand-held copies (the asset models, origin = palm
+        /// on the grip, else the procedural meshes). Null without the UAL FBX (then BuildPawn keeps the astronaut).
         /// </summary>
         static GameObject CrewBody(Transform parent, Mesh[] toolMeshes)
         {
@@ -270,22 +276,19 @@ namespace Voidward.EditorTools
             var go = CrewModel(parent, "Crew", crewCtrl);
             if (go == null) return null;
             var anim = go.GetComponent<Animator>();
-            var hand = anim.GetBoneTransform(HumanBodyBones.RightHand);
             var ca = go.AddComponent<CrewAnimator>();
+            HandGrip(anim, go.transform, out var gripPos, out var gripRot);
             var tools = new Object[toolMeshes.Length];
             var pos = new Vector3[toolMeshes.Length];
             var euler = new Vector3[toolMeshes.Length];
-            // bind pose (T-pose): the hand bone points along the arm; the tool's barrel follows it, its top up
-            Quaternion world = hand != null ? Quaternion.LookRotation(hand.up, Vector3.up) : Quaternion.identity;
-            Quaternion local = hand != null ? Quaternion.Inverse(hand.rotation) * world : Quaternion.identity;
             for (int i = 0; i < toolMeshes.Length; i++)
             {
                 var t = Child(go.transform, "HandTool_" + i, Vector3.zero);
-                var v = Visual(t.transform, "Mesh", toolMeshes[i], MatHull);
-                v.transform.localPosition = new Vector3(0f, 0.06f, 0f);   // grip under the barrel sits in the palm
+                ToolVisual(t.transform, i, toolMeshes[i], 1f, out bool asset);
                 tools[i] = t.transform;
-                pos[i] = hand != null ? Quaternion.Inverse(hand.rotation) * (hand.up * 0.07f - Vector3.up * 0.03f) : Vector3.zero;
-                euler[i] = local.eulerAngles;
+                // procedural meshes have their origin mid-body: the grip sits ~6 cm under it
+                pos[i] = gripPos + (asset ? Vector3.zero : gripRot * new Vector3(0f, -0.06f, 0f));
+                euler[i] = gripRot.eulerAngles;
                 t.SetActive(false);
             }
             SetArray(ca, "handTools", tools);
@@ -299,6 +302,28 @@ namespace Voidward.EditorTools
             }
             so.ApplyModifiedPropertiesWithoutUndo();
             return go;
+        }
+
+        /// <summary>
+        /// Where a tool's grip origin sits in the right hand bone's space, from the bind pose: palm centre a little along
+        /// the fingers and towards the palm, barrel along the hand (wrist -> knuckles), tool top towards the thumb.
+        /// </summary>
+        static void HandGrip(Animator anim, Transform root, out Vector3 pos, out Quaternion rot)
+        {
+            pos = Vector3.zero; rot = Quaternion.identity;
+            var hand = anim.GetBoneTransform(HumanBodyBones.RightHand);
+            var middle = anim.GetBoneTransform(HumanBodyBones.RightMiddleProximal);
+            var thumb = anim.GetBoneTransform(HumanBodyBones.RightThumbProximal);
+            if (hand == null || middle == null || thumb == null) return;
+            Vector3 fingers = (middle.position - hand.position).normalized;
+            Vector3 up = Vector3.ProjectOnPlane(thumb.position - hand.position, fingers).normalized;
+            Vector3 palm = Vector3.Cross(fingers, up);
+            // bind pose (T or A): palms face down and/or in towards the body
+            Vector3 inward = Vector3.ProjectOnPlane(root.position - hand.position, root.up).normalized;
+            if (Vector3.Dot(palm, inward - root.up) < 0f) palm = -palm;
+            Vector3 world = hand.position + fingers * 0.06f + palm * 0.025f;
+            pos = hand.InverseTransformPoint(world);
+            rot = Quaternion.Inverse(hand.rotation) * Quaternion.LookRotation(fingers, up);
         }
 
         /// <summary>Seated body: crew model + CrewSeatPose (eyes to the view point, optional grips). Null without UAL.</summary>
