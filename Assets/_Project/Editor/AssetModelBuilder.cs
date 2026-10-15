@@ -189,6 +189,62 @@ namespace Voidward.EditorTools
         /// <summary>R35 "Grey" livery (black / gunmetal plating, orange spine and pods): URP Lit, OpenGL normal map.</summary>
         static Material MuleR35Material() => PbrMaterial("Ship_Mule_R35", MuleDir, "R35", 1.6f, 1f, "_Normal.jpg", false);
 
+        // ---------------------------------------------------------------- Ark (#97)
+
+        const string ArkDir = ShipModelDir + "/CargoShip";
+
+        /// <summary>Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci (Tools/Blender/cargo_ark.py): 36 m, nose +Z, window and belly hatch cut out.</summary>
+        static Mesh ArkCargoMesh() => ModelMesh(ShipModelDir + "/Ship_Ark_Cargo.fbx");
+
+        /// <summary>The bridge window cut out of the cab front (original UVs).</summary>
+        static Mesh ArkCargoGlassMesh() => ModelMesh(ShipModelDir + "/Ship_Ark_Cargo_Glass.fbx");
+
+        /// <summary>
+        /// Gunmetal hull with tan trim (URP Lit, DirectX normals). The source glow is violet: its brightness becomes a mask,
+        /// tinted cyan by the emission colour (Dart palette: cyan/orange emissives).
+        /// </summary>
+        static Material ArkCargoMaterial()
+        {
+            var m = PbrMaterial("Ship_Ark_Cargo", ArkDir, "CargoShip", 1f);
+            m.SetTexture("_EmissionMap", Generated(ArkDir + "/CargoShip_Emissive_vw.png", true, new[] { ArkDir + "/CargoShip_Emissive.jpg" }, (px, i) =>
+            {
+                var e = px[0][i];
+                byte l = (byte)Mathf.Max(e.r, Mathf.Max(e.g, e.b));
+                return new Color32(l, l, l, 255);
+            }, 2048));
+            m.SetColor("_EmissionColor", new Color(0.3f, 0.85f, 1f) * 2.2f);
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>
+        /// The Derelict Ark (#97): the same hull, dark and scorched (burn patches from noise over the albedo), rougher,
+        /// no emission. ShipDerelictLook swaps it in while ShipCore.Derelict is set.
+        /// </summary>
+        static Material ArkDerelictMaterial()
+        {
+            var m = PbrMaterial("Ship_Ark_Cargo_Derelict", ArkDir, "CargoShip", 0f);
+            m.SetTexture("_BaseMap", Generated(ArkDir + "/CargoShip_Base_color_derelict.png", true, new[] { ArkDir + "/CargoShip_Base_color.jpg" }, (px, i) =>
+            {
+                int w = Mathf.RoundToInt(Mathf.Sqrt(px[0].Length));
+                float u = (i % w) / (float)w, v = (i / w) / (float)w;
+                // scorch: low-frequency patches with a ragged edge; soot everywhere a little
+                float n = Mathf.PerlinNoise(u * 7f + 3.1f, v * 7f + 1.7f) * 0.7f + Mathf.PerlinNoise(u * 31f, v * 31f) * 0.3f;
+                float burn = Mathf.SmoothStep(0f, 1f, (n - 0.52f) * 5f);
+                Color c = px[0][i];
+                c *= Mathf.Lerp(0.55f, 0.12f, burn);
+                c = Color.Lerp(c, new Color(0.05f, 0.035f, 0.025f), burn * 0.6f);
+                c.a = 1f;
+                return (Color32)c;
+            }, 2048));
+            m.SetColor("_BaseColor", new Color(0.85f, 0.85f, 0.85f));
+            m.SetFloat("_Smoothness", 0.55f);
+            m.SetColor("_EmissionColor", Color.black);
+            m.DisableKeyword("_EMISSION");
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
         // ---------------------------------------------------------------- Dart cockpit (#94)
 
         const string CockpitDir = ShipModelDir + "/DartCockpit";
