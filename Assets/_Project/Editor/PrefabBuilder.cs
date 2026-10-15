@@ -1154,13 +1154,34 @@ namespace Voidward.EditorTools
             var tub = FabShipCockpitMesh();
             var interior = InteriorMaterial();
             if (tub != null) Visual(root.transform, "CockpitTub", tub, interior);
+            bool fitted = DartFittings(root.transform, true);
+            if (!fitted)
+            {
+                Visual(root.transform, "Cockpit", FabDartCockpitMesh(), interior);
+                AddLight(root.transform, "CockpitLight", new Vector3(0, -0.75f, 3.7f), new Color(0.55f, 0.8f, 1f), 0.5f, 2.4f);
+            }
+            var lod = root.AddComponent<LODGroup>();
+            lod.SetLODs(new[] { new LOD(0.035f, root.GetComponentsInChildren<Renderer>()) });
+            lod.RecalculateBounds();
+            return fitted;
+        }
+
+        /// <summary>
+        /// The Dart's cockpit fittings (dart_cockpit.py) under `root`, in Dart ship coordinates (pilot eye at 0, 0, 3.67):
+        /// console, chair, side stick + throttle with their hand IK goals, the dashboard with its light strips and the six
+        /// live screens, cockpit lights. `dartHull` adds the parts shaped to the Dart's own hull (wall linings, rear bay,
+        /// canopy frame); other ships (Mule, #97) move `root` so the eye lands on theirs. `walls` = the side consoles beside the seat. False when the FBX files are missing.
+        /// </summary>
+        static bool DartFittings(Transform rootT, bool dartHull, bool walls = true)
+        {
+            var root = rootT.gameObject;
             var console = DartCockpitMesh("Console");
             bool fitted = console != null;
             if (fitted)
             {
                 var center = WaspMaterial("center");
                 Visual(root.transform, "Console", console, center);
-                Visual(root.transform, "Walls", DartCockpitMesh("Walls"), WaspMaterial("cockpit"));
+                if (walls) Visual(root.transform, "Walls", DartCockpitMesh("Walls"), WaspMaterial("cockpit"));
                 Visual(root.transform, "Seat", DartCockpitMesh("Seat"), ChairMaterial());
                 var dash = DartCockpitMesh("Dash");
                 if (dash != null)
@@ -1173,9 +1194,9 @@ namespace Voidward.EditorTools
                     Visual(root.transform, "DashGlowAmber", DartCockpitMesh("DashGlowAmber"), GlowMaterial("VW_CockpitGlowAmber", new Color(1f, 0.42f, 0.1f) * 1.3f));
                 }
                 // rear bay behind the seat, roll bar + canopy bows and sill rails
-                var rear = DartCockpitMesh("Rear");
+                var rear = dartHull ? DartCockpitMesh("Rear") : null;
                 if (rear != null) Visual(root.transform, "RearBay", rear, WaspMaterial("cockpit"));
-                var frame = DartCockpitMesh("Frame");
+                var frame = dartHull ? DartCockpitMesh("Frame") : null;
                 if (frame != null) Visual(root.transform, "CanopyFrame", frame, WaspMaterial("cockpit"));
                 // pivots printed by dart_cockpit.py
                 var stick = Child(root.transform, "Stick", new Vector3(0.44f, -0.737f, 4.0f)).transform;
@@ -1203,16 +1224,8 @@ namespace Voidward.EditorTools
                 AddLight(root.transform, "CockpitLight", new Vector3(0, -0.3f, 3.85f), new Color(0.75f, 0.85f, 1f), 0.35f, 2.2f);
                 AddLight(root.transform, "ScreenGlow", new Vector3(0, -0.45f, 4.4f), new Color(0.35f, 0.85f, 1f), 0.45f, 1.2f);
                 AddLight(root.transform, "FootwellGlow", new Vector3(0, -1.4f, 4.6f), new Color(1f, 0.55f, 0.2f), 0.3f, 1.4f);
-                AddLight(root.transform, "RearBayGlow", new Vector3(0, -0.9f, 2.9f), new Color(0.35f, 0.8f, 1f), 0.5f, 1.5f);
+                if (dartHull) AddLight(root.transform, "RearBayGlow", new Vector3(0, -0.9f, 2.9f), new Color(0.35f, 0.8f, 1f), 0.5f, 1.5f);
             }
-            else
-            {
-                Visual(root.transform, "Cockpit", FabDartCockpitMesh(), interior);
-                AddLight(root.transform, "CockpitLight", new Vector3(0, -0.75f, 3.7f), new Color(0.55f, 0.8f, 1f), 0.5f, 2.4f);
-            }
-            var lod = root.AddComponent<LODGroup>();
-            lod.SetLODs(new[] { new LOD(0.035f, root.GetComponentsInChildren<Renderer>()) });
-            lod.RecalculateBounds();
             return fitted;
         }
 
@@ -1467,6 +1480,8 @@ namespace Voidward.EditorTools
 
         static GameObject BuildMule()
         {
+            var r35 = MuleR35Mesh();
+            if (r35 != null) return BuildR35Mule(r35);
             var go = ShipRoot("Ship_Mule", ShipClass.Mule, 3500f, 6, 3);
             var core = go.GetComponent<ShipCore>();
             Visual(go.transform, "Hull", MuleHullMesh(), MatHull);
@@ -1489,6 +1504,79 @@ namespace Voidward.EditorTools
             foreach (var t in fx.Thrusters) t.localScale = Vector3.one * 1.1f;
             ShipLighting(go, new Vector3(0, -2f, -1f), 12f, new Vector3(-0.88f, -0.18f, 4.7f), new Vector3(0.88f, -0.18f, 4.7f));
             return SavePrefab(go);
+        }
+
+        /// <summary>Seated eye of the Mule's pilot (under the R35 canopy, r35_dropship.py EYE).</summary>
+        static readonly Vector3 MuleEye = new Vector3(0f, 0.55f, 3.3f);
+
+        /// <summary>
+        /// Mule with the textured R35 hull (#97): 15 m long, 11.4 m across the engine pods, rear ramp. The upper nose is
+        /// cut out as a canopy (Tools/Blender/r35_dropship.py), the pilot sits under it in a tub that follows the nose,
+        /// on a raised deck with the Dart's cockpit fittings (chair, console, side stick + throttle, dashboard, live screens).
+        /// Four engine nozzles on the pods, chin laser under the nose, cargo terminal at the ramp.
+        /// </summary>
+        static GameObject BuildR35Mule(Mesh hull)
+        {
+            var go = ShipRoot("Ship_Mule", ShipClass.Mule, 3500f, 6, 3);
+            var core = go.GetComponent<ShipCore>();
+            Visual(go.transform, "Hull", hull, MuleR35Material());
+            var canopy = MuleR35CanopyMesh();
+            if (canopy != null)
+            {
+                Visual(go.transform, "Canopy", canopy, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                Visual(go.transform, "CanopyInner", canopy, FabShipGlassInnerMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            var interior = Child(go.transform, "Interior", Vector3.zero);
+            var tub = MuleR35CockpitMesh();
+            if (tub != null)
+            {
+                // the convex tub pokes through the concave hull in places: inward faces only, so no shadows from outside
+                var t = Visual(interior.transform, "CockpitTub", tub, InteriorMaterial());
+                t.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            Visual(interior.transform, "Deck", MuleDeckMesh(), InteriorMaterial());
+            // the Dart's fittings, moved so the Dart's eye (0, 0, 3.67) lands on the Mule's
+            var fit = Child(interior.transform, "Fittings", MuleEye - new Vector3(0f, 0f, 3.67f));
+            bool fitted = DartFittings(fit.transform, false);
+            if (!fitted) Dashboard(interior.transform, MuleEye + new Vector3(0f, -0.55f, 0.85f), 1.0f);
+            var lod = interior.AddComponent<LODGroup>();
+            lod.SetLODs(new[] { new LOD(0.035f, interior.GetComponentsInChildren<Renderer>()) });
+            lod.RecalculateBounds();
+
+            Box(go, new Vector3(0, -0.25f, -2.65f), new Vector3(6.8f, 4.1f, 9.7f));    // body
+            Box(go, new Vector3(0, -0.55f, 4.55f), new Vector3(3.0f, 3.5f, 4.7f));     // nose
+            Box(go, new Vector3(-4.55f, 0.81f, -1.6f), new Vector3(2.3f, 3.4f, 6.5f)); // engine pods
+            Box(go, new Vector3(4.55f, 0.81f, -1.6f), new Vector3(2.3f, 3.4f, 6.5f));
+            Box(go, new Vector3(-2.55f, -1.75f, -0.6f), new Vector3(1.7f, 1.7f, 2.4f)); // landing gear
+            Box(go, new Vector3(2.55f, -1.75f, -0.6f), new Vector3(1.7f, 1.7f, 2.4f));
+
+            var pilot = Seat(go.transform, "PilotSeat", StationRole.Pilot, MuleEye + new Vector3(0f, -1.2f, -0.04f), MuleEye, new Vector3(-2.9f, -1.3f, 4.2f),
+                new Vector3(0f, 0.55f, 4.0f), new Vector3(3.2f, 2.2f, 4.2f));
+            if (fitted) SeatGrips(pilot, fit.transform.Find("Stick/GripIK"), fit.transform.Find("Throttle/GripIK"));
+            // cargo terminal at the rear ramp
+            var term = Child(go.transform, "CargoTerminal", new Vector3(0, -1.2f, -7.4f));
+            Box(term, Vector3.zero, new Vector3(3.4f, 3f, 2.6f), true);
+            term.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
+
+            core.MuzzlesA = new[] { Child(go.transform, "MuzzleL", new Vector3(-0.3f, -1.93f, 7.55f)).transform, Child(go.transform, "MuzzleR", new Vector3(0.3f, -1.93f, 7.55f)).transform };
+            core.MuzzlesB = new[] { Child(go.transform, "MuzzleTop", new Vector3(0, 2.0f, -1.0f)).transform };
+            core.RespawnPoint = Child(go.transform, "Respawn", new Vector3(-7.4f, -1.5f, 2.5f)).transform;
+            core.FabricatorPoint = go.transform;
+            var fx = go.AddComponent<ShipEngineFx>();
+            fx.Thrusters = Thrusters(go.transform, new Vector3(-5.2f, 0.94f, -4.6f), new Vector3(-3.88f, 0.94f, -4.6f), new Vector3(3.88f, 0.94f, -4.6f), new Vector3(5.2f, 0.94f, -4.6f));
+            foreach (var t in fx.Thrusters) t.localScale = new Vector3(0.8f, 0.8f, 1.6f);
+            ShipLighting(go, new Vector3(0, -2.9f, 0), 14f, new Vector3(-0.55f, -0.9f, 6.2f), new Vector3(0.55f, -0.9f, 6.2f));
+            return SavePrefab(go);
+        }
+
+        /// <summary>Raised deck in the Mule's cockpit tub: the floor under the Dart chair (eye - 1.36) with a grip strip (narrow: the nose tapers).</summary>
+        static Mesh MuleDeckMesh()
+        {
+            var mb = Hero(0.04f);
+            float y = MuleEye.y - 1.36f;
+            With(mb, Satin, 0.6f, 0.6f, () => mb.AddBox(T(0, y - 0.03f, MuleEye.z + 0.1f), new Vector3(1.7f, 0.06f, 2.4f), Graphite));
+            With(mb, 0.2f, 0f, 0f, () => mb.AddBox(T(0, y + 0.005f, MuleEye.z + 0.3f), new Vector3(0.7f, 0.01f, 1.6f), Rubber));
+            return SaveMesh(mb, "Ship_Mule_R35_Deck");
         }
 
         /// <summary>Superellipse outline (half extents, power) clipped to an axis-aligned rectangle: a convex bulkhead piece.</summary>
@@ -1858,7 +1946,7 @@ namespace Voidward.EditorTools
         static Mesh ArkTurretBaseMesh()
         {
             var mb = Hero(0.15f);
-            mb.AddLathe(Matrix4x4.identity, new[] { new Vector2(1.1f, 0f), new Vector2(1.05f, 0.35f), new Vector2(0.9f, 0.6f), new Vector2(0.55f, 0.66f), new Vector2(0f, 0.68f) }, 28, ArkNavy);
+            mb.AddLathe(Matrix4x4.identity, new[] { new Vector2(1.1f, 0f), new Vector2(1.05f, 0.35f), new Vector2(0.9f, 0.6f), new Vector2(0.55f, 0.66f), new Vector2(0f, 0.68f) }, 28, Graphite);
             With(mb, 0.6f, 1f, 0f, () => mb.AddLathe(T(0, 0.6f, 0), new[] { new Vector2(0.6f, 0f), new Vector2(0.65f, 0.08f), new Vector2(0.6f, 0.16f) }, 24, Gunmetal));
             Glow(mb, () => mb.AddLathe(T(0, 0.3f, 0), new[] { new Vector2(1.08f, -0.03f), new Vector2(1.1f, 0f), new Vector2(1.08f, 0.03f) }, 28, Cyan), 0.9f);
             return SaveMesh(mb, "Turret_Base");
@@ -1872,9 +1960,9 @@ namespace Voidward.EditorTools
             {
                 new MeshBuilder.Section(-0.7f, 0.5f, 0.38f, 3f), new MeshBuilder.Section(-0.45f, 0.66f, 0.46f, 3.5f),
                 new MeshBuilder.Section(0.35f, 0.64f, 0.44f, 3.5f), new MeshBuilder.Section(0.7f, 0.42f, 0.3f, 3f),
-            }, 24, Chalk, smoothing: 2);
-            mb.Paint(head, p => p.y < -0.18f, ArkNavy);
-            mb.Paint(head, p => p.y >= -0.18f && p.y < -0.05f, Blue);
+            }, 24, Gunmetal, smoothing: 2);
+            mb.Paint(head, p => p.y < -0.18f, Graphite);
+            mb.Paint(head, p => p.y >= -0.18f && p.y < -0.05f, Slate);
             Glow(mb, () => mb.AddBox(T(0, 0.15f, 0.69f), new Vector3(0.5f, 0.07f, 0.04f), Cyan), 1.2f);
             for (int s = -1; s <= 1; s += 2)
             {
@@ -1891,8 +1979,419 @@ namespace Voidward.EditorTools
             return SaveMesh(mb, "Turret_Head");
         }
 
+        // ---------------------------------------------------------------- Ark from the cargo ship asset (#97)
+
+        // One deck through the fuselage and the cab (Tools/Blender/cargo_ark.py ROOMS / DOOR), Unity coordinates.
+        const float ArkFloor = -1.55f;
+        const float ArkHallX = 1.5f, ArkHallTop = 0.76f, ArkHallCorner = 0.3f, ArkHallCeilX = 1.25f, ArkHallZ0 = -8.6f, ArkHallZ1 = 6.6f;     // corridor (fuselage)
+        const float ArkBridgeX = 1.36f, ArkBridgeTop = 1.6f, ArkBridgeZ1 = 16.85f;                // bridge (cab), front wall
+        const float ArkDoorZ0 = -2.5f, ArkDoorZ1 = -0.5f, ArkDoorTop = 0.55f, ArkSkinX = 1.91f;  // airlock, left flank
+        const float ArkPlatform = -1.16f, ArkPlatformZ = 13.0f;                                  // raised pilot platform
+        static readonly Vector3 ArkEye = new Vector3(0f, 0.2f, 14.6f);
+        // the fuselage is chamfered at the top (half width 1.67 at y 0.4, 1.44 at 0.76): walls end at ArkHallCorner,
+        // a slanted panel leads to the ceiling (half width ArkHallCeilX)
+        static readonly Color ArkPanel = new Color(0.33f, 0.37f, 0.43f);
+        // the bridge window (cut out of the cab front): top edge (z, y) and bottom edge
+        static readonly Vector2 ArkWindowTop = new Vector2(15.38f, 1.34f), ArkWindowBottom = new Vector2(16.92f, -0.47f);
+
+        /// <summary>
+        /// Ark with the textured cargo ship hull (#97): 36 m, gunmetal with tan trim, four engine nacelles, crates on the
+        /// spine. One walkable deck: corridor through the fuselage, bridge in the cab (pilot on a raised platform behind
+        /// the window, the Dart's fittings), engineering nook at the stern; airlock in the left flank with a boarding
+        /// ramp to the ground. Turrets on the cab roof and the tail. The derelict variant is the same prefab:
+        /// ShipDerelictLook darkens the hull and switches the cabin to red emergency light while ShipCore.Derelict is set.
+        /// </summary>
+        static GameObject BuildCargoArk(Mesh hull)
+        {
+            var go = ShipRoot("Ship_Ark", ShipClass.Ark, 20000f, 8, 4);
+            var core = go.GetComponent<ShipCore>();
+            go.GetComponent<HealthComponent>().MaxHealth = 600f;
+            var hullR = Visual(go.transform, "Hull", hull, ArkCargoMaterial()).GetComponent<MeshRenderer>();
+            var glass = ArkCargoGlassMesh();
+            if (glass != null)
+            {
+                Visual(go.transform, "Window", glass, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                Visual(go.transform, "WindowInner", glass, FabShipGlassInnerMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+
+            // ---- interior: deck shell + fittings
+            var interior = Child(go.transform, "Interior", Vector3.zero);
+            var deckR = Visual(interior.transform, "Deck", ArkDeckMesh(), InteriorMaterial()).GetComponent<MeshRenderer>();
+            var fit = Child(interior.transform, "Fittings", ArkEye - new Vector3(0f, 0f, 3.67f));
+            bool fitted = DartFittings(fit.transform, false, true);
+            if (!fitted) Dashboard(interior.transform, ArkEye + new Vector3(0f, -0.55f, 0.85f), 1.4f);
+
+            // ---- colliders: a hollow shell around the deck, solid nacelles, wings, tail
+            float hallMid = (ArkHallZ0 + ArkHallZ1) * 0.5f, hallLen = ArkHallZ1 - ArkHallZ0;
+            Box(go, new Vector3(0, (ArkFloor - 2.4f) * 0.5f, hallMid), new Vector3(3.8f, 2.4f - (-ArkFloor) + 0.01f, hallLen));              // under the corridor floor
+            Box(go, new Vector3(0, ArkHallTop + 0.11f, hallMid), new Vector3(3.9f, 0.22f, hallLen));                                         // corridor roof
+            Box(go, new Vector3(0, 1.5f, -0.5f), new Vector3(3.4f, 1.1f, 12f));                                                             // crates on the spine
+            Box(go, new Vector3(ArkHallX + 0.16f, (ArkFloor + ArkHallTop) * 0.5f, hallMid), new Vector3(0.32f, ArkHallTop - ArkFloor, hallLen)); // right wall
+            float lz0 = (ArkHallZ0 + ArkDoorZ0) * 0.5f, lz1 = (ArkDoorZ1 + ArkHallZ1) * 0.5f;
+            Box(go, new Vector3(-ArkHallX - 0.16f, (ArkFloor + ArkHallTop) * 0.5f, lz0), new Vector3(0.32f, ArkHallTop - ArkFloor, ArkDoorZ0 - ArkHallZ0));
+            Box(go, new Vector3(-ArkHallX - 0.16f, (ArkFloor + ArkHallTop) * 0.5f, lz1), new Vector3(0.32f, ArkHallTop - ArkFloor, ArkHallZ1 - ArkDoorZ1));
+            Box(go, new Vector3(-ArkHallX - 0.16f, (ArkDoorTop + ArkHallTop) * 0.5f, (ArkDoorZ0 + ArkDoorZ1) * 0.5f), new Vector3(0.32f, ArkHallTop - ArkDoorTop, ArkDoorZ1 - ArkDoorZ0));
+            Box(go, new Vector3(0, -0.9f, -12.85f), new Vector3(3.8f, 3.1f, 8.5f));                                                         // tail (behind the stern wall)
+            float bMid = (ArkHallZ1 + ArkBridgeZ1) * 0.5f, bLen = ArkBridgeZ1 - ArkHallZ1;
+            Box(go, new Vector3(0, (ArkFloor - 3.08f) * 0.5f, bMid), new Vector3(3.4f, ArkFloor + 3.08f, bLen));                           // under the bridge floor
+            Box(go, new Vector3(0, (ArkFloor + ArkPlatform) * 0.5f, (ArkPlatformZ + ArkBridgeZ1) * 0.5f), new Vector3(2.72f, ArkPlatform - ArkFloor, ArkBridgeZ1 - ArkPlatformZ));
+            float wz = (ArkHallZ1 + ArkWindowTop.x) * 0.5f, wl = ArkWindowTop.x - ArkHallZ1;
+            Box(go, new Vector3(-ArkBridgeX - 0.22f, 0.05f, wz), new Vector3(0.44f, 3.4f, wl));                                            // bridge walls
+            Box(go, new Vector3(ArkBridgeX + 0.22f, 0.05f, wz), new Vector3(0.44f, 3.4f, wl));
+            Box(go, new Vector3(0, ArkBridgeTop + 0.4f, wz), new Vector3(3.6f, 0.8f, wl));                                                  // bridge roof
+            Box(go, new Vector3(0, (ArkHallTop + ArkBridgeTop) * 0.5f, ArkHallZ1), new Vector3(2.72f, ArkBridgeTop - ArkHallTop, 0.2f));    // header over the bridge door
+            Box(go, new Vector3(0, (ArkWindowBottom.y - 3.08f) * 0.5f, 17.1f), new Vector3(3.0f, ArkWindowBottom.y + 3.08f, 0.5f));        // nose under the window
+            var wTop = new Vector3(0, ArkWindowTop.y, ArkWindowTop.x);
+            var wBot = new Vector3(0, ArkWindowBottom.y, ArkWindowBottom.x);
+            var wUp = (wTop - wBot).normalized;
+            var wn = Vector3.Cross(Vector3.right, wUp);
+            var wc = Child(go.transform, "WindowCollider", (wTop + wBot) * 0.5f + wn * 0.06f, Quaternion.LookRotation(wn, wUp));
+            Box(wc, Vector3.zero, new Vector3(3.0f, (wTop - wBot).magnitude + 0.1f, 0.12f));
+            for (int s = -1; s <= 1; s += 2)
+            {
+                Box(go, new Vector3(s * 3.55f, -1.48f, 8.4f), new Vector3(2.2f, 2.2f, 11.4f));    // front nacelles
+                Box(go, new Vector3(s * 3.55f, -0.2f, -11.7f), new Vector3(2.2f, 2.2f, 11.4f));   // rear nacelles
+                Box(go, new Vector3(s * 4.5f, -2.1f, 8.0f), new Vector3(5.0f, 0.6f, 10f));        // front wings (root, tip)
+                Box(go, new Vector3(s * 9.7f, -2.5f, 5.5f), new Vector3(5.6f, 0.5f, 5f));
+                Box(go, new Vector3(s * 4.5f, -0.5f, -11.8f), new Vector3(5.0f, 0.6f, 10.5f));    // rear wings
+                Box(go, new Vector3(s * 9.7f, -0.9f, -14.5f), new Vector3(5.6f, 0.5f, 5f));
+            }
+            // boarding ramp: from the airlock sill down to the ground beside the ship
+            var rampFrom = new Vector3(-ArkSkinX, ArkFloor, 0f);
+            var rampTo = new Vector3(-5.5f, -3.15f, 0f);
+            var rampDir = rampFrom - rampTo;
+            var ramp = Child(go.transform, "RampCollider", (rampFrom + rampTo) * 0.5f + new Vector3(0, -0.06f, (ArkDoorZ0 + ArkDoorZ1) * 0.5f),
+                Quaternion.Euler(0f, 0f, Mathf.Atan2(rampDir.y, rampDir.x) * Mathf.Rad2Deg));
+            Box(ramp, Vector3.zero, new Vector3(rampDir.magnitude + 0.1f, 0.12f, ArkDoorZ1 - ArkDoorZ0));
+
+            // ---- interior gravity (moves with the ship; pawns ride along via platform carry): corridor, bridge, airlock
+            var grav = Child(go.transform, "Interior Gravity", Vector3.zero);
+            var hallG = Child(grav.transform, "Corridor", new Vector3(0, (ArkFloor + ArkHallTop) * 0.5f, hallMid));
+            Box(hallG, Vector3.zero, new Vector3(ArkHallX * 2f, ArkHallTop - ArkFloor + 0.3f, hallLen), true);
+            core.Interior = hallG.AddComponent<GravityVolume>();
+            var bridgeG = Child(grav.transform, "Bridge", new Vector3(0, (ArkFloor + ArkBridgeTop) * 0.5f, bMid));
+            Box(bridgeG, Vector3.zero, new Vector3(ArkBridgeX * 2f, ArkBridgeTop - ArkFloor + 0.3f, bLen), true);
+            bridgeG.AddComponent<GravityVolume>();
+            var lockG = Child(grav.transform, "Airlock", new Vector3(-(ArkHallX + ArkSkinX) * 0.5f, (ArkFloor + ArkDoorTop) * 0.5f, (ArkDoorZ0 + ArkDoorZ1) * 0.5f));
+            Box(lockG, Vector3.zero, new Vector3(ArkSkinX - ArkHallX + 0.1f, ArkDoorTop - ArkFloor + 0.3f, ArkDoorZ1 - ArkDoorZ0), true);
+            lockG.AddComponent<GravityVolume>();
+
+            // ---- stations
+            var pilot = Seat(go.transform, "PilotSeat", StationRole.Pilot, ArkEye + new Vector3(0f, -1.2f, -0.04f), ArkEye, new Vector3(0.75f, ArkPlatform + 0.1f, 13.6f),
+                ArkEye + new Vector3(0f, -0.5f, 0.2f), new Vector3(1.6f, 1.8f, 1.6f));
+            if (fitted) SeatGrips(pilot, fit.transform.Find("Stick/GripIK"), fit.transform.Find("Throttle/GripIK"));
+
+            var baseMesh = ArkTurretBaseMesh();
+            var headMesh = ArkTurretHeadMesh();
+            // turret 0 (flak) on the cab roof, seat at the bridge's rear left; turret 1 (laser) on the tail, seat in the stern nook
+            var turrets = new[]
+            {
+                (top: new Vector3(0f, 2.45f, 8.6f), anchor: new Vector3(-0.75f, ArkFloor + 0.16f, 8.1f), exit: new Vector3(-0.1f, ArkFloor + 0.1f, 9.4f)),
+                (top: new Vector3(0f, 0.62f, -12.6f), anchor: new Vector3(0.85f, ArkFloor + 0.16f, -7.7f), exit: new Vector3(0.2f, ArkFloor + 0.1f, -6.3f)),
+            };
+            for (int i = 0; i < turrets.Length; i++)
+            {
+                var tb = Visual(go.transform, "TurretBase" + i, baseMesh, MatHull);
+                tb.transform.localPosition = turrets[i].top;
+                var yaw = Child(tb.transform, "Yaw", new Vector3(0, 0.9f, 0));
+                var pitch = Child(yaw.transform, "Pitch", Vector3.zero);
+                Visual(pitch.transform, "Head", headMesh, MatHull);
+                ArkChairAt(interior.transform, turrets[i].anchor, 0f);
+                var seat = Seat(go.transform, "TurretSeat" + i, StationRole.Turret, turrets[i].anchor, Vector3.zero, turrets[i].exit,
+                    turrets[i].anchor + new Vector3(0f, 0.8f, 0.1f), new Vector3(1.2f, 1.8f, 1.3f));
+                // the turret camera lives on the turret head, outside the hull
+                var vp = seat.transform.Find("ViewPoint");
+                vp.SetParent(pitch.transform, false);
+                vp.localPosition = new Vector3(0, 1.7f, -1.8f);
+                vp.localRotation = Quaternion.identity;
+                seat.TurretYaw = yaw.transform;
+                seat.TurretPitch = pitch.transform;
+                seat.Muzzle = Child(pitch.transform, "Muzzle", new Vector3(0, 0, 2f)).transform;
+                seat.TurretWeapon = i == 0 ? WeaponKind.Flak : WeaponKind.Laser;
+                seat.TurretIndex = i;
+            }
+            // engineer: stern nook, facing the console on the left wall
+            var engAnchor = new Vector3(-0.55f, ArkFloor + 0.16f, -7.3f);
+            var engRot = Quaternion.Euler(0f, -90f, 0f);
+            ArkChairAt(interior.transform, engAnchor, -90f);
+            Seat(go.transform, "EngineerSeat", StationRole.Engineer, engAnchor, engAnchor + engRot * new Vector3(0f, 1.2f, 0.04f), new Vector3(0.1f, ArkFloor + 0.1f, -6.2f),
+                engAnchor + new Vector3(-0.2f, 0.8f, 0f), new Vector3(1.4f, 1.8f, 1.3f), Quaternion.Euler(10f, -90f, 0f));
+
+            var fab = Child(go.transform, "Fabricator", new Vector3(ArkHallX - 0.35f, ArkFloor + 1.0f, -4.2f));
+            Box(fab, Vector3.zero, new Vector3(0.9f, 2f, 1.8f), true);
+            fab.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.Fabricator;
+            var cargo = Child(go.transform, "CargoTerminal", new Vector3(ArkHallX - 0.35f, ArkFloor + 1.0f, 2.2f));
+            Box(cargo, Vector3.zero, new Vector3(0.9f, 2f, 2.2f), true);
+            cargo.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
+            // on the flank beside the airlock, where a player at the ramp looks (a trigger around the player gets no ray hit)
+            var outside = Child(go.transform, "HullTerminal", new Vector3(-ArkSkinX - 0.2f, ArkFloor + 0.3f, ArkDoorZ1 + 1.1f));
+            Box(outside, Vector3.zero, new Vector3(0.7f, 2.0f, 1.4f), true);
+            outside.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
+
+            core.MuzzlesA = new[] { Child(go.transform, "MuzzleL", new Vector3(-3.55f, -1.48f, 14.4f)).transform, Child(go.transform, "MuzzleR", new Vector3(3.55f, -1.48f, 14.4f)).transform };
+            core.MuzzlesB = new[] { Child(go.transform, "MuzzleMissile", new Vector3(0, 2.7f, 6.4f)).transform };
+            core.RespawnPoint = Child(go.transform, "Respawn", new Vector3(0, ArkFloor + 0.3f, 3.5f)).transform;
+            core.FabricatorPoint = fab.transform;
+            var fx = go.AddComponent<ShipEngineFx>();
+            fx.Thrusters = Thrusters(go.transform, new Vector3(-3.55f, -0.2f, -17.35f), new Vector3(3.55f, -0.2f, -17.35f), new Vector3(-3.55f, -1.48f, 2.75f), new Vector3(3.55f, -1.48f, 2.75f));
+            foreach (var t in fx.Thrusters) t.localScale = new Vector3(1.1f, 1.1f, 2f);
+            ShipLighting(go, new Vector3(0, -3.6f, 2f), 26f, new Vector3(-0.9f, -1.6f, 17.3f), new Vector3(0.9f, -1.6f, 17.3f));
+
+            // cabin lights (the hull blocks the sun) and one box-projected reflection probe rendered when the ship spawns
+            var cabin = new List<Light>();
+            foreach (float z in new[] { -6.5f, -2.5f, 1.5f, 5f }) cabin.Add(AddLight(interior.transform, "CabinLight", new Vector3(0, ArkHallTop - 0.15f, z), new Color(0.75f, 0.88f, 1f), 2.2f, 5.5f));
+            foreach (float z in new[] { 8.6f, 12.4f }) cabin.Add(AddLight(interior.transform, "CabinLight", new Vector3(0, ArkBridgeTop - 0.15f, z), new Color(0.75f, 0.88f, 1f), 2.2f, 6f));
+            cabin.Add(AddLight(interior.transform, "AirlockLight", new Vector3(-ArkHallX + 0.2f, ArkDoorTop - 0.1f, (ArkDoorZ0 + ArkDoorZ1) * 0.5f), new Color(1f, 0.6f, 0.25f), 1.2f, 3.5f));
+            var probeGo = Child(go.transform, "CabinProbe", new Vector3(0, -0.2f, 4f));
+            var probe = probeGo.AddComponent<ReflectionProbe>();
+            probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
+            probe.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.OnAwake;
+            probe.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.IndividualFaces;
+            probe.size = new Vector3(ArkHallX * 2f, 3.4f, ArkBridgeZ1 - ArkHallZ0);
+            probe.center = new Vector3(0, 0f, (ArkHallZ0 + ArkBridgeZ1) * 0.5f - 4f);
+            probe.boxProjection = true;
+            probe.resolution = 128;
+            probe.importance = 2;
+
+            var lod = interior.AddComponent<LODGroup>();
+            lod.SetLODs(new[] { new LOD(0.02f, interior.GetComponentsInChildren<Renderer>()) });
+            lod.RecalculateBounds();
+
+            var look = go.AddComponent<ShipDerelictLook>();
+            look.Renderers = new Renderer[] { hullR, deckR };
+            look.Derelict = new[] { ArkDerelictMaterial(), InteriorDerelictMaterial() };
+            cabin.AddRange(fit.GetComponentsInChildren<Light>());
+            look.Lights = cabin.ToArray();
+            return SavePrefab(go);
+        }
+
+        /// <summary>The Dart chair (Sci-Fi Pilot Chair) standing at a seat anchor (seated hip, eye - 1.2), turned by yaw.</summary>
+        static void ArkChairAt(Transform parent, Vector3 anchor, float yaw)
+        {
+            var mesh = DartCockpitMesh("Seat");
+            if (mesh == null) return;
+            var c = Child(parent, "Chair", anchor, Quaternion.Euler(0f, yaw, 0f));
+            // the chair mesh is in Dart coordinates; the Dart's seat anchor is (0, -1.2, 3.63)
+            Visual(c.transform, "Mesh", mesh, ChairMaterial()).transform.localPosition = new Vector3(0f, 1.2f, -3.63f);
+        }
+
+        /// <summary>
+        /// The Ark's deck shell (VW_HullInterior panel detail): floor, walls, ceilings and bulkheads that close the walkable
+        /// volume from the hull (seen from inside the hull is culled), structural U-frames, pipe runs and light panels,
+        /// the airlock tunnel with its hazard-striped boarding ramp, the bridge with the raised pilot platform and the
+        /// walls under the window, consoles for the engineer and turret stations, fabricator and cargo lockers.
+        /// </summary>
+        static Mesh ArkDeckMesh()
+        {
+            var mb = Hero(0.03f);
+            var floorCol = new Color(0.3f, 0.33f, 0.38f);
+            float hallMid = (ArkHallZ0 + ArkHallZ1) * 0.5f, hallLen = ArkHallZ1 - ArkHallZ0, hallH = ArkHallTop - ArkFloor;
+            float bMid = (ArkHallZ1 + ArkBridgeZ1) * 0.5f, bLen = ArkBridgeZ1 - ArkHallZ1;
+            float wallMid = (ArkFloor + ArkHallTop) * 0.5f;
+
+            // ---- corridor: floor with runner + gutters, walls with wainscot and a light strip, ceiling, stern wall
+            With(mb, 0.45f, 0.5f, 1f, () => mb.AddBox(T(0, ArkFloor - 0.06f, hallMid), new Vector3(ArkHallX * 2f, 0.12f, hallLen), floorCol));
+            With(mb, Satin, 0.2f, 0.4f, () => mb.AddBox(T(0, ArkFloor + 0.005f, hallMid), new Vector3(1.0f, 0.01f, hallLen - 0.6f), Slate));
+            Glow(mb, () => mb.AddBox(T(0, ArkFloor + 0.012f, hallMid), new Vector3(0.05f, 0.01f, hallLen - 1.0f), Cyan), 0.6f);
+            With(mb, 0.3f, 1f, 0f, () =>
+            {
+                for (int s = -1; s <= 1; s += 2)
+                    for (float z = ArkHallZ0 + 0.4f; z < ArkHallZ1 - 0.2f; z += 0.5f)
+                        mb.AddBox(T(s * (ArkHallX - 0.25f), ArkFloor + 0.005f, z), new Vector3(0.35f, 0.012f, 0.1f), Rubber);
+            });
+            float lowH = ArkHallCorner - ArkFloor, lowMid = (ArkFloor + ArkHallCorner) * 0.5f;
+            var corner = new Vector2(ArkHallX - ArkHallCeilX, ArkHallTop - ArkHallCorner);   // chamfer run (x, y)
+            float cornerLen = corner.magnitude, cornerAngle = Mathf.Atan2(corner.y, corner.x) * Mathf.Rad2Deg;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                float x = s * (ArkHallX + 0.04f);
+                if (s < 0)
+                {
+                    // left wall: openings for the airlock (the door top reaches into the chamfer: a header there)
+                    float l0 = ArkDoorZ0 - ArkHallZ0, l1 = ArkHallZ1 - ArkDoorZ1;
+                    With(mb, Paint, 0.2f, 1f, () =>
+                    {
+                        mb.AddBox(T(x, lowMid, ArkHallZ0 + l0 * 0.5f), new Vector3(0.08f, lowH, l0), ArkPanel);
+                        mb.AddBox(T(x, lowMid, ArkDoorZ1 + l1 * 0.5f), new Vector3(0.08f, lowH, l1), ArkPanel);
+                    });
+                }
+                else With(mb, Paint, 0.2f, 1f, () => mb.AddBox(T(x, lowMid, hallMid), new Vector3(0.08f, lowH, hallLen), ArkPanel));
+                // chamfer panel from the wall top to the ceiling edge
+                int side = s;
+                With(mb, Paint, 0.2f, 1f, () => mb.AddBox(Matrix4x4.TRS(new Vector3(side * ((ArkHallX + ArkHallCeilX) * 0.5f + 0.03f), (ArkHallCorner + ArkHallTop) * 0.5f + 0.03f, hallMid),
+                    Quaternion.Euler(0f, 0f, side * -cornerAngle), Vector3.one), new Vector3(cornerLen + 0.05f, 0.08f, hallLen), ArkPanel));
+                // wainscot and light strip (left: broken by the airlock)
+                foreach (var (z0, z1) in s < 0 ? new[] { (ArkHallZ0, ArkDoorZ0 - 0.15f), (ArkDoorZ1 + 0.15f, ArkHallZ1) } : new[] { (ArkHallZ0, ArkHallZ1) })
+                {
+                    With(mb, Satin, 0.2f, 0.8f, () => mb.AddBox(T(s * (ArkHallX - 0.01f), ArkFloor + 0.45f, (z0 + z1) * 0.5f), new Vector3(0.05f, 0.9f, z1 - z0 - 0.05f), Slate));
+                    Glow(mb, () => mb.AddBox(T(s * (ArkHallX - 0.03f), ArkFloor + 0.92f, (z0 + z1) * 0.5f), new Vector3(0.02f, 0.03f, z1 - z0 - 0.2f), Cyan), 0.8f);
+                }
+            }
+            With(mb, Paint, 0f, 1f, () => mb.AddBox(T(0, ArkHallTop + 0.04f, hallMid), new Vector3(ArkHallCeilX * 2f + 0.1f, 0.08f, hallLen), ArkPanel));
+            With(mb, Paint, 0f, 1f, () => mb.AddBox(T(0, wallMid, ArkHallZ0 - 0.05f), new Vector3(ArkHallX * 2f + 0.1f, hallH + 0.1f, 0.1f), ArkPanel));
+
+            // structural U-frames (clear of the airlock) and ceiling light panels between them
+            float[] ribs = { -7.4f, -5.0f, -3.0f, 0.9f, 3.4f, 5.9f };
+            With(mb, Satin, 0.5f, 0.6f, () =>
+            {
+                foreach (float z in ribs)
+                {
+                    for (int s = -1; s <= 1; s += 2)
+                    {
+                        mb.AddBox(T(s * (ArkHallX - 0.06f), lowMid, z), new Vector3(0.14f, lowH, 0.26f), Slate);
+                        mb.AddBox(Matrix4x4.TRS(new Vector3(s * ((ArkHallX + ArkHallCeilX) * 0.5f - 0.06f), (ArkHallCorner + ArkHallTop) * 0.5f - 0.05f, z),
+                            Quaternion.Euler(0f, 0f, s * -cornerAngle), Vector3.one), new Vector3(cornerLen, 0.14f, 0.26f), Slate);
+                    }
+                    mb.AddBox(T(0, ArkHallTop - 0.06f, z), new Vector3(ArkHallCeilX * 2f, 0.14f, 0.26f), Slate);
+                }
+            });
+            for (int i = 0; i + 1 < ribs.Length; i++)
+            {
+                float zc = (ribs[i] + ribs[i + 1]) * 0.5f, len = (ribs[i + 1] - ribs[i]) * 0.5f;
+                With(mb, Satin, 0.3f, 0f, () => mb.AddBox(T(0, ArkHallTop - 0.015f, zc), new Vector3(1.3f, 0.03f, len + 0.15f), Graphite));
+                Glow(mb, () => mb.AddBox(T(0, ArkHallTop - 0.032f, zc), new Vector3(1.1f, 0.01f, len), new Color(0.85f, 0.93f, 1f)), 0.75f);
+            }
+            // pipe runs along the ceiling edges with brackets
+            for (int s = -1; s <= 1; s += 2)
+            {
+                With(mb, 0.55f, 1f, 0f, () =>
+                {
+                    mb.AddTube(new Vector3(s * (ArkHallX - 0.2f), ArkHallCorner - 0.12f, ArkHallZ0 + 0.1f), new Vector3(s * (ArkHallX - 0.2f), ArkHallCorner - 0.12f, ArkHallZ1 - 0.1f), 0.05f, 0.05f, 10, Gunmetal);
+                    mb.AddTube(new Vector3(s * (ArkHallX - 0.1f), ArkHallCorner - 0.04f, ArkHallZ0 + 0.1f), new Vector3(s * (ArkHallX - 0.1f), ArkHallCorner - 0.04f, ArkHallZ1 - 0.1f), 0.03f, 0.03f, 8, Gold);
+                });
+            }
+
+            // ---- airlock: tunnel through the flank, hazard frame, warning lamps, the boarding ramp outside
+            float dMid = (ArkDoorZ0 + ArkDoorZ1) * 0.5f, dLen = ArkDoorZ1 - ArkDoorZ0, tunX = -(ArkHallX + ArkSkinX) * 0.5f, tunW = ArkSkinX - ArkHallX + 0.05f;
+            With(mb, Satin, 0.6f, 0.6f, () =>
+            {
+                mb.AddBox(T(tunX, ArkFloor - 0.06f, dMid), new Vector3(tunW, 0.12f, dLen), Graphite);
+                mb.AddBox(T(tunX, ArkDoorTop + 0.05f, dMid), new Vector3(tunW, 0.1f, dLen), Graphite);
+                mb.AddBox(T(tunX, (ArkFloor + ArkDoorTop) * 0.5f, ArkDoorZ0 - 0.05f), new Vector3(tunW, ArkDoorTop - ArkFloor, 0.1f), Graphite);
+                mb.AddBox(T(tunX, (ArkFloor + ArkDoorTop) * 0.5f, ArkDoorZ1 + 0.05f), new Vector3(tunW, ArkDoorTop - ArkFloor, 0.1f), Graphite);
+            });
+            With(mb, 0.7f, 0.85f, 0f, () =>
+            {
+                mb.AddBox(T(-ArkHallX + 0.02f, (ArkFloor + ArkDoorTop) * 0.5f, ArkDoorZ0 - 0.08f), new Vector3(0.1f, ArkDoorTop - ArkFloor + 0.1f, 0.12f), Gold);
+                mb.AddBox(T(-ArkHallX + 0.02f, (ArkFloor + ArkDoorTop) * 0.5f, ArkDoorZ1 + 0.08f), new Vector3(0.1f, ArkDoorTop - ArkFloor + 0.1f, 0.12f), Gold);
+                mb.AddBox(T(-ArkHallX + 0.02f, ArkDoorTop + 0.06f, dMid), new Vector3(0.1f, 0.12f, dLen + 0.28f), Gold);
+            });
+            Hazard(mb, T(tunX, ArkFloor + 0.004f, dMid), tunW, 0.3f, 6, 0.01f);
+            for (int s = -1; s <= 1; s += 2)
+                Glow(mb, () => mb.AddBox(T(-ArkHallX + 0.09f, ArkDoorTop - 0.1f, dMid + s * (dLen * 0.5f + 0.2f)), new Vector3(0.04f, 0.14f, 0.1f), new Color(1f, 0.55f, 0.15f)), 1.5f);
+            // hull access panel on the flank beside the airlock (HullTerminal)
+            With(mb, Satin, 0.5f, 0.5f, () => mb.AddBox(T(-ArkSkinX - 0.03f, ArkFloor + 0.3f, ArkDoorZ1 + 1.1f), new Vector3(0.08f, 0.9f, 0.7f), Graphite));
+            Glow(mb, () => mb.AddBox(T(-ArkSkinX - 0.075f, ArkFloor + 0.4f, ArkDoorZ1 + 1.1f), new Vector3(0.01f, 0.5f, 0.5f), Cyan), 0.7f);
+            Glow(mb, () => mb.AddBox(T(-ArkSkinX - 0.075f, ArkFloor - 0.08f, ArkDoorZ1 + 1.1f), new Vector3(0.01f, 0.06f, 0.5f), new Color(1f, 0.55f, 0.15f)), 1.2f);
+            var rampFrom = new Vector3(-ArkSkinX, ArkFloor, dMid);
+            var rampTo = new Vector3(-5.5f, -3.15f, dMid);
+            var rampDir = rampFrom - rampTo;
+            float rampAngle = Mathf.Atan2(rampDir.y, rampDir.x) * Mathf.Rad2Deg;
+            var rampM = Matrix4x4.TRS((rampFrom + rampTo) * 0.5f + new Vector3(0, -0.06f, 0), Quaternion.Euler(0f, 0f, rampAngle), Vector3.one);
+            With(mb, Satin, 0.6f, 0.6f, () => mb.AddBox(rampM, new Vector3(rampDir.magnitude, 0.12f, dLen), Graphite));
+            With(mb, 0.3f, 1f, 0f, () =>
+            {
+                for (float u = -rampDir.magnitude * 0.5f + 0.3f; u < rampDir.magnitude * 0.5f - 0.2f; u += 0.32f)
+                    mb.AddBox(rampM * T(u, 0.065f, 0f), new Vector3(0.08f, 0.015f, dLen - 0.3f), Rubber);
+            });
+            Hazard(mb, rampM * T(-rampDir.magnitude * 0.5f + 0.15f, 0.07f, 0f) * Matrix4x4.Rotate(Quaternion.Euler(0, 90, 0)), dLen, 0.25f, 6, 0.01f);
+            for (int s = -1; s <= 1; s += 2)
+                With(mb, 0.55f, 1f, 0f, () =>
+                {
+                    float rz = dMid + s * (dLen * 0.5f - 0.05f);
+                    mb.AddTube(new Vector3(rampTo.x + 0.1f, rampTo.y + 0.9f, rz), new Vector3(rampFrom.x - 0.05f, rampFrom.y + 0.9f, rz), 0.03f, 0.03f, 8, Gunmetal);
+                    mb.AddTube(new Vector3(rampTo.x + 0.1f, rampTo.y, rz), new Vector3(rampTo.x + 0.1f, rampTo.y + 0.9f, rz), 0.03f, 0.03f, 8, Gunmetal);
+                    mb.AddTube(new Vector3((rampTo.x + rampFrom.x) * 0.5f, (rampTo.y + rampFrom.y) * 0.5f, rz), new Vector3((rampTo.x + rampFrom.x) * 0.5f, (rampTo.y + rampFrom.y) * 0.5f + 0.9f, rz), 0.03f, 0.03f, 8, Gunmetal);
+                });
+
+            // ---- bulkhead between corridor and bridge: header over the opening, jambs where the cab narrows
+            With(mb, Satin, 0.5f, 0.6f, () =>
+            {
+                mb.AddBox(T(0, (ArkHallTop + ArkBridgeTop) * 0.5f, ArkHallZ1), new Vector3(ArkBridgeX * 2f, ArkBridgeTop - ArkHallTop, 0.16f), Slate);
+                for (int s = -1; s <= 1; s += 2)
+                    mb.AddBox(T(s * (ArkBridgeX + ArkHallX) * 0.5f, wallMid, ArkHallZ1), new Vector3(ArkHallX - ArkBridgeX + 0.1f, hallH, 0.16f), Slate);
+                mb.AddBox(T(0, (ArkHallCorner + ArkHallTop) * 0.5f, ArkHallZ1 - 0.02f), new Vector3(ArkBridgeX * 2f, ArkHallTop - ArkHallCorner, 0.12f), Slate);
+            });
+            Hazard(mb, TR(0, ArkHallTop - 0.08f, ArkHallZ1 - 0.085f, 90, 0, 0), ArkBridgeX * 2f, 0.12f, 10, 0.01f);
+
+            // ---- bridge: floor, walls, ceiling, the walls under the slanted window, raised pilot platform, front console
+            With(mb, 0.45f, 0.5f, 1f, () => mb.AddBox(T(0, ArkFloor - 0.06f, bMid), new Vector3(ArkBridgeX * 2f, 0.12f, bLen), floorCol));
+            float wTopZ = ArkWindowTop.x;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                float x = s * (ArkBridgeX + 0.05f);
+                With(mb, Paint, 0.2f, 1f, () =>
+                {
+                    mb.AddBox(T(x, (ArkFloor + ArkBridgeTop) * 0.5f, (ArkHallZ1 + wTopZ) * 0.5f), new Vector3(0.1f, ArkBridgeTop - ArkFloor, wTopZ - ArkHallZ1), ArkPanel);
+                    mb.AddBox(T(x, (ArkFloor + ArkWindowBottom.y) * 0.5f, (wTopZ + ArkBridgeZ1) * 0.5f), new Vector3(0.1f, ArkWindowBottom.y - ArkFloor, ArkBridgeZ1 - wTopZ), ArkPanel);
+                    // the triangle under the window's side edge: outline (-y, z) in the slab's local XZ, thickness along x
+                    mb.AddSlab(Matrix4x4.TRS(new Vector3(x, 0f, 0f), Quaternion.Euler(0f, 0f, -90f), Vector3.one), new[]
+                    {
+                        new Vector2(-ArkWindowBottom.y, wTopZ), new Vector2(-ArkWindowBottom.y, ArkWindowBottom.x - 0.05f), new Vector2(-ArkWindowTop.y, wTopZ),
+                    }, 0.1f, 0.01f, ArkPanel);
+                });
+                With(mb, Satin, 0.2f, 0.8f, () => mb.AddBox(T(s * (ArkBridgeX - 0.01f), ArkFloor + 0.45f, (ArkHallZ1 + ArkPlatformZ) * 0.5f), new Vector3(0.05f, 0.9f, ArkPlatformZ - ArkHallZ1 - 0.2f), Slate));
+                Glow(mb, () => mb.AddBox(T(s * (ArkBridgeX - 0.03f), ArkFloor + 0.92f, (ArkHallZ1 + ArkPlatformZ) * 0.5f), new Vector3(0.02f, 0.03f, ArkPlatformZ - ArkHallZ1 - 0.4f), Cyan), 0.8f);
+            }
+            With(mb, Paint, 0f, 1f, () =>
+            {
+                mb.AddBox(T(0, ArkBridgeTop + 0.05f, (ArkHallZ1 + wTopZ) * 0.5f), new Vector3(ArkBridgeX * 2f + 0.2f, 0.1f, wTopZ - ArkHallZ1), ArkPanel);
+                mb.AddBox(T(0, (ArkWindowTop.y + ArkBridgeTop) * 0.5f + 0.05f, wTopZ - 0.04f), new Vector3(ArkBridgeX * 2f + 0.2f, ArkBridgeTop - ArkWindowTop.y + 0.1f, 0.08f), ArkPanel);
+                mb.AddBox(T(0, (ArkFloor + ArkWindowBottom.y) * 0.5f, ArkBridgeZ1 + 0.05f), new Vector3(ArkBridgeX * 2f + 0.2f, ArkWindowBottom.y - ArkFloor, 0.1f), ArkPanel);
+            });
+            for (int k = 0; k < 2; k++)
+            {
+                float zc = 8.6f + k * 3.8f;
+                With(mb, Satin, 0.3f, 0f, () => mb.AddBox(T(0, ArkBridgeTop - 0.015f, zc), new Vector3(1.4f, 0.03f, 1.6f), Graphite));
+                Glow(mb, () => mb.AddBox(T(0, ArkBridgeTop - 0.032f, zc), new Vector3(1.2f, 0.01f, 1.4f), new Color(0.85f, 0.93f, 1f)), 0.75f);
+            }
+            // platform: deck plate with a lit step edge and two steps up
+            float pMid = (ArkPlatformZ + ArkBridgeZ1) * 0.5f, pLen = ArkBridgeZ1 - ArkPlatformZ;
+            With(mb, Satin, 0.6f, 0.6f, () =>
+            {
+                mb.AddBox(T(0, (ArkFloor + ArkPlatform) * 0.5f, pMid), new Vector3(ArkBridgeX * 2f, ArkPlatform - ArkFloor, pLen), Graphite);
+                mb.AddBox(T(0, ArkFloor + (ArkPlatform - ArkFloor) * 0.25f, ArkPlatformZ - 0.2f), new Vector3(1.4f, (ArkPlatform - ArkFloor) * 0.5f, 0.4f), Graphite);
+            });
+            Glow(mb, () => mb.AddBox(T(0, ArkPlatform - 0.01f, ArkPlatformZ + 0.02f), new Vector3(ArkBridgeX * 2f - 0.1f, 0.02f, 0.04f), new Color(1f, 0.55f, 0.15f)), 1.1f);
+            With(mb, 0.2f, 0f, 0f, () => mb.AddBox(T(0, ArkPlatform + 0.005f, pMid - 0.3f), new Vector3(0.7f, 0.01f, 1.4f), Rubber));
+            // front console under the window (between the Dart dashboard and the window's bottom edge)
+            float fz0 = ArkEye.z + 1.2f;
+            With(mb, Satin, 0.45f, 0.8f, () => mb.AddBox(T(0, (ArkPlatform + ArkWindowBottom.y - 0.1f) * 0.5f, (fz0 + ArkBridgeZ1) * 0.5f), new Vector3(ArkBridgeX * 2f, ArkWindowBottom.y - 0.1f - ArkPlatform, ArkBridgeZ1 - fz0), Graphite));
+            Glow(mb, () => mb.AddBox(T(0, ArkWindowBottom.y - 0.09f, fz0 + 0.04f), new Vector3(ArkBridgeX * 2f - 0.2f, 0.015f, 0.03f), Cyan), 1.0f);
+
+            // ---- stations: engineer console (stern, left wall), turret screens, fabricator, cargo lockers
+            With(mb, Satin, 0.3f, 0.6f, () =>
+            {
+                mb.AddBox(T(-ArkHallX + 0.25f, ArkFloor + 0.45f, -7.3f), new Vector3(0.5f, 0.9f, 1.8f), Navy);
+                mb.AddBox(TR(-ArkHallX + 0.3f, ArkFloor + 0.95f, -7.3f, 0, 0, -25), new Vector3(0.45f, 0.1f, 1.7f), Graphite);
+                mb.AddBox(T(-ArkHallX + 0.06f, ArkFloor + 1.55f, -7.3f), new Vector3(0.08f, 0.9f, 1.7f), Graphite);
+            });
+            Glow(mb, () => mb.AddBox(TR(-ArkHallX + 0.33f, ArkFloor + 1.01f, -7.3f, 0, 0, -25), new Vector3(0.3f, 0.015f, 1.5f), Cyan), 0.9f);
+            Glow(mb, () => mb.AddBox(T(-ArkHallX + 0.11f, ArkFloor + 1.55f, -7.3f), new Vector3(0.015f, 0.72f, 1.5f), new Color(0.3f, 0.6f, 1f)), 0.6f);
+            foreach (var (x, z, col) in new[] { (-ArkBridgeX, 8.4f, Red), (ArkHallX, -7.9f, Cyan) })
+            {
+                float s = Mathf.Sign(x);
+                With(mb, Satin, 0.3f, 0.3f, () => mb.AddBox(T(x - s * 0.06f, ArkFloor + 1.5f, z), new Vector3(0.08f, 0.7f, 1.0f), Graphite));
+                Glow(mb, () => mb.AddBox(T(x - s * 0.105f, ArkFloor + 1.5f, z), new Vector3(0.01f, 0.56f, 0.86f), col), 0.6f);
+            }
+            float fx = ArkHallX - 0.35f;
+            With(mb, Paint, 0.2f, 0.7f, () => mb.AddBox(T(fx + 0.05f, ArkFloor + 1.0f, -4.2f), new Vector3(0.6f, 2.0f, 1.7f), ArkPanel));
+            With(mb, 1f, 0.2f, 0f, () => mb.AddBox(T(fx - 0.26f, ArkFloor + 1.15f, -4.2f), new Vector3(0.03f, 0.9f, 1.1f), new Color(0.1f, 0.25f, 0.35f)));
+            Glow(mb, () => mb.AddBox(T(fx - 0.2f, ArkFloor + 1.15f, -4.2f), new Vector3(0.01f, 0.6f, 0.8f), Cyan), 0.5f);
+            With(mb, 0.55f, 1f, 0f, () => mb.AddTube(new Vector3(fx - 0.15f, ArkFloor + 1.7f, -4.2f), new Vector3(fx - 0.15f, ArkFloor + 1.4f, -4.2f), 0.04f, 0.02f, 8, Gunmetal));
+            With(mb, Satin, 0.3f, 0.6f, () =>
+            {
+                mb.AddBox(T(fx + 0.05f, ArkFloor + 1.0f, 2.2f), new Vector3(0.6f, 2.0f, 2.1f), Graphite);
+                for (int d = 0; d < 3; d++) mb.AddBox(T(fx - 0.26f, ArkFloor + 0.4f + d * 0.6f, 2.2f), new Vector3(0.03f, 0.5f, 1.9f), Slate);
+            });
+            for (int d = 0; d < 3; d++) Glow(mb, () => mb.AddBox(T(fx - 0.28f, ArkFloor + 0.55f + d * 0.6f, 2.95f), new Vector3(0.01f, 0.06f, 0.06f), d == 0 ? Green : Gold), 1.4f);
+            return SaveMesh(mb, "Ship_Ark_Deck");
+        }
+
         static GameObject BuildArk()
         {
+            var cargoHull = ArkCargoMesh();
+            if (cargoHull != null) return BuildCargoArk(cargoHull);
             var go = ShipRoot("Ship_Ark", ShipClass.Ark, 20000f, 8, 4);
             var core = go.GetComponent<ShipCore>();
             var hc = go.GetComponent<HealthComponent>();
