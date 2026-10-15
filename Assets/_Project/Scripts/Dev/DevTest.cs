@@ -702,6 +702,42 @@ namespace Voidward.Dev
             }
         }
 
+        /// <summary>
+        /// Crew bodies as this peer sees them (#95): "owner:mode/tool/used speed state" per pawn, e.g.
+        /// "0:Ground/1/0 4.2 Move 1:seat Pilot Sit" (seated pawns show their seat body's state).
+        /// </summary>
+        public static string CrewInfo
+        {
+            get
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var p in PlayerPawn.All)
+                {
+                    if (p == null) continue;
+                    var seat = ShipSeat.SeatOf(p.OwnerClientId);
+                    if (seat != null)
+                    {
+                        var pose = seat.GetComponentInChildren<Voidward.Ship.CrewSeatPose>(true);
+                        bool on = pose != null && pose.gameObject.activeInHierarchy;
+                        sb.Append($"{p.OwnerClientId}:seat {seat.SeatRole} {(on ? "Sit" : "hidden")} ");
+                        continue;
+                    }
+                    PlayerPawn.UnpackPose(p.Pose.Value, out var mode, out int tool, out bool used);
+                    var a = p.GetComponentInChildren<Animator>();
+                    string state = "-";
+                    float speed = 0f;
+                    if (a != null && a.isActiveAndEnabled && a.runtimeAnimatorController != null)
+                    {
+                        speed = a.GetFloat("Speed");
+                        var st = a.GetCurrentAnimatorStateInfo(0);
+                        state = st.IsName("Move") ? "Move" : st.IsName("Air") ? "Air" : st.IsName("Land") ? "Land" : st.IsName("Eva") ? "Eva" : "?";
+                    }
+                    sb.Append($"{p.OwnerClientId}:{mode}/{tool}/{(used ? 1 : 0)} {speed:0.0} {state} ");
+                }
+                return sb.ToString().TrimEnd();
+            }
+        }
+
         /// <summary>Server: put the local player's ship `clearance` metres outside planet i's gravity lock (cruise boundary), nose on the planet.</summary>
         public static void FacePlanet(int planet = 0, float clearance = 3000f)
         {
@@ -765,7 +801,13 @@ namespace Voidward.Dev
             if (p == null) return Vector3.zero;
             Vector3 up = p.transform.up;
             Vector3 probe = p.transform.position + p.transform.forward * dist + p.transform.right * side + up * 20f;
-            return Physics.Raycast(probe, -up, out var hit, 60f, ~0, QueryTriggerInteraction.Ignore) ? hit.point : probe - up * 20f;
+            // nearest hit that is not the pawn itself (its capsule would lift it 1.8 m per call)
+            var hits = Physics.RaycastAll(probe, -up, 60f, ~0, QueryTriggerInteraction.Ignore);
+            float best = float.MaxValue;
+            Vector3 point = probe - up * 20f;
+            foreach (var h in hits)
+                if (!h.collider.transform.IsChildOf(p.transform) && h.distance < best) { best = h.distance; point = h.point; }
+            return point;
         }
 
         /// <summary>Server: spawn an enemy (tier 1).</summary>
@@ -1070,6 +1112,99 @@ namespace Voidward.Dev
             foreach (var x in tiles) DevShots.Kill(x);
             DevShots.Kill(sheet);
             return path;
+        }
+
+        /// <summary>
+        /// The seated crew body as the other players see it (#95): one sheet of four views around the local pawn's seat
+        /// (side through the canopy, front over the dashboard, right shoulder onto the stick hand, left onto the throttle),
+        /// with the head shown (as on a remote peer) for the shots. Ship-local, eye at (0, 0, eyeZ).
+        /// </summary>
+        public static string SeatBodyViews(string name, float eyeZ = 3.67f)
+        {
+            var s = SeatShip;
+            var seat = Pawn != null ? Pawn.CurrentShipSeat : null;
+            if (s == null || seat == null) { Log("SeatBodyViews needs a seated pawn"); return null; }
+            var pose = seat.GetComponentInChildren<Voidward.Ship.CrewSeatPose>(true);
+            bool local = pose != null && pose.Local;
+            if (pose != null) pose.Local = false;
+            var t = s.transform;
+            var eye = new Vector3(0f, 0f, eyeZ);
+            var views = new[]
+            {
+                (new Vector3(1.7f, 0.5f, -0.45f), new Vector3(0f, -0.5f, 0.25f), 55f),
+                (new Vector3(0.3f, 0.3f, 1.95f), new Vector3(0f, -0.5f, -0.05f), 60f),
+                (new Vector3(0.75f, 0.15f, -0.25f), new Vector3(0.4f, -0.6f, 0.3f), 60f),
+                (new Vector3(-0.75f, 0.15f, -0.25f), new Vector3(-0.4f, -0.65f, 0.3f), 60f),
+            };
+            var tiles = new System.Collections.Generic.List<Texture2D>();
+            foreach (var (from, to, fov) in views)
+                tiles.Add(DevShots.Render(new DevPose(t.TransformPoint(eye + from), t.TransformPoint(eye + to), fov), 640, 360, t.up));
+            if (pose != null) pose.Local = local;
+            var sheet = DevShots.Sheet(tiles, 2);
+            string path = DevShots.Save(sheet, name);
+            foreach (var x in tiles) DevShots.Kill(x);
+            DevShots.Kill(sheet);
+            return path;
+        }
+
+        /// <summary>
+        /// The local pawn's on-foot body as the other players see it (#95): one sheet of four views (front three-quarter,
+        /// side, back, close on the tool hand). The owner's body normally only casts shadows; it is shown for the shots.
+        /// </summary>
+        public static string BodyViews(string name)
+        {
+            var p = Pawn;
+            if (p == null) { Log("BodyViews needs a pawn"); return null; }
+            var t = p.transform;
+            var rs = p.GetComponentsInChildren<Renderer>(true);
+            var modes = new UnityEngine.Rendering.ShadowCastingMode[rs.Length];
+            for (int i = 0; i < rs.Length; i++)
+            {
+                modes[i] = rs[i].shadowCastingMode;
+                if (rs[i].transform.IsChildOf(p.CameraPoint)) continue;   // the viewmodels stay as they are
+                rs[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            }
+            var views = new[]
+            {
+                (new Vector3(1.4f, 1.5f, 2.4f), new Vector3(0f, 1f, 0f), 45f),
+                (new Vector3(3f, 1.1f, 0f), new Vector3(0f, 0.95f, 0f), 45f),
+                (new Vector3(-1.2f, 1.7f, -2.6f), new Vector3(0f, 1f, 0f), 45f),
+                (new Vector3(0.9f, 1.3f, 0.9f), new Vector3(0.25f, 1.05f, 0.3f), 40f),
+            };
+            var tiles = new System.Collections.Generic.List<Texture2D>();
+            foreach (var (from, to, fov) in views)
+                tiles.Add(DevShots.Render(new DevPose(t.TransformPoint(from), t.TransformPoint(to), fov), 640, 360, t.up));
+            for (int i = 0; i < rs.Length; i++) rs[i].shadowCastingMode = modes[i];
+            var sheet = DevShots.Sheet(tiles, 2);
+            string path = DevShots.Save(sheet, name);
+            foreach (var x in tiles) DevShots.Kill(x);
+            DevShots.Kill(sheet);
+            return path;
+        }
+
+        /// <summary>
+        /// Locomotion look test (#95): the local pawn is carried along the ground ahead (walk 1.6, jog 6, sprint 9.5 m/s,
+        /// one second each) with its body shown, a side camera follows; ONE sheet with a tile per gait (+ a backwards
+        /// walk). Wait with dev-wait.sh name. The pawn must stand on a planet (scenario Planet).
+        /// </summary>
+        public static void WalkViews(string name)
+        {
+            var p = Pawn;
+            if (p == null) { Log("WalkViews needs a pawn"); return; }
+            var rb = p.GetComponent<Rigidbody>();
+            var rs = p.GetComponentsInChildren<Renderer>(true);
+            Sequence(name, 4.2f, (f, t) =>
+            {
+                foreach (var r in rs)
+                    if (!r.transform.IsChildOf(p.CameraPoint)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                float v = t < 1.1f ? 1.6f : t < 2.1f ? 6f : t < 3.1f ? 9.5f : -1.6f;
+                var g = GroundAhead(v * Time.deltaTime);
+                rb.position = g;
+                p.transform.position = g;
+                rb.linearVelocity = Vector3.zero;
+            }, new[] { 0.9f, 1.9f, 2.9f, 4f },
+            () => new DevPose(p.transform.position + p.transform.right * 3.2f + p.transform.up * 1.1f + p.transform.forward * 0.4f,
+                p.transform.position + p.transform.up * 0.95f, 40f));
         }
 
         /// <summary>The local pawn's interaction prompt ("[F] Board ...", "" when nothing is in reach).</summary>

@@ -42,6 +42,7 @@ namespace Voidward.Player
         [SerializeField] Transform body;
         [SerializeField] Transform[] toolModels = new Transform[4];
         [SerializeField] Transform muzzle;
+        [SerializeField] Vector3[] toolMuzzles = new Vector3[0];   // muzzle per tool (camera space, #95); empty = fixed
         [SerializeField] LineRenderer beam;
 
         // ---- Networked state ----
@@ -50,6 +51,21 @@ namespace Voidward.Player
         public NetworkVariable<bool> IsLost = new NetworkVariable<bool>(false);
         public NetworkVariable<float> Oxygen = new NetworkVariable<float>(90f);
         public NetworkVariable<float> RespawnAt = new NetworkVariable<float>(0f);
+        /// <summary>Body animation state for the other peers (#95), see <see cref="PackPose"/>; owner-written.</summary>
+        public NetworkVariable<byte> Pose = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
+        public enum MotionMode { Ground = 0, Air = 1, Eva = 2 }
+
+        /// <summary>Bits 0-1 motion, bits 2-4 held tool + 1 (0 = none), bit 5 tool in use.</summary>
+        public static byte PackPose(MotionMode mode, int tool, bool used) =>
+            (byte)((int)mode | ((tool + 1) & 7) << 2 | (used ? 32 : 0));
+
+        public static void UnpackPose(byte pose, out MotionMode mode, out int tool, out bool used)
+        {
+            mode = (MotionMode)(pose & 3);
+            tool = ((pose >> 2) & 7) - 1;
+            used = (pose & 32) != 0;
+        }
 
         // ---- Public API ----
         public static PlayerPawn Local { get; private set; }
@@ -122,7 +138,7 @@ namespace Voidward.Player
             {
                 Local = this;
                 if (body != null)
-                    foreach (var r in body.GetComponentsInChildren<Renderer>())
+                    foreach (var r in body.GetComponentsInChildren<Renderer>(true))   // incl. the hidden hand tools
                         r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
             }
             else
@@ -210,6 +226,7 @@ namespace Voidward.Player
 
             UpdateInteraction(input);
             UpdateTools(input);
+            WritePose(input && VwInput.Held(VwInput.Fire) && CurrentTool != Tool.Medkit);
             if (input && VwInput.Pressed(VwInput.Ping)) DoPing();
 
             // Loot magnet (#43): drops in range fly into the pawn (WorldPickup animates and requests the pickup).
@@ -574,6 +591,7 @@ namespace Voidward.Player
         {
             if (t == Tool.Rifle && (Gear == null || !Gear.HasRifle.Value)) { EventBus.RaiseNotification("No rifle yet - craft or buy one"); return; }
             CurrentTool = t;
+            if (muzzle != null && (int)t < toolMuzzles.Length) muzzle.localPosition = toolMuzzles[(int)t];
             for (int i = 0; i < toolModels.Length; i++)
                 if (toolModels[i]) toolModels[i].gameObject.SetActive(IsOwner && i == (int)t && CurrentSeat == null && Active.Value && !IsDown.Value);
         }
@@ -625,7 +643,17 @@ namespace Voidward.Player
             ToolCooldown01 = Mathf.Clamp01(toolTimer / 0.3f);
         }
 
-        Vector3 MuzzlePos => muzzle != null && muzzle.gameObject.activeInHierarchy ? muzzle.position : cameraPoint.position + cameraPoint.forward * 0.6f - cameraPoint.up * 0.2f;
+        float airTime;
+
+        void WritePose(bool used)
+        {
+            airTime = grounded ? 0f : airTime + Time.deltaTime;   // short ground-check gaps (steps, bumps) stay on foot
+            var mode = ZeroG ? MotionMode.Eva : airTime < 0.15f ? MotionMode.Ground : MotionMode.Air;
+            byte p = PackPose(mode, (int)CurrentTool, used);
+            if (Pose.Value != p) Pose.Value = p;
+        }
+
+        Vector3 MuzzlePos =>muzzle != null && muzzle.gameObject.activeInHierarchy ? muzzle.position : cameraPoint.position + cameraPoint.forward * 0.6f - cameraPoint.up * 0.2f;
 
         Vector3 AimDir(float range)
         {
