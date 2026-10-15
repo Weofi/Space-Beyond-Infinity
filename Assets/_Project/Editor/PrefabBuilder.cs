@@ -1154,13 +1154,34 @@ namespace Voidward.EditorTools
             var tub = FabShipCockpitMesh();
             var interior = InteriorMaterial();
             if (tub != null) Visual(root.transform, "CockpitTub", tub, interior);
+            bool fitted = DartFittings(root.transform, true);
+            if (!fitted)
+            {
+                Visual(root.transform, "Cockpit", FabDartCockpitMesh(), interior);
+                AddLight(root.transform, "CockpitLight", new Vector3(0, -0.75f, 3.7f), new Color(0.55f, 0.8f, 1f), 0.5f, 2.4f);
+            }
+            var lod = root.AddComponent<LODGroup>();
+            lod.SetLODs(new[] { new LOD(0.035f, root.GetComponentsInChildren<Renderer>()) });
+            lod.RecalculateBounds();
+            return fitted;
+        }
+
+        /// <summary>
+        /// The Dart's cockpit fittings (dart_cockpit.py) under `root`, in Dart ship coordinates (pilot eye at 0, 0, 3.67):
+        /// console, chair, side stick + throttle with their hand IK goals, the dashboard with its light strips and the six
+        /// live screens, cockpit lights. `dartHull` adds the parts shaped to the Dart's own hull (wall linings, rear bay,
+        /// canopy frame); other ships (Mule, #97) move `root` so the eye lands on theirs. `walls` = the side consoles beside the seat. False when the FBX files are missing.
+        /// </summary>
+        static bool DartFittings(Transform rootT, bool dartHull, bool walls = true)
+        {
+            var root = rootT.gameObject;
             var console = DartCockpitMesh("Console");
             bool fitted = console != null;
             if (fitted)
             {
                 var center = WaspMaterial("center");
                 Visual(root.transform, "Console", console, center);
-                Visual(root.transform, "Walls", DartCockpitMesh("Walls"), WaspMaterial("cockpit"));
+                if (walls) Visual(root.transform, "Walls", DartCockpitMesh("Walls"), WaspMaterial("cockpit"));
                 Visual(root.transform, "Seat", DartCockpitMesh("Seat"), ChairMaterial());
                 var dash = DartCockpitMesh("Dash");
                 if (dash != null)
@@ -1173,9 +1194,9 @@ namespace Voidward.EditorTools
                     Visual(root.transform, "DashGlowAmber", DartCockpitMesh("DashGlowAmber"), GlowMaterial("VW_CockpitGlowAmber", new Color(1f, 0.42f, 0.1f) * 1.3f));
                 }
                 // rear bay behind the seat, roll bar + canopy bows and sill rails
-                var rear = DartCockpitMesh("Rear");
+                var rear = dartHull ? DartCockpitMesh("Rear") : null;
                 if (rear != null) Visual(root.transform, "RearBay", rear, WaspMaterial("cockpit"));
-                var frame = DartCockpitMesh("Frame");
+                var frame = dartHull ? DartCockpitMesh("Frame") : null;
                 if (frame != null) Visual(root.transform, "CanopyFrame", frame, WaspMaterial("cockpit"));
                 // pivots printed by dart_cockpit.py
                 var stick = Child(root.transform, "Stick", new Vector3(0.44f, -0.737f, 4.0f)).transform;
@@ -1203,16 +1224,8 @@ namespace Voidward.EditorTools
                 AddLight(root.transform, "CockpitLight", new Vector3(0, -0.3f, 3.85f), new Color(0.75f, 0.85f, 1f), 0.35f, 2.2f);
                 AddLight(root.transform, "ScreenGlow", new Vector3(0, -0.45f, 4.4f), new Color(0.35f, 0.85f, 1f), 0.45f, 1.2f);
                 AddLight(root.transform, "FootwellGlow", new Vector3(0, -1.4f, 4.6f), new Color(1f, 0.55f, 0.2f), 0.3f, 1.4f);
-                AddLight(root.transform, "RearBayGlow", new Vector3(0, -0.9f, 2.9f), new Color(0.35f, 0.8f, 1f), 0.5f, 1.5f);
+                if (dartHull) AddLight(root.transform, "RearBayGlow", new Vector3(0, -0.9f, 2.9f), new Color(0.35f, 0.8f, 1f), 0.5f, 1.5f);
             }
-            else
-            {
-                Visual(root.transform, "Cockpit", FabDartCockpitMesh(), interior);
-                AddLight(root.transform, "CockpitLight", new Vector3(0, -0.75f, 3.7f), new Color(0.55f, 0.8f, 1f), 0.5f, 2.4f);
-            }
-            var lod = root.AddComponent<LODGroup>();
-            lod.SetLODs(new[] { new LOD(0.035f, root.GetComponentsInChildren<Renderer>()) });
-            lod.RecalculateBounds();
             return fitted;
         }
 
@@ -1467,6 +1480,8 @@ namespace Voidward.EditorTools
 
         static GameObject BuildMule()
         {
+            var r35 = MuleR35Mesh();
+            if (r35 != null) return BuildR35Mule(r35);
             var go = ShipRoot("Ship_Mule", ShipClass.Mule, 3500f, 6, 3);
             var core = go.GetComponent<ShipCore>();
             Visual(go.transform, "Hull", MuleHullMesh(), MatHull);
@@ -1489,6 +1504,79 @@ namespace Voidward.EditorTools
             foreach (var t in fx.Thrusters) t.localScale = Vector3.one * 1.1f;
             ShipLighting(go, new Vector3(0, -2f, -1f), 12f, new Vector3(-0.88f, -0.18f, 4.7f), new Vector3(0.88f, -0.18f, 4.7f));
             return SavePrefab(go);
+        }
+
+        /// <summary>Seated eye of the Mule's pilot (under the R35 canopy, r35_dropship.py EYE).</summary>
+        static readonly Vector3 MuleEye = new Vector3(0f, 0.55f, 3.3f);
+
+        /// <summary>
+        /// Mule with the textured R35 hull (#97): 15 m long, 11.4 m across the engine pods, rear ramp. The upper nose is
+        /// cut out as a canopy (Tools/Blender/r35_dropship.py), the pilot sits under it in a tub that follows the nose,
+        /// on a raised deck with the Dart's cockpit fittings (chair, console, side stick + throttle, dashboard, live screens).
+        /// Four engine nozzles on the pods, chin laser under the nose, cargo terminal at the ramp.
+        /// </summary>
+        static GameObject BuildR35Mule(Mesh hull)
+        {
+            var go = ShipRoot("Ship_Mule", ShipClass.Mule, 3500f, 6, 3);
+            var core = go.GetComponent<ShipCore>();
+            Visual(go.transform, "Hull", hull, MuleR35Material());
+            var canopy = MuleR35CanopyMesh();
+            if (canopy != null)
+            {
+                Visual(go.transform, "Canopy", canopy, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                Visual(go.transform, "CanopyInner", canopy, FabShipGlassInnerMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            var interior = Child(go.transform, "Interior", Vector3.zero);
+            var tub = MuleR35CockpitMesh();
+            if (tub != null)
+            {
+                // the convex tub pokes through the concave hull in places: inward faces only, so no shadows from outside
+                var t = Visual(interior.transform, "CockpitTub", tub, InteriorMaterial());
+                t.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            Visual(interior.transform, "Deck", MuleDeckMesh(), InteriorMaterial());
+            // the Dart's fittings, moved so the Dart's eye (0, 0, 3.67) lands on the Mule's
+            var fit = Child(interior.transform, "Fittings", MuleEye - new Vector3(0f, 0f, 3.67f));
+            bool fitted = DartFittings(fit.transform, false);
+            if (!fitted) Dashboard(interior.transform, MuleEye + new Vector3(0f, -0.55f, 0.85f), 1.0f);
+            var lod = interior.AddComponent<LODGroup>();
+            lod.SetLODs(new[] { new LOD(0.035f, interior.GetComponentsInChildren<Renderer>()) });
+            lod.RecalculateBounds();
+
+            Box(go, new Vector3(0, -0.25f, -2.65f), new Vector3(6.8f, 4.1f, 9.7f));    // body
+            Box(go, new Vector3(0, -0.55f, 4.55f), new Vector3(3.0f, 3.5f, 4.7f));     // nose
+            Box(go, new Vector3(-4.55f, 0.81f, -1.6f), new Vector3(2.3f, 3.4f, 6.5f)); // engine pods
+            Box(go, new Vector3(4.55f, 0.81f, -1.6f), new Vector3(2.3f, 3.4f, 6.5f));
+            Box(go, new Vector3(-2.55f, -1.75f, -0.6f), new Vector3(1.7f, 1.7f, 2.4f)); // landing gear
+            Box(go, new Vector3(2.55f, -1.75f, -0.6f), new Vector3(1.7f, 1.7f, 2.4f));
+
+            var pilot = Seat(go.transform, "PilotSeat", StationRole.Pilot, MuleEye + new Vector3(0f, -1.2f, -0.04f), MuleEye, new Vector3(-2.9f, -1.3f, 4.2f),
+                new Vector3(0f, 0.55f, 4.0f), new Vector3(3.2f, 2.2f, 4.2f));
+            if (fitted) SeatGrips(pilot, fit.transform.Find("Stick/GripIK"), fit.transform.Find("Throttle/GripIK"));
+            // cargo terminal at the rear ramp
+            var term = Child(go.transform, "CargoTerminal", new Vector3(0, -1.2f, -7.4f));
+            Box(term, Vector3.zero, new Vector3(3.4f, 3f, 2.6f), true);
+            term.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
+
+            core.MuzzlesA = new[] { Child(go.transform, "MuzzleL", new Vector3(-0.3f, -1.93f, 7.55f)).transform, Child(go.transform, "MuzzleR", new Vector3(0.3f, -1.93f, 7.55f)).transform };
+            core.MuzzlesB = new[] { Child(go.transform, "MuzzleTop", new Vector3(0, 2.0f, -1.0f)).transform };
+            core.RespawnPoint = Child(go.transform, "Respawn", new Vector3(-7.4f, -1.5f, 2.5f)).transform;
+            core.FabricatorPoint = go.transform;
+            var fx = go.AddComponent<ShipEngineFx>();
+            fx.Thrusters = Thrusters(go.transform, new Vector3(-5.2f, 0.94f, -4.6f), new Vector3(-3.88f, 0.94f, -4.6f), new Vector3(3.88f, 0.94f, -4.6f), new Vector3(5.2f, 0.94f, -4.6f));
+            foreach (var t in fx.Thrusters) t.localScale = new Vector3(0.8f, 0.8f, 1.6f);
+            ShipLighting(go, new Vector3(0, -2.9f, 0), 14f, new Vector3(-0.55f, -0.9f, 6.2f), new Vector3(0.55f, -0.9f, 6.2f));
+            return SavePrefab(go);
+        }
+
+        /// <summary>Raised deck in the Mule's cockpit tub: the floor under the Dart chair (eye - 1.36) with a grip strip (narrow: the nose tapers).</summary>
+        static Mesh MuleDeckMesh()
+        {
+            var mb = Hero(0.04f);
+            float y = MuleEye.y - 1.36f;
+            With(mb, Satin, 0.6f, 0.6f, () => mb.AddBox(T(0, y - 0.03f, MuleEye.z + 0.1f), new Vector3(1.7f, 0.06f, 2.4f), Graphite));
+            With(mb, 0.2f, 0f, 0f, () => mb.AddBox(T(0, y + 0.005f, MuleEye.z + 0.3f), new Vector3(0.7f, 0.01f, 1.6f), Rubber));
+            return SaveMesh(mb, "Ship_Mule_R35_Deck");
         }
 
         /// <summary>Superellipse outline (half extents, power) clipped to an axis-aligned rectangle: a convex bulkhead piece.</summary>

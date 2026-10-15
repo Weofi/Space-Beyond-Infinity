@@ -121,8 +121,12 @@ namespace Voidward.EditorTools
             return dst;
         }
 
-        /// <summary>URP Lit material from a Substance-style PBR texture set (base colour, metallic, roughness, DirectX normal, AO, emissive).</summary>
-        static Material PbrMaterial(string name, string dir, string prefix, float emission = 1.5f, float bump = 1f)
+        /// <summary>
+        /// URP Lit material from a Substance-style PBR texture set (base colour, metallic, roughness, normal, AO, emissive).
+        /// The normal map is `prefix + normal`; DirectX normals (green down) are flipped by the importer.
+        /// </summary>
+        static Material PbrMaterial(string name, string dir, string prefix, float emission = 1.5f, float bump = 1f,
+            string normal = "_Normal_DirectX.jpg", bool directXNormal = true)
         {
             var m = Mat(name, "Universal Render Pipeline/Lit");
             m.SetTexture("_BaseMap", ImportTexture(dir + "/" + prefix + "_Base_color.jpg", true));
@@ -133,7 +137,7 @@ namespace Voidward.EditorTools
             m.SetFloat("_Smoothness", 1f);
             m.SetFloat("_SmoothnessTextureChannel", 0f);
             m.EnableKeyword("_METALLICSPECGLOSSMAP");
-            m.SetTexture("_BumpMap", ImportTexture(dir + "/" + prefix + "_Normal_DirectX.jpg", false, true, true));
+            m.SetTexture("_BumpMap", ImportTexture(dir + "/" + prefix + normal, false, true, directXNormal));
             m.SetFloat("_BumpScale", bump);
             m.EnableKeyword("_NORMALMAP");
             m.SetTexture("_OcclusionMap", ImportTexture(dir + "/" + prefix + "_Mixed_AO.jpg", false, maxSize: 2048));
@@ -168,6 +172,22 @@ namespace Voidward.EditorTools
             m.SetFloat("_RimPower", 3.5f);
             return m;
         }
+
+        // ---------------------------------------------------------------- Mule (#97)
+
+        const string MuleDir = ShipModelDir + "/DropshipR35";
+
+        /// <summary>Fab "DROPSHIP R35" by GrafxBOX (Tools/Blender/r35_dropship.py): 15 m long, nose +Z, origin = bounds centre, canopy cut out.</summary>
+        static Mesh MuleR35Mesh() => ModelMesh(ShipModelDir + "/Ship_Mule_R35.fbx");
+
+        /// <summary>The upper nose cut out of the R35 hull as the Mule's canopy (original UVs).</summary>
+        static Mesh MuleR35CanopyMesh() => ModelMesh(ShipModelDir + "/Ship_Mule_R35_Canopy.fbx");
+
+        /// <summary>Cockpit tub inside the R35 nose, open under the canopy (vw_blender vertex contract, VW_Hull).</summary>
+        static Mesh MuleR35CockpitMesh() => ImportedMesh(ShipModelDir + "/Ship_Mule_R35_Cockpit.fbx", "Ship_Mule_R35_Cockpit");
+
+        /// <summary>R35 "Grey" livery (black / gunmetal plating, orange spine and pods): URP Lit, OpenGL normal map.</summary>
+        static Material MuleR35Material() => PbrMaterial("Ship_Mule_R35", MuleDir, "R35", 1.6f, 1f, "_Normal.jpg", false);
 
         // ---------------------------------------------------------------- Dart cockpit (#94)
 
