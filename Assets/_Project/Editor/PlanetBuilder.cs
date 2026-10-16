@@ -36,6 +36,8 @@ namespace Voidward.EditorTools
             MatPlanet.SetFloat("_MacroStrength", 0.22f);
             MatPlanet.SetFloat("_CavityStrength", 2.5f);
             MatPlanet.SetFloat("_StrataStrength", 0.14f);
+            // Sight distance (#115): the PBR layers stay until ~300 x their scale (was 150).
+            MatPlanet.SetFloat("_LayerFade", 300f);
             MatOcean = Mat("VW_Ocean", "VOIDWARD/Ocean");
             MatOcean.SetTexture("_DetailNormal", normal);
             MatOcean.SetTexture("_DetailTex", detail);
@@ -158,6 +160,13 @@ namespace Voidward.EditorTools
             Sharpness = sharp, Terraces = terraces, Roughness = rough, Caldera = caldera,
         };
 
+        /// <summary>Downhill gully erosion (#115): depth and largest wavelength in meters.</summary>
+        static void Erosion(PlanetShapeDef s, float depth, float scale, float branching = 0.6f, int octaves = 5, float slopeMin = 0.03f, float slopeMax = 0.25f)
+        {
+            s.ErosionDepth = depth; s.ErosionScale = scale; s.ErosionBranching = branching; s.ErosionOctaves = octaves;
+            s.ErosionSlope = new Vector2(slopeMin, slopeMax);
+        }
+
         static void Canyons(PlanetShapeDef s, float freq, float width, float depth, float floor, float steep, float coverage, float warp, int terraces = 0, bool rivers = false)
         {
             s.Canyons = true;
@@ -190,6 +199,7 @@ namespace Voidward.EditorTools
         /// <summary>Gray/brown rock, dense overlapping craters, rugged highlands, giant impact basins.</summary>
         static void CrateredMoon(PlanetShapeDef s)
         {
+            Erosion(s, 3f, 60f, 0.3f, 4, 0.08f, 0.4f); // weathered impact rims
             s.Warp = 0.08f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
@@ -231,12 +241,14 @@ namespace Voidward.EditorTools
         /// <summary>Mountain ranges, river valleys, exposed rock, snowy peaks and lakes.</summary>
         static void Rocky(PlanetShapeDef s)
         {
+            Erosion(s, 14f, 110f, 0.6f, 5, 0.015f, 0.2f);
             s.Warp = 0.12f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
                 Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),                                                 // continents / lowlands
                 Layer(PlanetNoiseKind.Ridged, 0.1f, 2f, 6, 0.5f, 0.3f, 2.1f, 2.2f, new Vector2(0.48f, 0.62f)),  // mountain ranges
-                Layer(PlanetNoiseKind.Simple, 0.01f, 6f, 3, 0.5f),                                            // hills
+                Layer(PlanetNoiseKind.Ridged, 0.022f, 5f, 4, 0.5f, 0.15f, ridgeWeight: 1.3f),                 // ridged hills everywhere (#115: no clay plains)
+                Layer(PlanetNoiseKind.Simple, 0.008f, 7f, 3, 0.5f),                                           // hills
                 Layer(PlanetNoiseKind.Simple, 0.0015f, 30f, 2),                                               // roughness
             };
             s.Features = new List<PlanetShapeDef.FeatureSet>
@@ -272,11 +284,13 @@ namespace Voidward.EditorTools
         /// <summary>Deep oceans, continents and islands with beaches and snowy mountains.</summary>
         static void OceanWorld(PlanetShapeDef s)
         {
+            Erosion(s, 10f, 100f, 0.6f, 5, 0.015f, 0.2f);
             s.Warp = 0.15f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
                 Layer(PlanetNoiseKind.Simple, 0.1f, 0.8f, 5, 0.5f),                                            // continents
                 Layer(PlanetNoiseKind.Ridged, 0.06f, 2f, 5, 0.5f, 0.3f, 2f, 1.6f, new Vector2(0.55f, 0.68f)),  // coastal mountains
+                Layer(PlanetNoiseKind.Ridged, 0.014f, 6f, 4, 0.5f, 0.2f, ridgeWeight: 1.3f, mask: new Vector2(0.45f, 0.6f)), // ridged hills on land
                 Layer(PlanetNoiseKind.Simple, 0.004f, 12f, 3),                                                 // detail
             };
             s.CraterCount = 0;
@@ -302,6 +316,7 @@ namespace Voidward.EditorTools
         /// <summary>Warm sands, wind-aligned dunes, terraced canyon networks, buttes and hoodoo spires.</summary>
         static void Desert(PlanetShapeDef s)
         {
+            Erosion(s, 9f, 70f, 0.8f, 5, 0.05f, 0.3f); // badland gullies
             s.Warp = 0.12f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
@@ -351,6 +366,7 @@ namespace Voidward.EditorTools
             // Game biomes: each has its own geology, atmosphere and surface composition.
             Shape("Ice", "Frost World", OceanWorld, s =>
             {
+                Erosion(s, 8f, 130f, 0.3f, 4); // smoother glacial forms
                 s.Warp = 0.14f;
                 s.Layers = new List<PlanetShapeDef.NoiseLayer>
                 {
@@ -385,12 +401,13 @@ namespace Voidward.EditorTools
             });
             Shape("ToxicJungle", "Toxic Jungle", OceanWorld, s =>
             {
+                Erosion(s, 12f, 90f, 0.6f, 5, 0.015f, 0.2f);
                 s.Warp = 0.15f;
                 s.Layers = new List<PlanetShapeDef.NoiseLayer>
                 {
                     Layer(PlanetNoiseKind.Simple, 0.09f, 0.8f, 5, 0.5f),                                           // continents
                     Layer(PlanetNoiseKind.Ridged, 0.05f, 2.2f, 5, 0.5f, 0.3f, 2f, 1.6f, new Vector2(0.55f, 0.7f)), // coastal ranges
-                    Layer(PlanetNoiseKind.Billow, 0.012f, 5f, 3),                                                  // rolling hills
+                    Layer(PlanetNoiseKind.Ridged, 0.018f, 5f, 4, 0.5f, 0.15f, ridgeWeight: 1.3f),                  // ridged hills
                     Layer(PlanetNoiseKind.Simple, 0.008f, 12f, 3),                                                 // knolls
                     Layer(PlanetNoiseKind.Simple, 0.003f, 16f, 2),                                                 // detail
                 };
@@ -416,6 +433,7 @@ namespace Voidward.EditorTools
             });
             Shape("Crystal", "Crystal World", CrateredMoon, s =>
             {
+                Erosion(s, 6f, 80f, 0.5f);
                 s.CraterCount = 60;
                 s.CraterSize = new Vector2(0.02f, 0.18f);
                 s.Features = new List<PlanetShapeDef.FeatureSet>
@@ -451,6 +469,7 @@ namespace Voidward.EditorTools
             });
             Shape("Volcanic", "Ember World", Rocky, s =>
             {
+                Erosion(s, 12f, 70f, 0.9f); // lava flank gullies
                 s.Layers = new List<PlanetShapeDef.NoiseLayer>
                 {
                     Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),                                                 // continents

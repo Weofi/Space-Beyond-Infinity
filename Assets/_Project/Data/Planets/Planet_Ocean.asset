@@ -15,7 +15,7 @@ MonoBehaviour:
   DisplayName: Ocean Planet
   ChunkResolution: 40
   LeafSpacing: 1.6
-  LodQuality: 1.6
+  LodQuality: 2
   HeightMultiplier: 1
   Warp: 0.15
   Layers:
@@ -46,6 +46,19 @@ MonoBehaviour:
     MaskRange: {x: 0.55, y: 0.68}
     Terraces: 0
   - Enabled: 1
+    Kind: 1
+    Strength: 0.014
+    Frequency: 6
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 4
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0.2
+    RidgeWeight: 1.3
+    MaskByFirstLayer: 1
+    MaskRange: {x: 0.45, y: 0.6}
+    Terraces: 0
+  - Enabled: 1
     Kind: 0
     Strength: 0.004
     Frequency: 12
@@ -70,6 +83,11 @@ MonoBehaviour:
   CanyonCoverage: 0.6
   CanyonWarp: 0.35
   CanyonRivers: 0
+  ErosionDepth: 10
+  ErosionScale: 100
+  ErosionOctaves: 5
+  ErosionSlope: {x: 0.015, y: 0.2}
+  ErosionBranching: 0.6
   CraterCount: 0
   CraterSize: {x: 0.03, y: 0.2}
   CraterSizeBias: 3

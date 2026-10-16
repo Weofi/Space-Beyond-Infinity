@@ -79,7 +79,7 @@ namespace Voidward.Data
         [Tooltip("Target ground spacing (m) of the finest LOD; also the collider resolution.")]
         [Range(0.75f, 6f)] public float LeafSpacing = 1.6f;
         [Tooltip("Higher = finer distant terrain (split when distance < chunk size * this).")]
-        [Range(1f, 4f)] public float LodQuality = 1.6f;
+        [Range(1f, 4f)] public float LodQuality = 2f;
 
         [Header("Terrain")]
         [Tooltip("Global multiplier for all layer and crater heights.")]
@@ -112,6 +112,17 @@ namespace Voidward.Data
         [Range(0f, 1f)] public float CanyonWarp = 0.35f;
         [Tooltip("Carve down to sea level so the ocean fills the channels (rivers, lava channels).")]
         public bool CanyonRivers;
+
+        [Header("Erosion (#115)")]
+        [Tooltip("Gully depth in meters (0 = off). Gullies run downhill on slopes and branch; flats stay untouched.")]
+        public float ErosionDepth;
+        [Tooltip("Wavelength of the largest gullies in meters (each octave halves it).")]
+        public float ErosionScale = 90f;
+        [Range(1, 7)] public int ErosionOctaves = 5;
+        [Tooltip("Slope (m per m) over which erosion fades in.")]
+        public Vector2 ErosionSlope = new Vector2(0.03f, 0.25f);
+        [Tooltip("How strongly finer gullies follow the coarser ones (branching networks).")]
+        [Range(0f, 1.5f)] public float ErosionBranching = 0.6f;
 
         [Header("Craters")]
         public int CraterCount;

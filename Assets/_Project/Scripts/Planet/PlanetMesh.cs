@@ -96,6 +96,8 @@ namespace Voidward.Planet
             var dirs = new Vector3[side * side];
             var elev = new float[side * side];
             float minR = float.MaxValue, maxR = float.MinValue;
+            // Band limit (#115): detail finer than ~2 vertex spacings can't be represented and would only alias.
+            float bandLimit = R * Mathf.PI * 0.5f / (n << level) * 2.2f;
             for (int jj = 0; jj < s; jj++)
             {
                 int j = jj - border;
@@ -104,7 +106,7 @@ namespace Voidward.Planet
                 {
                     int i = ii - border;
                     Vector3 d = CubeDir(face, Coord(x, i, n, level), b);
-                    float e = terrain.ElevationFrac(d);
+                    float e = terrain.ElevationFrac(d, bandLimit);
                     float r = R * (1f + e);
                     pos[jj * s + ii] = d * r - data.Origin;
                     if (i >= 0 && i <= n && j >= 0 && j <= n)
@@ -130,7 +132,7 @@ namespace Voidward.Planet
                 var normals = new Vector3[verts.Length];
                 var uvs = new Vector2[verts.Length];
                 var uvs2 = new Vector2[verts.Length];
-                float spacing = R * Mathf.PI * 0.5f / (n << level);
+                float spacing = bandLimit / 2.2f;
                 Vector3 o = data.Origin;
                 for (int j = 0; j <= n; j++)
                     for (int i = 0; i <= n; i++)
@@ -148,7 +150,9 @@ namespace Voidward.Planet
                     }
                 // Skirt: duplicate the boundary loop, pushed toward the planet center.
                 float chunkSize = R * Mathf.PI * 0.5f / (1 << level);
-                float depth = 2f + chunkSize * 0.04f;
+                // Coarse chunks skip erosion octaves (band limit), so neighbours across a LOD step differ by up to the
+                // gully depth: the skirt has to reach below that.
+                float depth = 2f + chunkSize * 0.04f + terrain.ErosionDepthMeters * 1.3f;
                 var loop = EdgeLoop(n);
                 for (int k = 0; k < loop.Length; k++)
                 {
