@@ -26,15 +26,17 @@ namespace Voidward.Planet
         readonly PlanetVisuals owner;
         readonly PlanetTerrain terrain;
         readonly Material mat;
+        readonly PlanetPropLibrary props;
         readonly List<GameObject> objects = new List<GameObject>();
         readonly List<Mesh> meshes = new List<Mesh>();
         public readonly List<Info> Landmarks = new List<Info>();
 
-        public PlanetLandmarks(PlanetVisuals owner, PlanetTerrain terrain, Material mat)
+        public PlanetLandmarks(PlanetVisuals owner, PlanetTerrain terrain, Material mat, PlanetPropLibrary props = null)
         {
             this.owner = owner;
             this.terrain = terrain;
             this.mat = mat;
+            this.props = props;
         }
 
         Color Col(int i)
@@ -107,22 +109,40 @@ namespace Voidward.Planet
             float sink = 1.5f + terrain.SlopeAt(dir, 8f) * 20f * scale;
             Vector3 origin = basePos - dir * sink;
             string label;
-            float height = Emit(mb, kind, rot, scale, rng.Next(), out label);
-            if (mb.VertexCount == 0) return;
-            // Ground the set piece: darker at the (sunken) base, slightly lighter towards the top.
-            mb.Grade(0, dir * sink * 0.5f, dir, Mathf.Max(height * 0.5f, 4f), 0.6f, 1.05f);
+            var batch = props != null ? new PropBatch(props) : null;
+            float height = Emit(mb, batch, kind, rot, scale, rng.Next(), out label);
+            bool hasProps = batch != null && batch.VertexCount > 0;
+            if (mb.VertexCount == 0 && !hasProps) return;
 
-            var mesh = mb.Build("Landmark_" + kind);
-            mesh.hideFlags = HideFlags.DontSave;
-            meshes.Add(mesh);
             var go = new GameObject("Landmark_" + kind) { hideFlags = HideFlags.DontSave };
             go.transform.SetParent(owner.transform, false);
             go.transform.localPosition = origin;
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = mat;
-            mr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
-            go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            if (mb.VertexCount > 0)
+            {
+                // Ground the set piece: darker at the (sunken) base, slightly lighter towards the top.
+                mb.Grade(0, dir * sink * 0.5f, dir, Mathf.Max(height * 0.5f, 4f), 0.6f, 1.05f);
+                var mesh = mb.Build("Landmark_" + kind);
+                mesh.hideFlags = HideFlags.DontSave;
+                meshes.Add(mesh);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var mr = go.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = mat;
+                mr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+                go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            }
+            if (hasProps)
+            {
+                // asset parts (#100): rocks, crystals, ice, the elder tree, fungi
+                var pm = batch.Build("Landmark_" + kind + "_Props", owner.PropMaterial, out var mats);
+                meshes.Add(pm);
+                var pgo = new GameObject("Props") { hideFlags = HideFlags.DontSave };
+                pgo.transform.SetParent(go.transform, false);
+                pgo.AddComponent<MeshFilter>().sharedMesh = pm;
+                var pr = pgo.AddComponent<MeshRenderer>();
+                pr.sharedMaterials = mats;
+                pr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+                pgo.AddComponent<MeshCollider>().sharedMesh = pm;
+            }
             objects.Add(go);
             Landmarks.Add(new Info { LocalPos = basePos + dir * height * 0.6f, Name = label, Height = height, AtSite = atSite });
         }
@@ -130,9 +150,12 @@ namespace Voidward.Planet
         static Matrix4x4 M(Vector3 p, Quaternion q, Vector3 s) => Matrix4x4.TRS(p, q, s);
 
         /// <summary>Builds the set piece around the local origin (up = rot * up). Returns its height.</summary>
-        float Emit(MeshBuilder mb, Kind kind, Quaternion rot, float k, int seed, out string label)
+        float Emit(MeshBuilder mb, PropBatch batch, Kind kind, Quaternion rot, float k, int seed, out string label)
         {
             var r = new System.Random(seed);
+            // asset family available for this landmark (#100)? The variant comes from the landmark's own random stream.
+            bool A(string family) => batch != null && props.Has(family);
+            string rockFamily = terrain.Shape.Decor == PlanetDecorStyle.Jungle && A("MossRock") ? "MossRock" : "Rock";
             float Rn(float a, float b) => a + (float)r.NextDouble() * (b - a);
             Vector3 up = rot * Vector3.up, fwd = rot * Vector3.forward, right = rot * Vector3.right;
             Color rock = Col(0), body = Col(1), accent = Col(2), glow = Col(3);
@@ -202,6 +225,20 @@ namespace Voidward.Planet
                         Vector3 p = (right * Rn(-1f, 1f) + fwd * Rn(-1f, 1f)) * 22f * k;
                         float y = 0f;
                         int segs = r.Next(4, 7);
+                        if (A("DesertRock"))
+                        {
+                            // stacked sandstone scans, each about one segment tall, a wide cap on top
+                            int model = props.Pick("DesertRock", r.Next());
+                            for (int sgi = 0; sgi < segs; sgi++)
+                            {
+                                float seg = h / segs;
+                                float rad = seg * 0.85f * (sgi % 2 == 0 ? 1f : 0.8f);
+                                batch.Add(model, p + up * (y + seg * 0.5f), rot * Quaternion.Euler(Rn(-5f, 5f), Rn(0f, 360f), Rn(-5f, 5f)), rad);
+                                y += seg;
+                            }
+                            batch.Add(model, p + up * (y + h * 0.04f), rot * Quaternion.Euler(0f, Rn(0f, 360f), 0f), h * 0.16f);
+                            continue;
+                        }
                         for (int sgi = 0; sgi < segs; sgi++)
                         {
                             float seg = h / segs;
@@ -253,6 +290,7 @@ namespace Voidward.Planet
                         tallest = Mathf.Max(tallest, h);
                         Vector3 p = i == 0 ? Vector3.zero : (right * Rn(-1f, 1f) + fwd * Rn(-1f, 1f)) * 18f * k;
                         Quaternion q = rot * Quaternion.Euler(Rn(-14f, 14f), Rn(0f, 360f), Rn(-14f, 14f));
+                        if (A("Ice")) { batch.Add(props.Pick("Ice", r.Next()), p - up * h * 0.04f, q, h); continue; }
                         Color c = Color.Lerp(body, accent, Rn(0f, 0.5f));
                         mb.AddPrism(M(p + q * Vector3.up * h * 0.42f, q, Vector3.one), h * 0.13f, h * 0.06f, h * 0.84f, 6, c, false, false);
                         mb.AddPrism(M(p + q * Vector3.up * h * 0.92f, q, Vector3.one), h * 0.06f, 0f, h * 0.16f, 6, c);
@@ -264,6 +302,20 @@ namespace Voidward.Planet
                     label = "Elder Tree";
                     float h = Rn(55f, 90f) * k;
                     float trunk = h * 0.07f;
+                    if (A("AlienTree"))
+                    {
+                        // the kit's eight-trunk tree, its glowing pods keep hanging under the canopy
+                        batch.Add(props.Pick("AlienTree", r.Next()), -up * h * 0.02f, rot * Quaternion.Euler(0f, Rn(0f, 360f), 0f), h);
+                        mb.Surface(0.1f, 1.5f);
+                        for (int i = 0; i < 8; i++)
+                        {
+                            Vector3 off = (right * Rn(-1f, 1f) + fwd * Rn(-1f, 1f)) * h * 0.3f + up * h * Rn(0.62f, 0.72f);
+                            mb.AddPrism(M(off - up * h * 0.04f, rot, Vector3.one), h * 0.004f, h * 0.004f, h * 0.08f, 3, glow * 0.8f);
+                            mb.AddSphere(M(off - up * h * 0.09f, rot, Vector3.one), h * 0.016f, 0, glow);
+                        }
+                        mb.Surface(0.08f, 0f);
+                        return h;
+                    }
                     mb.AddPrism(M(up * h * 0.5f, rot, Vector3.one), trunk * 1.4f, trunk * 0.7f, h, 8, rock * 0.7f, false, false);
                     for (int i = 0; i < 5; i++)
                     {
@@ -296,6 +348,7 @@ namespace Voidward.Planet
                         tallest = Mathf.Max(tallest, h);
                         Vector3 p = i == 0 ? Vector3.zero : (right * Rn(-1f, 1f) + fwd * Rn(-1f, 1f)) * 20f * k;
                         Quaternion q = rot * Quaternion.Euler(Rn(-10f, 10f), 0f, Rn(-10f, 10f));
+                        if (A("Mushroom")) { batch.Add(props.Pick("Mushroom", r.Next()), p - up * h * 0.02f, q * Quaternion.Euler(0f, Rn(0f, 360f), 0f), h); continue; }
                         mb.Surface(0.08f, 0f);
                         mb.AddPrism(M(p + q * Vector3.up * h * 0.45f, q, Vector3.one), h * 0.08f, h * 0.05f, h * 0.9f, 7, Color.Lerp(Color.white, body, 0.3f));
                         mb.AddPrism(M(p + q * Vector3.up * h * 0.95f, q, Vector3.one), h * 0.42f, h * 0.1f, h * 0.22f, 10, accent);
@@ -316,6 +369,7 @@ namespace Voidward.Planet
                         tallest = Mathf.Max(tallest, h);
                         Vector3 p = i == 0 ? Vector3.zero : (right * Rn(-1f, 1f) + fwd * Rn(-1f, 1f)) * h * 0.25f;
                         Quaternion q = rot * Quaternion.Euler(Rn(-22f, 22f), Rn(0f, 360f), Rn(-22f, 22f));
+                        if (A("Crystal")) { batch.Add(props.Pick("Crystal", r.Next()), p - up * h * 0.05f, q, h * 0.8f); continue; }
                         Color c = Color.Lerp(body, accent, Rn(0f, 0.6f));
                         mb.Surface(0.75f, i == 0 ? 0.7f : 0.45f);
                         mb.AddPrism(M(p + q * Vector3.up * h * 0.4f, q, Vector3.one), h * 0.1f, h * 0.12f, h * 0.8f, 6, c, false, false);
@@ -336,8 +390,13 @@ namespace Voidward.Planet
                         top = Mathf.Max(top, y + s);
                         Vector3 p = (right * Rn(-1f, 1f) + fwd * Rn(-1f, 1f)) * 22f * k + up * y;
                         mb.Surface(0.08f, 0f);
-                        mb.AddRock(M(p, rot * Quaternion.Euler(0f, Rn(0f, 360f), 180f), new Vector3(1.3f, 1.4f, 1.2f)), s, seed + i, rock);
-                        mb.AddSphere(M(p + up * s * 0.35f, rot, new Vector3(1.3f, 0.35f, 1.2f)), s * 0.95f, 0, body);
+                        if (A(rockFamily))
+                            batch.Add(props.Pick(rockFamily, r.Next()), p, rot * Quaternion.Euler(Rn(0f, 360f), Rn(0f, 360f), Rn(0f, 360f)), s * 1.35f);
+                        else
+                        {
+                            mb.AddRock(M(p, rot * Quaternion.Euler(0f, Rn(0f, 360f), 180f), new Vector3(1.3f, 1.4f, 1.2f)), s, seed + i, rock);
+                            mb.AddSphere(M(p + up * s * 0.35f, rot, new Vector3(1.3f, 0.35f, 1.2f)), s * 0.95f, 0, body);
+                        }
                         mb.Surface(0.2f, 1.6f);
                         mb.AddSphere(M(p - up * s * 1.05f, rot, Vector3.one), s * 0.18f, 0, glow);
                     }
@@ -356,7 +415,8 @@ namespace Voidward.Planet
                         tallest = Mathf.Max(tallest, h);
                         float w = 2.6f * k + 0.3f;
                         Vector3 p = (right * Mathf.Cos(a) + fwd * Mathf.Sin(a)) * d;
-                        mb.AddPrism(M(p + up * h * 0.5f, rot * Quaternion.Euler(0f, Rn(0f, 60f), 0f), Vector3.one), w, w, h, 6, rock * Rn(0.7f, 1f));
+                        if (A("Basalt")) PlanetDecor.StackBasalt(batch, props.Pick("Basalt", r.Next()), p, rot, up, h, w * 2f, r);
+                        else mb.AddPrism(M(p + up * h * 0.5f, rot * Quaternion.Euler(0f, Rn(0f, 60f), 0f), Vector3.one), w, w, h, 6, rock * Rn(0.7f, 1f));
                     }
                     mb.Surface(0.2f, 1.8f);
                     mb.AddPrism(M(up * 0.4f, rot, Vector3.one), 5f * k, 4f * k, 0.8f, 9, glow);
@@ -392,6 +452,7 @@ namespace Voidward.Planet
                         float s = Rn(5f, 14f) * k;
                         Vector3 p = (right * Rn(-1f, 1f) + fwd * Rn(-1f, 1f)) * 18f * k + up * s * Rn(0.2f, 0.9f);
                         top = Mathf.Max(top, p.magnitude + s);
+                        if (A(rockFamily)) { batch.Add(props.Pick(rockFamily, r.Next()), p, rot * Quaternion.Euler(Rn(0f, 360f), Rn(0f, 360f), Rn(0f, 360f)), s); continue; }
                         mb.AddRock(M(p, rot * Quaternion.Euler(Rn(0f, 360f), Rn(0f, 360f), 0f), new Vector3(1f, Rn(0.7f, 1f), 1f)), s, seed + i, rock * Rn(0.85f, 1.1f));
                     }
                     return top;

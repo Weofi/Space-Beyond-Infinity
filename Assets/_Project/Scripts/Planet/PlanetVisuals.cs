@@ -52,6 +52,8 @@ namespace Voidward.Planet
             public GameObject Go, DecorGo;
             public MeshRenderer Renderer;
             public Mesh Mesh, DecorMesh;
+            public GameObject PropGo;
+            public Mesh PropMesh;
             public bool Dead;
             public bool Ready => Mesh != null;
         }
@@ -94,7 +96,11 @@ namespace Voidward.Planet
         GameObject ocean, atmosphere, clouds;
         Mesh oceanMesh, atmosphereMesh, cloudMesh;
         Material terrainMat, oceanMat, atmosphereMat, cloudMat;
+        /// <summary>This planet's terrain material instance (dev tests toggle its keywords).</summary>
+        public Material TerrainMat => terrainMat;
         Material decorMat;
+        PlanetPropLibrary props;
+        readonly Dictionary<(Material, string), Material> propMats = new Dictionary<(Material, string), Material>();
         Texture2D ramp;
 
         static readonly int RampId = Shader.PropertyToID("_Ramp");
@@ -125,6 +131,8 @@ namespace Voidward.Planet
         static readonly int SeedId = Shader.PropertyToID("_Seed");
         static readonly int HazeId = Shader.PropertyToID("_HazeColor");
         static readonly int PlanetCenterId = Shader.PropertyToID("_PlanetCenter");
+        static readonly int PeakStartId = Shader.PropertyToID("_PeakStart");
+        static readonly int ShoreBandId = Shader.PropertyToID("_ShoreBand");
         static readonly int SkyColorId = Shader.PropertyToID("_SkyColor");
         static readonly int HorizonColorId = Shader.PropertyToID("_HorizonColor");
         static readonly int HasSkyId = Shader.PropertyToID("_HasSky");
@@ -180,7 +188,10 @@ namespace Voidward.Planet
             terrainMat.SetVector(CliffSlopeId, planetShape.CliffSlope);
             terrainMat.SetFloat(RegionStrengthId, planetShape.RegionStrength);
             terrainMat.SetVector(PlanetCenterId, transform.position);
+            ApplySurfaceLayers(terrainMat, planetShape);
             decorMat = catalog.TerrainMaterial != null ? catalog.TerrainMaterial : catalog.ToonMaterial;
+            props = PlanetPropLibrary.Get(catalog);
+            if (props.Models.Count == 0) props = null;
 
             for (int f = 0; f < 6; f++)
             {
@@ -190,12 +201,42 @@ namespace Voidward.Planet
 
             if (Terrain.HasOcean) BuildOcean(planetShape, catalog);
             if (planetShape.HasAtmosphere) BuildAtmosphere(planetShape, catalog);
-            Landmarks = new PlanetLandmarks(this, Terrain, decorMat);
+            Landmarks = new PlanetLandmarks(this, Terrain, decorMat, props);
             Landmarks.Build();
 
             BuildMilliseconds = (float)sw.Elapsed.TotalMilliseconds;
             PlanetAmbience.Ensure();
             UpdateCamera();
+        }
+
+        /// <summary>PBR terrain layers (#100): textures + (scale, tint, normal, valid) per slot, keyword on when the ground layer exists.</summary>
+        static void ApplySurfaceLayers(Material m, PlanetShapeDef s)
+        {
+            if (!s.HasSurfaceLayers)
+            {
+                m.DisableKeyword("_SURFACE_LAYERS");
+                return;
+            }
+            m.EnableKeyword("_SURFACE_LAYERS");
+            SetLayer(m, "Ground", s.GroundLayer);
+            SetLayer(m, "Cliff", s.CliffLayer);
+            SetLayer(m, "Region", s.RegionLayer);
+            SetLayer(m, "Low", s.LowLayer);
+            SetLayer(m, "Peak", s.PeakLayer);
+            m.SetFloat(PeakStartId, s.PeakStart);
+            m.SetFloat(ShoreBandId, s.ShoreBand);
+        }
+
+        static void SetLayer(Material m, string slot, PlanetShapeDef.SurfaceLayer l)
+        {
+            bool valid = l != null && l.Valid;
+            m.SetVector("_" + slot + "Params", valid ? new Vector4(Mathf.Max(0.1f, l.Scale), l.Tint, l.NormalStrength, 1f) : new Vector4(4f, 0f, 0f, 0f));
+            if (!valid) return;
+            m.SetTexture("_" + slot + "Albedo", l.Albedo);
+            if (l.Normal != null) m.SetTexture("_" + slot + "Normal", l.Normal);
+            if (l.Mask != null) m.SetTexture("_" + slot + "Mask", l.Mask);
+            // alpha = contrast (Material.SetColor leaves alpha linear)
+            m.SetColor("_" + slot + "Mean", new Color(l.Mean.r, l.Mean.g, l.Mean.b, l.Contrast));
         }
 
         void BuildOcean(PlanetShapeDef s, ContentCatalog catalog)
@@ -282,6 +323,8 @@ namespace Voidward.Planet
             Kill(ocean); Kill(atmosphere); Kill(clouds);
             Kill(oceanMesh); Kill(atmosphereMesh); Kill(cloudMesh);
             Kill(terrainMat); Kill(oceanMat); Kill(atmosphereMat); Kill(cloudMat); Kill(ramp);
+            foreach (var m in propMats.Values) Kill(m);
+            propMats.Clear();
             ocean = atmosphere = clouds = null;
             oceanMesh = atmosphereMesh = cloudMesh = null;
             terrainMat = oceanMat = atmosphereMat = cloudMat = null;
@@ -430,7 +473,9 @@ namespace Voidward.Planet
             n.Kids = null;
             if (n.Job != null) pending.Remove(n.Job);
             n.Job = null;
-            Kill(n.Go); Kill(n.DecorGo); Kill(n.Mesh); Kill(n.DecorMesh);
+            Kill(n.Go); Kill(n.DecorGo); Kill(n.Mesh); Kill(n.DecorMesh); Kill(n.PropGo); Kill(n.PropMesh);
+            n.PropGo = null;
+            n.PropMesh = null;
             n.Go = n.DecorGo = null;
             n.Mesh = n.DecorMesh = null;
             n.Renderer = null;
@@ -445,7 +490,7 @@ namespace Voidward.Planet
             var n = job.Node;
             var data = PlanetMesh.BuildChunk(terrain, n.Face, n.Level, n.X, n.Y, chunkN, false);
             if (n.Level == smallDecorLevel || n.Level == largeDecorLevel)
-                PlanetDecor.Generate(terrain, data, n.Level == smallDecorLevel, n.Level == largeDecorLevel);
+                PlanetDecor.Generate(terrain, data, n.Level == smallDecorLevel, n.Level == largeDecorLevel, props);
             return data;
         }
 
@@ -547,16 +592,69 @@ namespace Voidward.Planet
                 mr.sharedMaterial = decorMat;
                 mr.lightProbeUsage = LightProbeUsage.Off;
                 mr.shadowCastingMode = n.Level == largeDecorLevel ? ShadowCastingMode.On : ShadowCastingMode.Off;
-                if (d.DecorColliders != null)
-                    foreach (var c in d.DecorColliders)
-                    {
-                        var sc = n.DecorGo.AddComponent<SphereCollider>();
-                        sc.center = c;
-                        sc.radius = c.w;
-                    }
+                AddDecorColliders(n.DecorGo, d.DecorColliders);
                 // Decor belongs to the node, not to its renderer: it stays while finer children are shown.
                 n.DecorGo.transform.SetParent(transform, true);
             }
+
+            // Asset props (#100): one mesh per chunk, a submesh per model material (tinted per planet).
+            if (d.DecorProps != null && d.DecorProps.VertexCount > 0)
+            {
+                n.PropMesh = d.DecorProps.Build("DecorProps", PropMaterial, out var mats);
+                n.PropGo = new GameObject("DecorProps") { hideFlags = HideFlags.DontSave };
+                n.PropGo.transform.SetParent(n.Go.transform, false);
+                n.PropGo.AddComponent<MeshFilter>().sharedMesh = n.PropMesh;
+                var mr = n.PropGo.AddComponent<MeshRenderer>();
+                mr.sharedMaterials = mats;
+                mr.lightProbeUsage = LightProbeUsage.Off;
+                mr.shadowCastingMode = n.Level == largeDecorLevel ? ShadowCastingMode.On : ShadowCastingMode.Off;
+                if (n.DecorGo == null) AddDecorColliders(n.PropGo, d.DecorColliders);
+                n.PropGo.transform.SetParent(transform, true);
+            }
+            else if (n.DecorGo == null && d.DecorColliders != null)
+            {
+                n.PropGo = new GameObject("DecorColliders") { hideFlags = HideFlags.DontSave };
+                n.PropGo.transform.SetParent(n.Go.transform, false);
+                AddDecorColliders(n.PropGo, d.DecorColliders);
+                n.PropGo.transform.SetParent(transform, true);
+            }
+        }
+
+        static void AddDecorColliders(GameObject go, List<Vector4> colliders)
+        {
+            if (colliders == null) return;
+            foreach (var c in colliders)
+            {
+                var sc = go.AddComponent<SphereCollider>();
+                sc.center = c;
+                sc.radius = c.w;
+            }
+        }
+
+        /// <summary>
+        /// The material of a prop model's submesh for this planet: rocks take the planet's rock colour, crystals and
+        /// ice its flora colour (multiplied onto the texture, so the scans keep their detail); plants keep theirs.
+        /// </summary>
+        public Material PropMaterial(int model, int sub)
+        {
+            if (props == null || model < 0 || model >= props.Models.Count) return decorMat;
+            var m = props.Models[model];
+            var src = m.Materials != null && sub < m.Materials.Length ? m.Materials[sub] : null;
+            if (src == null) return decorMat;
+            string family = PlanetPropLibrary.Family(m.Id);
+            int colorIndex = family == "Rock" || family == "Basalt" || family == "DesertRock" ? 0 : family == "Crystal" || family == "Ice" ? 1 : -1;
+            if (colorIndex < 0) return src;
+            if (propMats.TryGetValue((src, family), out var mat) && mat != null) return mat;
+            var cols = Terrain.Shape.DecorColors;
+            Color c = cols != null && cols.Length > colorIndex ? Terrain.Shift(cols[colorIndex]) : Color.gray;
+            // the scans are mid grey (~0.45): divide it out, so the prop ends up near the palette colour
+            // the sandstone scan is already warm: only a light pull towards the palette
+            float strength = family == "Rock" || family == "Basalt" ? 0.85f : family == "Crystal" ? 0.8f : family == "DesertRock" ? 0.4f : 0.5f;
+            Color tint = Color.Lerp(Color.white, new Color(Mathf.Min(c.r / 0.45f, 1.6f), Mathf.Min(c.g / 0.45f, 1.6f), Mathf.Min(c.b / 0.45f, 1.6f)), strength);
+            mat = new Material(src) { name = src.name + " (" + Terrain.Shape.name + ")", hideFlags = HideFlags.DontSave };
+            mat.SetColor("_BaseColor", tint);
+            propMats[(src, family)] = mat;
+            return mat;
         }
 
         // ---------------------------------------------------------------- collider streaming

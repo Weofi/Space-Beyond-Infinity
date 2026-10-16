@@ -87,8 +87,8 @@ namespace Voidward.Planet
             },
         };
 
-        /// <summary>Fills data.Decor / data.DecorColliders. Thread-safe.</summary>
-        public static void Generate(PlanetTerrain terrain, ChunkData data, bool small, bool large)
+        /// <summary>Fills data.Decor / data.DecorProps / data.DecorColliders. Thread-safe (`props` is read only).</summary>
+        public static void Generate(PlanetTerrain terrain, ChunkData data, bool small, bool large, PlanetPropLibrary props = null)
         {
             var shape = terrain.Shape;
             if (!Styles.TryGetValue(shape.Decor, out var rules) || shape.DecorDensity <= 0f) return;
@@ -148,10 +148,20 @@ namespace Voidward.Planet
                     Vector3 up = Vector3.Slerp(dir, normal, rule.Large ? 0.25f : 0.6f);
                     Quaternion rot = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, yaw, 0f);
                     float shade = 0.88f + (propSeed & 255) / 255f * 0.24f;
-                    int first = mb.VertexCount;
-                    float col = Emit(mb, rule.P, pos, rot, up, sz, propSeed, shade, C(0), C(1), C(2), C(3));
-                    // Contact shading: darker where the prop meets the ground, slightly sun-bleached at the top.
-                    mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
+                    float col;
+                    string family = props != null ? AssetFamily(rule.P, shape.Decor) : null;
+                    if (family != null && props.Has(family))
+                    {
+                        data.DecorProps ??= new PropBatch(props);
+                        col = EmitAsset(data.DecorProps, props, family, rule.P, pos, rot, up, sz, propSeed);
+                    }
+                    else
+                    {
+                        int first = mb.VertexCount;
+                        col = Emit(mb, rule.P, pos, rot, up, sz, propSeed, shade, C(0), C(1), C(2), C(3));
+                        // Contact shading: darker where the prop meets the ground, slightly sun-bleached at the top.
+                        mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
+                    }
                     if (rule.Collider > 0f && col > 0f)
                     {
                         colliders ??= new List<Vector4>();
@@ -165,6 +175,138 @@ namespace Voidward.Planet
         }
 
         static Matrix4x4 M(Vector3 pos, Quaternion rot, Vector3 scale) => Matrix4x4.TRS(pos, rot, scale);
+
+        /// <summary>The asset family that replaces a procedural prop (#100); null = the prop stays procedural.</summary>
+        static string AssetFamily(Prop prop, PlanetDecorStyle style) => prop switch
+        {
+            Prop.Rock or Prop.Pebbles or Prop.Boulder => style == PlanetDecorStyle.Jungle ? "MossRock" : style == PlanetDecorStyle.Desert ? "DesertRock" : "Rock",
+            Prop.Shrub => "SpruceBush",
+            Prop.Conifer => "Spruce",
+            Prop.Cactus => "Saguaro",
+            Prop.DryBush => "Rooibos",
+            Prop.Fern => "Fern",
+            Prop.DeadTree => "DeadTree",
+            Prop.Basalt => "Basalt",
+            Prop.Hoodoo => "DesertRock",
+            Prop.IceShard or Prop.IceSpike => "Ice",
+            Prop.Crystal or Prop.CrystalSpire => "Crystal",
+            Prop.Pod => "Pod",
+            Prop.Tree => "AlienTree",
+            Prop.Mushroom => "Mushroom",
+            _ => null,
+        };
+
+        /// <summary>
+        /// A basalt column of height `h` and width `w` from the column scan (height 1, ~0.35 wide): stacked pieces, each
+        /// scaled to the width, the top one sunk to the height. Shared by decor and the basalt organ landmark.
+        /// </summary>
+        public static void StackBasalt(PropBatch batch, int model, Vector3 basePos, Quaternion rot, Vector3 up, float h, float w, System.Random r)
+        {
+            float piece = w / 0.35f;
+            int pieces = Mathf.Max(1, Mathf.CeilToInt(h / piece));
+            for (int i = 0; i < pieces; i++)
+            {
+                float y = Mathf.Min(i * piece, h - piece);
+                batch.Add(model, basePos + up * y, rot * Quaternion.Euler(0f, (float)r.NextDouble() * 360f, 0f), piece);
+            }
+        }
+
+        /// <summary>
+        /// Adds an asset prop (variant from the prop seed, so placement stays as before); returns its collider radius.
+        /// Rocks are radius-1 models around their centre (sunk a little into the ground), everything else stands on
+        /// its origin with height 1.
+        /// </summary>
+        static float EmitAsset(PropBatch batch, PlanetPropLibrary lib, string family, Prop prop, Vector3 pos, Quaternion rot, Vector3 up,
+            float s, int seed)
+        {
+            var r = new System.Random(seed);
+            float Rn(float a, float b) => a + (float)r.NextDouble() * (b - a);
+            Quaternion Tilt(float deg) => rot * Quaternion.Euler(Rn(-deg, deg), Rn(0f, 360f), Rn(-deg, deg));
+            Quaternion Any() => Quaternion.Euler(Rn(0f, 360f), Rn(0f, 360f), Rn(0f, 360f));
+            switch (prop)
+            {
+                case Prop.Rock:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.2f, rot * Any(), s);
+                    return 0f;
+                case Prop.Pebbles:
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float ps = s * Rn(0.5f, 1f);
+                        batch.Add(lib.Pick(family, r.Next()), pos + rot * new Vector3(Rn(-1f, 1f), 0f, Rn(-1f, 1f)) * s * 2f - up * ps * 0.2f, rot * Any(), ps);
+                    }
+                    return 0f;
+                case Prop.Boulder:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.15f, Tilt(20f), s);
+                    return s * 0.75f;
+                case Prop.IceShard:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.1f, Tilt(15f), s * 1.4f);
+                    return 0f;
+                case Prop.IceSpike:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.08f, Tilt(8f), s);
+                    return s * 0.3f;
+                case Prop.Crystal:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.1f, Tilt(18f), s * 1.2f);
+                    return 0f;
+                case Prop.CrystalSpire:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.08f, Tilt(8f), s);
+                    return s * 0.35f;
+                case Prop.Pod:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * 0.05f, Tilt(6f), s * 2f);
+                    return 0f;
+                case Prop.Tree:
+                    // the kit's tree is as wide as it is tall: a little smaller than the procedural one
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.03f, Tilt(4f), s * 0.8f);
+                    return s * 0.1f + 0.3f;
+                case Prop.Mushroom:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.03f, Tilt(5f), s);
+                    return s * 0.08f + 0.3f;
+                case Prop.Shrub:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * 0.05f, Tilt(8f), s * 1.2f);
+                    return 0f;
+                case Prop.Conifer:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.02f, Tilt(3f), s);
+                    return s * 0.06f + 0.4f;
+                case Prop.Cactus:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.03f, Tilt(4f), s);
+                    return s * 0.12f + 0.2f;
+                case Prop.DryBush:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * 0.04f, Tilt(8f), s * 1.1f);
+                    return 0f;
+                case Prop.Fern:
+                    // the fern scans are ~2.3x as wide as tall
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * 0.03f, Tilt(6f), s * 0.45f);
+                    return 0f;
+                case Prop.DeadTree:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.04f, Tilt(8f), s);
+                    return s * 0.06f + 0.25f;
+                case Prop.Basalt:
+                {
+                    int n = r.Next(4, 9);
+                    for (int i = 0; i < n; i++)
+                    {
+                        float h = s * Rn(0.4f, 1f);
+                        Vector3 off = rot * new Vector3(Rn(-1f, 1f), 0f, Rn(-1f, 1f)) * s * 0.28f;
+                        StackBasalt(batch, lib.Pick(family, r.Next()), pos + off - up * s * 0.05f, rot, up, h, s * 0.28f, r);
+                    }
+                    return s * 0.35f;
+                }
+                case Prop.Hoodoo:
+                {
+                    // sandstone scans stacked into a spire, a wider flat cap on top
+                    int model = lib.Pick(family, r.Next());
+                    float y = 0f;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        float rad = s * (i % 2 == 0 ? 0.16f : 0.12f) * (1f - i * 0.08f);
+                        batch.Add(model, pos + up * (y + rad * 0.5f), rot * Quaternion.Euler(Rn(-6f, 6f), Rn(0f, 360f), Rn(-6f, 6f)), rad);
+                        y += rad * 1.05f;
+                    }
+                    batch.Add(model, pos + up * (y + s * 0.05f), rot * Quaternion.Euler(Rn(-4f, 4f), Rn(0f, 360f), Rn(-4f, 4f)), s * 0.2f);
+                    return s * 0.17f;
+                }
+            }
+            return 0f;
+        }
 
         /// <summary>Adds one prop; returns its collider radius (0 = none).</summary>
         static float Emit(MeshBuilder mb, Prop prop, Vector3 pos, Quaternion rot, Vector3 up, float s, int seed, float shade,

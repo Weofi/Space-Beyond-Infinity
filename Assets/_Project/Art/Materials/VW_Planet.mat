@@ -23,6 +23,18 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _CliffAlbedo:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _CliffMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _CliffNormal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _DetailNormal:
         m_Texture: {fileID: 2800000, guid: 46b1deb4d99d84eafae39d53774481e2, type: 2}
         m_Scale: {x: 1, y: 1}
@@ -31,7 +43,55 @@ Material:
         m_Texture: {fileID: 2800000, guid: 90e7e0f95ef124f2e8452d4d0c35a0c4, type: 2}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _GroundAlbedo:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GroundMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GroundNormal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _LowAlbedo:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _LowMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _LowNormal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _PeakAlbedo:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _PeakMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _PeakNormal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _Ramp:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RegionAlbedo:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RegionMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RegionNormal:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -43,20 +103,33 @@ Material:
     - _DetailScale: 6
     - _DetailStrength: 0.35
     - _Gloss: 0.08
+    - _LayerFade: 150
     - _LocalLightStrength: 1
     - _MacroStrength: 0.22
+    - _PeakStart: 2
     - _RegionStrength: 0
     - _RimPower: 3
     - _RimStrength: 0.05
     - _ShadowStrength: 0.95
+    - _ShoreBand: 0.03
     - _Softness: 0.65
     - _Steps: 3
     - _StrataStrength: 0.14
     - _TerminatorWrap: 0.05
     - _Wrap: 0.25
     m_Colors:
+    - _CliffMean: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _CliffParams: {r: 4, g: 0.8, b: 1, a: 0}
     - _CliffSlope: {r: 0.12, g: 0.3, b: 0, a: 0}
+    - _GroundMean: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _GroundParams: {r: 4, g: 0.8, b: 1, a: 0}
+    - _LowMean: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _LowParams: {r: 4, g: 0.8, b: 1, a: 0}
+    - _PeakMean: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _PeakParams: {r: 4, g: 0.8, b: 1, a: 0}
     - _PlanetCenter: {r: 0, g: 0, b: 0, a: 0}
+    - _RegionMean: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _RegionParams: {r: 4, g: 0.8, b: 1, a: 0}
     - _RimColor: {r: 0.34999996, g: 0.54999995, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

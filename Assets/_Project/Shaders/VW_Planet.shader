@@ -23,6 +23,35 @@ Shader "VOIDWARD/Planet"
         _RimColor ("Rim Color", Color) = (0.35,0.55,1,1)
         _RimStrength ("Rim Strength", Range(0,1)) = 0.05
         _RimPower ("Rim Power", Range(0.5,8)) = 3
+        // PBR surface layers (#100), used with _SURFACE_LAYERS (set per planet by PlanetVisuals)
+        [NoScaleOffset] _GroundAlbedo ("Ground Albedo", 2D) = "gray" {}
+        [NoScaleOffset][Normal] _GroundNormal ("Ground Normal", 2D) = "bump" {}
+        [NoScaleOffset] _GroundMask ("Ground ARM (AO, rough, metal)", 2D) = "white" {}
+        _GroundParams ("Ground (scale m, tint, normal, valid)", Vector) = (4, 0.8, 1, 0)
+        _GroundMean ("Ground Mean Albedo (a = contrast)", Color) = (0.5, 0.5, 0.5, 1)
+        [NoScaleOffset] _CliffAlbedo ("Cliff Albedo", 2D) = "gray" {}
+        [NoScaleOffset][Normal] _CliffNormal ("Cliff Normal", 2D) = "bump" {}
+        [NoScaleOffset] _CliffMask ("Cliff ARM (AO, rough, metal)", 2D) = "white" {}
+        _CliffParams ("Cliff (scale m, tint, normal, valid)", Vector) = (4, 0.8, 1, 0)
+        _CliffMean ("Cliff Mean Albedo", Color) = (0.5, 0.5, 0.5, 1)
+        [NoScaleOffset] _RegionAlbedo ("Region Albedo", 2D) = "gray" {}
+        [NoScaleOffset][Normal] _RegionNormal ("Region Normal", 2D) = "bump" {}
+        [NoScaleOffset] _RegionMask ("Region ARM (AO, rough, metal)", 2D) = "white" {}
+        _RegionParams ("Region (scale m, tint, normal, valid)", Vector) = (4, 0.8, 1, 0)
+        _RegionMean ("Region Mean Albedo", Color) = (0.5, 0.5, 0.5, 1)
+        [NoScaleOffset] _LowAlbedo ("Low Albedo", 2D) = "gray" {}
+        [NoScaleOffset][Normal] _LowNormal ("Low Normal", 2D) = "bump" {}
+        [NoScaleOffset] _LowMask ("Low ARM (AO, rough, metal)", 2D) = "white" {}
+        _LowParams ("Low (scale m, tint, normal, valid)", Vector) = (4, 0.8, 1, 0)
+        _LowMean ("Low Mean Albedo", Color) = (0.5, 0.5, 0.5, 1)
+        [NoScaleOffset] _PeakAlbedo ("Peak Albedo", 2D) = "gray" {}
+        [NoScaleOffset][Normal] _PeakNormal ("Peak Normal", 2D) = "bump" {}
+        [NoScaleOffset] _PeakMask ("Peak ARM (AO, rough, metal)", 2D) = "white" {}
+        _PeakParams ("Peak (scale m, tint, normal, valid)", Vector) = (4, 0.8, 1, 0)
+        _PeakMean ("Peak Mean Albedo", Color) = (0.5, 0.5, 0.5, 1)
+        _PeakStart ("Peak Start (land ramp)", Float) = 2
+        _ShoreBand ("Shore Band (land ramp)", Float) = 0.03
+        _LayerFade ("Layer Fade (x ground scale)", Float) = 150
     }
     SubShader
     {
@@ -34,6 +63,14 @@ Shader "VOIDWARD/Planet"
         TEXTURE2D(_Ramp); SAMPLER(sampler_Ramp);
         TEXTURE2D(_DetailTex); SAMPLER(sampler_DetailTex);
         TEXTURE2D(_DetailNormal); SAMPLER(sampler_DetailNormal);
+        // Every layer samples with the ground textures' samplers (same import settings).
+        TEXTURE2D(_GroundAlbedo); SAMPLER(sampler_GroundAlbedo);
+        TEXTURE2D(_GroundNormal); SAMPLER(sampler_GroundNormal);
+        TEXTURE2D(_GroundMask); SAMPLER(sampler_GroundMask);
+        TEXTURE2D(_CliffAlbedo); TEXTURE2D(_CliffNormal); TEXTURE2D(_CliffMask);
+        TEXTURE2D(_RegionAlbedo); TEXTURE2D(_RegionNormal); TEXTURE2D(_RegionMask);
+        TEXTURE2D(_LowAlbedo); TEXTURE2D(_LowNormal); TEXTURE2D(_LowMask);
+        TEXTURE2D(_PeakAlbedo); TEXTURE2D(_PeakNormal); TEXTURE2D(_PeakMask);
 
         CBUFFER_START(UnityPerMaterial)
             float _DetailScale;
@@ -54,6 +91,19 @@ Shader "VOIDWARD/Planet"
             float4 _RimColor;
             float _RimStrength;
             float _RimPower;
+            float4 _GroundParams;
+            float4 _GroundMean;
+            float4 _CliffParams;
+            float4 _CliffMean;
+            float4 _RegionParams;
+            float4 _RegionMean;
+            float4 _LowParams;
+            float4 _LowMean;
+            float4 _PeakParams;
+            float4 _PeakMean;
+            float _PeakStart;
+            float _ShoreBand;
+            float _LayerFade;
         CBUFFER_END
 
         float Hash3(float3 p)
@@ -108,6 +158,54 @@ Shader "VOIDWARD/Planet"
             tz = float3(tz.xy + n.xy, abs(tz.z) * n.z);
             return normalize(tx.zyx * w.x + ty.xzy * w.y + tz.xyz * w.z);
         }
+
+        // ---- PBR surface layers (#100) ----
+        // Accumulated per pixel: tinted albedo, AO + roughness and one tangent normal per triplanar projection.
+        struct LayerAccum
+        {
+            float3 albedo;
+            float2 aoRough;
+            float3 tn0, tn1, tn2;
+        };
+
+        float2 Proj(float3 v, int k) { return k == 0 ? v.zy : (k == 1 ? v.xz : v.xy); }
+
+        // Samples one layer with explicit gradients (the callers skip weak layers / projections, where implicit
+        // derivatives would be undefined) and adds it with weight wl.
+        void AccumLayer(TEXTURE2D_PARAM(albedoTex, albedoSmp), TEXTURE2D_PARAM(normalTex, normalSmp), TEXTURE2D_PARAM(maskTex, maskSmp),
+                        float4 prm, float4 mean, float3 target, float wl, float3 p, float3 dpx, float3 dpy, float3 tw, inout LayerAccum acc)
+        {
+            if (wl < 0.004) return;
+            float s = 1.0 / prm.x;
+            float3 alb = 0;
+            float2 ar = 0;
+            [unroll] for (int k = 0; k < 3; k++)
+            {
+                if (tw[k] < 0.01) continue;
+                float2 uv = Proj(p, k) * s;
+                float2 gx = Proj(dpx, k) * s;
+                float2 gy = Proj(dpy, k) * s;
+                alb += SAMPLE_TEXTURE2D_GRAD(albedoTex, albedoSmp, uv, gx, gy).rgb * tw[k];
+                ar += SAMPLE_TEXTURE2D_GRAD(maskTex, maskSmp, uv, gx, gy).rg * tw[k];
+                float3 t = UnpackNormalScale(SAMPLE_TEXTURE2D_GRAD(normalTex, normalSmp, uv, gx, gy), prm.z) * wl;
+                if (k == 0) acc.tn0 += t; else if (k == 1) acc.tn1 += t; else acc.tn2 += t;
+            }
+            // Ramp tint: the ramp colour carries the texture's brightness variation (relative to the set's mean),
+            // so planets keep their palette; luminance-based, so weak channels of a set never get amplified.
+            const float3 lumW = float3(0.2126, 0.7152, 0.0722);
+            float3 tinted = target * pow(max(dot(alb, lumW), 0.0) / max(dot(mean.rgb, lumW), 0.01), mean.a);
+            acc.albedo += lerp(alb, tinted, prm.y) * wl;
+            acc.aoRough += ar * wl;
+        }
+
+        // Whiteout blend of the three projected tangent normals around the geometric normal (as TriNormal).
+        float3 TriBlendNormal(LayerAccum acc, float3 n, float3 w)
+        {
+            float3 tx = float3(acc.tn0.xy + n.zy, abs(acc.tn0.z) * n.x);
+            float3 ty = float3(acc.tn1.xy + n.xz, abs(acc.tn1.z) * n.y);
+            float3 tz = float3(acc.tn2.xy + n.xy, abs(acc.tn2.z) * n.z);
+            return normalize(tx.zyx * w.x + ty.xzy * w.y + tz.xyz * w.z);
+        }
         ENDHLSL
 
         Pass
@@ -126,6 +224,7 @@ Shader "VOIDWARD/Planet"
             #pragma multi_compile _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_fog
+            #pragma multi_compile_local _ _SURFACE_LAYERS
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -204,6 +303,51 @@ Shader "VOIDWARD/Planet"
                 float nStrength = _DetailNormalStrength * saturate(1.0 - dist / (_DetailScale * 40.0)) * lerp(0.6, 1.0, cliff);
                 float3 nWS = TriNormal(p, nGeo, w, nStrength);
                 float3 n = normalize(nWS);
+                float smooth = _Gloss;
+                float texAO = 1.0;
+                float layerFade = 0.0;
+
+            #if defined(_SURFACE_LAYERS)
+                // Layer weights as nested blends (they always sum to 1): region over ground, the low layer below sea
+                // level + the shore band, snow above PeakStart, cliffs over everything. A missing layer (params.w 0)
+                // leaves its share to the layers under it. Far away the procedural look stays (no visible tiling).
+                layerFade = saturate(1.0 - dist / (_GroundParams.x * _LayerFade));
+                if (layerFade > 0.001)
+                {
+                    float3 dpx = ddx(rel), dpy = ddy(rel);
+                    float wRegion = saturate(IN.ramp.y + macro * 0.25) * _RegionStrength * _RegionParams.w;
+                    float shoreT = 0.5 + _ShoreBand * 0.5;
+                    float wLow = (1.0 - smoothstep(shoreT - 0.004, shoreT + 0.004, t + (detail - 0.5) * 0.01)) * _LowParams.w;
+                    float peakT = 0.5 + _PeakStart * 0.5;
+                    float wPeak = smoothstep(peakT - 0.01, peakT + 0.01, t + (detail - 0.5) * 0.03 + macro * 0.02) * _PeakParams.w;
+                    float wCliff = cliff * _CliffParams.w;
+                    float keep = (1.0 - wLow) * (1.0 - wPeak) * (1.0 - wCliff);
+                    float gW = (1.0 - wRegion) * keep;
+                    float rW = wRegion * keep;
+                    float lW = wLow * (1.0 - wPeak) * (1.0 - wCliff);
+                    float pW = wPeak * (1.0 - wCliff);
+                    float cW = wCliff;
+
+                    float3 groundTarget = SAMPLE_TEXTURE2D(_Ramp, sampler_Ramp, float2(t, 1.0 / 6.0)).rgb;
+                    LayerAccum acc = (LayerAccum)0;
+                    AccumLayer(TEXTURE2D_ARGS(_GroundAlbedo, sampler_GroundAlbedo), TEXTURE2D_ARGS(_GroundNormal, sampler_GroundNormal), TEXTURE2D_ARGS(_GroundMask, sampler_GroundMask),
+                               _GroundParams, _GroundMean, groundTarget, gW, rel, dpx, dpy, w, acc);
+                    AccumLayer(TEXTURE2D_ARGS(_RegionAlbedo, sampler_GroundAlbedo), TEXTURE2D_ARGS(_RegionNormal, sampler_GroundNormal), TEXTURE2D_ARGS(_RegionMask, sampler_GroundMask),
+                               _RegionParams, _RegionMean, region, rW, rel, dpx, dpy, w, acc);
+                    AccumLayer(TEXTURE2D_ARGS(_LowAlbedo, sampler_GroundAlbedo), TEXTURE2D_ARGS(_LowNormal, sampler_GroundNormal), TEXTURE2D_ARGS(_LowMask, sampler_GroundMask),
+                               _LowParams, _LowMean, groundTarget, lW, rel, dpx, dpy, w, acc);
+                    AccumLayer(TEXTURE2D_ARGS(_PeakAlbedo, sampler_GroundAlbedo), TEXTURE2D_ARGS(_PeakNormal, sampler_GroundNormal), TEXTURE2D_ARGS(_PeakMask, sampler_GroundMask),
+                               _PeakParams, _PeakMean, groundTarget, pW, rel, dpx, dpy, w, acc);
+                    AccumLayer(TEXTURE2D_ARGS(_CliffAlbedo, sampler_GroundAlbedo), TEXTURE2D_ARGS(_CliffNormal, sampler_GroundNormal), TEXTURE2D_ARGS(_CliffMask, sampler_GroundMask),
+                               _CliffParams, _CliffMean, rock, cW, rel, dpx, dpy, w, acc);
+
+                    float3 nearCol = acc.albedo * (1.0 + macro * _MacroStrength);
+                    baseCol = lerp(baseCol, nearCol, layerFade);
+                    n = normalize(lerp(n, TriBlendNormal(acc, nGeo, w), layerFade));
+                    texAO = lerp(1.0, acc.aoRough.x, layerFade);
+                    smooth = lerp(_Gloss, 1.0 - acc.aoRough.y, layerFade);
+                }
+            #endif
 
                 float2 screenUV = GetNormalizedScreenSpaceUV(IN.positionCS);
                 AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(screenUV);
@@ -216,10 +360,10 @@ Shader "VOIDWARD/Planet"
                 diff = lerp(diff, diff * diff * (3.0 - 2.0 * diff), 0.35);
                 // The planet's own terminator: the night side goes dark even where slopes face the sun.
                 float dayside = smoothstep(-_TerminatorWrap - 0.12, 0.12, dot(up, mainLight.direction));
-                float lit = diff * atten * ao.directAmbientOcclusion * dayside * lerp(0.85, 1.0, cavityAO);
+                float lit = diff * atten * ao.directAmbientOcclusion * dayside * lerp(0.85, 1.0, cavityAO) * lerp(1.0, texAO, 0.5);
 
                 float3 col = baseCol * mainLight.color * lit;
-                float3 amb = SampleSH(n) * _AmbientBoost * ao.indirectAmbientOcclusion * cavityAO;
+                float3 amb = SampleSH(n) * _AmbientBoost * ao.indirectAmbientOcclusion * cavityAO * texAO;
                 col += baseCol * amb;
                 col += baseCol * mainLight.color * crest * 0.18 * dayside;
 
@@ -241,8 +385,14 @@ Shader "VOIDWARD/Planet"
                 float3 viewDir = normalize(GetWorldSpaceViewDir(IN.positionWS));
                 float ndv = saturate(dot(n, viewDir));
                 float3 h = normalize(mainLight.direction + viewDir);
-                float spec = pow(saturate(dot(n, h)), lerp(16.0, 96.0, _Gloss));
-                col += mainLight.color * spec * _Gloss * 0.6 * step(0.0, ndl) * atten * dayside;
+                // Without layers the old gloss highlight; with layers the ARM roughness drives a normalized Blinn lobe
+                // with Schlick fresnel (dielectric F0 0.04), blended in with the layer fade.
+                float specOld = pow(saturate(dot(n, h)), lerp(16.0, 96.0, _Gloss)) * _Gloss * 0.6;
+                float specPow = exp2(smooth * 10.0 + 1.0);
+                float fres = 0.04 + 0.96 * pow(1.0 - saturate(dot(h, viewDir)), 5.0);
+                float specPbr = pow(saturate(dot(n, h)), specPow) * (specPow + 8.0) / 25.13 * fres * saturate(ndl);
+                float spec = lerp(specOld, specPbr, layerFade);
+                col += mainLight.color * spec * step(0.0, ndl) * atten * dayside;
 
                 float rim = pow(1.0 - ndv, _RimPower) * _RimStrength * saturate(lit * 2.0);
                 col += lerp(mainLight.color * 0.35, _RimColor.rgb, 0.5) * rim;

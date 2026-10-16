@@ -93,8 +93,8 @@ MonoBehaviour:
   Underwater:
     serializedVersion: 2
     key0: {r: 0.078431375, g: 0.16470589, b: 0.26666668, a: 1}
-    key1: {r: 0.18431373, g: 0.41568628, b: 0.44705883, a: 1}
-    key2: {r: 0.62352943, g: 0.68235296, b: 0.5254902, a: 0}
+    key1: {r: 0.16470589, g: 0.37254903, b: 0.4, a: 1}
+    key2: {r: 0.49019608, g: 0.56078434, b: 0.42352942, a: 0}
     key3: {r: 0, g: 0, b: 0, a: 0}
     key4: {r: 0, g: 0, b: 0, a: 0}
     key5: {r: 0, g: 0, b: 0, a: 0}
@@ -247,3 +247,50 @@ MonoBehaviour:
   Gloss: 0.05
   DetailTexture: {fileID: 0}
   DetailNormal: {fileID: 0}
+  GroundLayer:
+    Albedo: {fileID: 2800000, guid: 9792fcadea7508e478bdf7ff7b6daa3e, type: 3}
+    Normal: {fileID: 2800000, guid: a40e7734b2b14af4c9ec03895469645d, type: 3}
+    Mask: {fileID: 2800000, guid: 146f03ede051b344e914416e2905983c, type: 3}
+    Scale: 3
+    Mean: {r: 0.30571142, g: 0.41104764, b: 0.118760444, a: 1}
+    Tint: 0.8
+    NormalStrength: 1.3
+    Contrast: 1
+  CliffLayer:
+    Albedo: {fileID: 2800000, guid: 46cc7fc79f49d074090683d33fa46525, type: 3}
+    Normal: {fileID: 2800000, guid: da4a5b82eaed2b6478223c840536c90d, type: 3}
+    Mask: {fileID: 2800000, guid: f0fd7a1bebbf26547a9027f5605e499e, type: 3}
+    Scale: 9
+    Mean: {r: 0.5203477, g: 0.4186253, b: 0.3219172, a: 1}
+    Tint: 0.8
+    NormalStrength: 1.3
+    Contrast: 1
+  RegionLayer:
+    Albedo: {fileID: 2800000, guid: 4b505b8cac1fe3841aec66e0df10dfa0, type: 3}
+    Normal: {fileID: 2800000, guid: a114b23dd6006e74d892ddde2a56f021, type: 3}
+    Mask: {fileID: 2800000, guid: f68fa2c5ec2a7b04cab922d764d6458b, type: 3}
+    Scale: 4
+    Mean: {r: 0.31988704, g: 0.3107185, b: 0.123763196, a: 1}
+    Tint: 0.8
+    NormalStrength: 1.3
+    Contrast: 1
+  LowLayer:
+    Albedo: {fileID: 2800000, guid: 9069c5c4fea23544789ae685a9fa88d7, type: 3}
+    Normal: {fileID: 2800000, guid: 91b2ca50551d4ae47ac9e01d23353842, type: 3}
+    Mask: {fileID: 2800000, guid: f7d0ebe1f6bf5574cb25e1de33b89737, type: 3}
+    Scale: 3
+    Mean: {r: 0.5145519, g: 0.45467222, b: 0.3663445, a: 1}
+    Tint: 0.9
+    NormalStrength: 1.3
+    Contrast: 1.2
+  PeakLayer:
+    Albedo: {fileID: 2800000, guid: 39f4189e2ea45a0498058e5c2b99d6ec, type: 3}
+    Normal: {fileID: 2800000, guid: 426d512a802262d4c954301bbaca67b7, type: 3}
+    Mask: {fileID: 2800000, guid: 8138138b5f53b384597fa8f49c71f622, type: 3}
+    Scale: 5
+    Mean: {r: 0.783055, g: 0.7871202, b: 0.78983843, a: 1}
+    Tint: 0.6
+    NormalStrength: 1.3
+    Contrast: 1
+  PeakStart: 0.84
+  ShoreBand: 0.03

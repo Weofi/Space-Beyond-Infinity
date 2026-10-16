@@ -221,5 +221,47 @@ namespace Voidward.Data
         [Tooltip("Optional overrides for the shared detail textures.")]
         public Texture2D DetailTexture;
         public Texture2D DetailNormal;
+
+        /// <summary>
+        /// One PBR terrain texture set (#100): albedo, OpenGL normal and an ARM mask (R ambient occlusion,
+        /// G roughness, B metallic), projected triplanar. The colour ramp tints it: the set's mean colour is
+        /// mapped onto the ramp colour by <see cref="Tint"/>, so planets keep their palette and gain real detail.
+        /// </summary>
+        [Serializable]
+        public class SurfaceLayer
+        {
+            public Texture2D Albedo;
+            public Texture2D Normal;
+            public Texture2D Mask;
+            [Tooltip("Texture repeat in meters.")]
+            public float Scale = 4f;
+            [Tooltip("Mean albedo of the set (filled by the builder); the ramp colour replaces it.")]
+            public Color Mean = new Color(0.5f, 0.5f, 0.5f);
+            [Tooltip("0 = the photo colour, 1 = the ramp colour with the texture's variation.")]
+            [Range(0f, 1f)] public float Tint = 0.8f;
+            [Range(0f, 2f)] public float NormalStrength = 1f;
+            [Tooltip("Brightness contrast of the texture under the ramp tint (1 = as photographed).")]
+            [Range(0.5f, 3f)] public float Contrast = 1f;
+
+            public bool Valid => Albedo != null;
+        }
+
+        [Header("Surface layers (PBR, #100)")]
+        [Tooltip("Flat ground. Without its albedo the planet uses the procedural detail look.")]
+        public SurfaceLayer GroundLayer = new SurfaceLayer();
+        [Tooltip("Steep slopes (CliffSlope).")]
+        public SurfaceLayer CliffLayer = new SurfaceLayer();
+        [Tooltip("Region mask areas (RegionStrength).")]
+        public SurfaceLayer RegionLayer = new SurfaceLayer();
+        [Tooltip("Below sea level and the shore band.")]
+        public SurfaceLayer LowLayer = new SurfaceLayer();
+        [Tooltip("High ground above PeakStart (snow caps).")]
+        public SurfaceLayer PeakLayer = new SurfaceLayer();
+        [Tooltip("Land ramp position (0..1) where the peak layer begins; > 1 = no peaks.")]
+        public float PeakStart = 2f;
+        [Tooltip("Shore band above sea level that still uses the low layer (land ramp 0..1).")]
+        public float ShoreBand = 0.03f;
+
+        public bool HasSurfaceLayers => GroundLayer != null && GroundLayer.Valid;
     }
 }

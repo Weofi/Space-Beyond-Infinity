@@ -60,6 +60,9 @@ namespace Voidward.Data
         public Sprite IconBlaster;
         public Sprite IconRifle;
 
+        [Header("Planet props + asteroids (#100, optional: empty = the procedural props)")]
+        public PlanetPropModel[] PlanetProps;
+
         [Header("Shared rendering")]
         public Material ToonMaterial;
         public Material TerrainMaterial;

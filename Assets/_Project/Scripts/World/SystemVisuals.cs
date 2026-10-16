@@ -4,6 +4,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using Voidward.Core;
 using Voidward.Data;
+using Voidward.Planet;
 
 namespace Voidward.World
 {
@@ -68,6 +69,8 @@ namespace Voidward.World
             var cat = ContentCatalog.Instance;
             Material mat = cat == null ? null : (cat.TerrainMaterial != null ? cat.TerrainMaterial : cat.ToonMaterial); // rock detail material
 
+            rockLib = PlanetPropLibrary.Get(cat);
+            if (!rockLib.Has("Rock")) rockLib = null;
             for (int i = 0; i < layout.Fields.Length; i++) BuildField(layout.Fields[i], i, layout, mat);
             ApplyPalette(def != null ? def.Palette : null, layout.Seed, galaxy);
             BuildJourneySky(cat, galaxy, def);
@@ -93,6 +96,8 @@ namespace Voidward.World
             public float Radius;
             public int Seed;
             public Color Color;
+            /// <summary>Asset rock model (#100, PlanetPropLibrary index); -1 = the procedural rock.</summary>
+            public int Model = -1;
             public RockChunk Chunk;
             public AsteroidRock Proxy;
             public bool Dead;
@@ -107,6 +112,7 @@ namespace Voidward.World
 
         readonly Dictionary<int, Rock> rocks = new Dictionary<int, Rock>();
         static Mesh debrisMesh;
+        PlanetPropLibrary rockLib;
 
         /// <summary>Stable asteroid id: field index and rock index inside the field.</summary>
         public static int RockId(int field, int index) => field * 1000 + index;
@@ -156,10 +162,12 @@ namespace Voidward.World
                     chunk.Go.AddComponent<MeshRenderer>().sharedMaterial = mat;
                     chunks.Add(chunk);
                 }
+                // asset rocks (#100): the moon rock scans, variant from the rock seed (same on every peer)
+                int model = rockLib != null ? rockLib.Pick("Rock", rockSeed) : -1;
                 var rock = new Rock
                 {
-                    Id = RockId(fieldIndex, i), Local = Matrix4x4.TRS(local, rot, new Vector3(1f, squash, 1f)),
-                    Radius = r, Seed = rockSeed, Color = baseCol * shade, Chunk = chunk
+                    Id = RockId(fieldIndex, i), Local = Matrix4x4.TRS(local, rot, model >= 0 ? Vector3.one : new Vector3(1f, squash, 1f)),
+                    Radius = r, Seed = rockSeed, Color = baseCol * shade, Model = model, Chunk = chunk
                 };
                 chunk.Rocks.Add(rock);
                 rocks[rock.Id] = rock;
@@ -168,13 +176,22 @@ namespace Voidward.World
                 proxy.transform.SetParent(chunk.Go.transform, false);
                 proxy.transform.localPosition = local;
                 proxy.transform.localRotation = rot;
-                var cb = new MeshBuilder();
-                cb.AddRock(Matrix4x4.Scale(new Vector3(1f, squash, 1f)), r, rockSeed, Color.white);
-                var cm = cb.Build("AsteroidCollider");
-                meshes.Add(cm);
                 var mc = proxy.AddComponent<MeshCollider>();
                 mc.convex = true;
-                mc.sharedMesh = cm;
+                if (model >= 0)
+                {
+                    // the model is radius 1: scale the proxy, the convex hull follows the scan
+                    proxy.transform.localScale = Vector3.one * r;
+                    mc.sharedMesh = rockLib.Models[model].Mesh;
+                }
+                else
+                {
+                    var cb = new MeshBuilder();
+                    cb.AddRock(Matrix4x4.Scale(new Vector3(1f, squash, 1f)), r, rockSeed, Color.white);
+                    var cm = cb.Build("AsteroidCollider");
+                    meshes.Add(cm);
+                    mc.sharedMesh = cm;
+                }
                 rock.Proxy = proxy.AddComponent<AsteroidRock>();
                 rock.Proxy.Id = rock.Id;
                 rock.Proxy.Radius = r;
@@ -185,17 +202,26 @@ namespace Voidward.World
         void RebuildChunk(RockChunk chunk)
         {
             var mb = new MeshBuilder { Gloss = 0.05f, Panel = 1f };
+            var batch = rockLib != null ? new PropBatch(rockLib) : null;
             int live = 0;
             foreach (var r in chunk.Rocks)
             {
                 if (r.Dead) continue;
-                mb.AddRock(r.Local, r.Radius, r.Seed, r.Color);
+                if (r.Model >= 0) batch.Add(r.Model, r.Local.GetColumn(3), r.Local.rotation, r.Radius);
+                else mb.AddRock(r.Local, r.Radius, r.Seed, r.Color);
                 live++;
             }
             var old = chunk.Filter.sharedMesh;
             if (old != null) { meshes.Remove(old); Destroy(old); }
             if (live == 0) { chunk.Filter.sharedMesh = null; return; }
-            var mesh = mb.Build("Asteroids");
+            Mesh mesh;
+            if (batch != null && batch.VertexCount > 0)
+            {
+                // one submesh per rock variant, each with the scan's own PBR material
+                mesh = batch.Build("Asteroids", (m, sub) => rockLib.Models[m].Materials[Mathf.Min(sub, rockLib.Models[m].Materials.Length - 1)], out var mats);
+                chunk.Go.GetComponent<MeshRenderer>().sharedMaterials = mats;
+            }
+            else mesh = mb.Build("Asteroids");
             meshes.Add(mesh);
             chunk.Filter.sharedMesh = mesh;
         }
@@ -222,7 +248,10 @@ namespace Voidward.World
                 mb.AddRock(Matrix4x4.identity, 1f, 4242, new Color(0.6f, 0.62f, 0.68f));
                 debrisMesh = mb.Build("AsteroidDebris");
             }
-            var mat = r.Chunk.Go != null ? r.Chunk.Go.GetComponent<MeshRenderer>().sharedMaterial : null;
+            // fragments of an asset rock are smaller copies of its scan
+            var fragMesh = r.Model >= 0 ? rockLib.Models[r.Model].Mesh : debrisMesh;
+            var mat = r.Model >= 0 ? rockLib.Models[r.Model].Materials[0]
+                : r.Chunk.Go != null ? r.Chunk.Go.GetComponent<MeshRenderer>().sharedMaterial : null;
             int n = Mathf.Clamp(Mathf.RoundToInt(r.Radius * 0.7f), 4, 10);
             for (int i = 0; i < n; i++)
             {
@@ -230,7 +259,7 @@ namespace Voidward.World
                 go.transform.position = pos + Random.insideUnitSphere * r.Radius * 0.5f;
                 go.transform.rotation = Random.rotation;
                 go.transform.localScale = Vector3.one * r.Radius * Random.Range(0.12f, 0.3f);
-                go.AddComponent<MeshFilter>().sharedMesh = debrisMesh;
+                go.AddComponent<MeshFilter>().sharedMesh = fragMesh;
                 var mr = go.AddComponent<MeshRenderer>();
                 mr.sharedMaterial = mat;
                 mr.shadowCastingMode = ShadowCastingMode.Off;
