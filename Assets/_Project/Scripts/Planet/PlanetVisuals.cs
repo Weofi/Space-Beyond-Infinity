@@ -94,6 +94,8 @@ namespace Voidward.Planet
         GameObject ocean, atmosphere, clouds;
         Mesh oceanMesh, atmosphereMesh, cloudMesh;
         Material terrainMat, oceanMat, atmosphereMat, cloudMat;
+        /// <summary>This planet's terrain material instance (dev tests toggle its keywords).</summary>
+        public Material TerrainMat => terrainMat;
         Material decorMat;
         Texture2D ramp;
 
@@ -125,6 +127,8 @@ namespace Voidward.Planet
         static readonly int SeedId = Shader.PropertyToID("_Seed");
         static readonly int HazeId = Shader.PropertyToID("_HazeColor");
         static readonly int PlanetCenterId = Shader.PropertyToID("_PlanetCenter");
+        static readonly int PeakStartId = Shader.PropertyToID("_PeakStart");
+        static readonly int ShoreBandId = Shader.PropertyToID("_ShoreBand");
         static readonly int SkyColorId = Shader.PropertyToID("_SkyColor");
         static readonly int HorizonColorId = Shader.PropertyToID("_HorizonColor");
         static readonly int HasSkyId = Shader.PropertyToID("_HasSky");
@@ -180,6 +184,7 @@ namespace Voidward.Planet
             terrainMat.SetVector(CliffSlopeId, planetShape.CliffSlope);
             terrainMat.SetFloat(RegionStrengthId, planetShape.RegionStrength);
             terrainMat.SetVector(PlanetCenterId, transform.position);
+            ApplySurfaceLayers(terrainMat, planetShape);
             decorMat = catalog.TerrainMaterial != null ? catalog.TerrainMaterial : catalog.ToonMaterial;
 
             for (int f = 0; f < 6; f++)
@@ -196,6 +201,36 @@ namespace Voidward.Planet
             BuildMilliseconds = (float)sw.Elapsed.TotalMilliseconds;
             PlanetAmbience.Ensure();
             UpdateCamera();
+        }
+
+        /// <summary>PBR terrain layers (#100): textures + (scale, tint, normal, valid) per slot, keyword on when the ground layer exists.</summary>
+        static void ApplySurfaceLayers(Material m, PlanetShapeDef s)
+        {
+            if (!s.HasSurfaceLayers)
+            {
+                m.DisableKeyword("_SURFACE_LAYERS");
+                return;
+            }
+            m.EnableKeyword("_SURFACE_LAYERS");
+            SetLayer(m, "Ground", s.GroundLayer);
+            SetLayer(m, "Cliff", s.CliffLayer);
+            SetLayer(m, "Region", s.RegionLayer);
+            SetLayer(m, "Low", s.LowLayer);
+            SetLayer(m, "Peak", s.PeakLayer);
+            m.SetFloat(PeakStartId, s.PeakStart);
+            m.SetFloat(ShoreBandId, s.ShoreBand);
+        }
+
+        static void SetLayer(Material m, string slot, PlanetShapeDef.SurfaceLayer l)
+        {
+            bool valid = l != null && l.Valid;
+            m.SetVector("_" + slot + "Params", valid ? new Vector4(Mathf.Max(0.1f, l.Scale), l.Tint, l.NormalStrength, 1f) : new Vector4(4f, 0f, 0f, 0f));
+            if (!valid) return;
+            m.SetTexture("_" + slot + "Albedo", l.Albedo);
+            if (l.Normal != null) m.SetTexture("_" + slot + "Normal", l.Normal);
+            if (l.Mask != null) m.SetTexture("_" + slot + "Mask", l.Mask);
+            // alpha = contrast (Material.SetColor leaves alpha linear)
+            m.SetColor("_" + slot + "Mean", new Color(l.Mean.r, l.Mean.g, l.Mean.b, l.Contrast));
         }
 
         void BuildOcean(PlanetShapeDef s, ContentCatalog catalog)

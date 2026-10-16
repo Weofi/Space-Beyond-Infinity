@@ -485,6 +485,115 @@ namespace Voidward.EditorTools
                 Environment(s, PlanetDecorStyle.Volcanic, 1f, "#2b2629", "#4a3f3c", "#7a5a50", "#ff7a2a",
                     PlanetParticles.Ash, new Color(1f, 0.55f, 0.25f, 0.6f), PlanetWeather.AshFall, "#735450", 0.6f);
             });
+            AssignSurfaceLayers();
+        }
+
+        // ================================================================ PBR surface layers (#100)
+
+        public const string TerrainArtDir = ArtDir + "/Terrain";
+        static readonly Dictionary<string, Color> terrainMeans = new Dictionary<string, Color>();
+
+        /// <summary>
+        /// Texture sets per preset (Art/Terrain, CC0 from Poly Haven / ambientCG via Tools/Blender/planet_assets.py):
+        /// ground, cliff, region, low (sea floor + shore), peak (snow). The colour ramps stay and tint the sets.
+        /// </summary>
+        static void AssignSurfaceLayers()
+        {
+            foreach (var kv in planetShapes)
+            {
+                var s = kv.Value;
+                switch (kv.Key)
+                {
+                    case "CrateredMoon":
+                        Layers(s, TL("MoonDusted02", 5f, contrast: 1.8f, normal: 1.8f), TL("RockFace03", 9f, 0.85f), TL("MoonMeteor01", 6f, contrast: 1.5f, normal: 1.8f), TL("MoonDusted02", 5f, contrast: 1.8f), null);
+                        break;
+                    case "Rocky":
+                        Layers(s, TL("RockyTerrain02", 4f), TL("RockFace03", 9f), TL("MossyRock", 4f), TL("CoastSand01", 3f), TL("Snow006", 5f, 0.6f));
+                        s.PeakStart = 0.78f;
+                        break;
+                    case "Ocean":
+                        Layers(s, TL("Moss002", 3f), TL("RockFace03", 9f), TL("RockyTerrain02", 4f), TL("CoastSand01", 3f), TL("Snow006", 5f, 0.6f));
+                        s.PeakStart = 0.84f;
+                        break;
+                    case "Desert":
+                        Layers(s, TL("RedSand", 3f, contrast: 1.6f, normal: 1.6f), TL("RockFace03", 8f), TL("SandstoneCracks", 5f, contrast: 1.4f), TL("RedSand", 3f, contrast: 1.6f), null);
+                        break;
+                    case "Ice":
+                        // region = the same snow at another scale (breaks the repeat); Ice003's caustic-like cracks only under water
+                        Layers(s, TL("Snow006", 5f, 0.7f, contrast: 1.4f, normal: 1.6f), TL("Ice002", 7f), TL("Snow006", 11f, 0.8f, contrast: 1.2f), TL("Ice003", 8f, contrast: 0.5f, normal: 0.8f), null);
+                        break;
+                    case "ToxicJungle":
+                        Layers(s, TL("Moss002", 3f), TL("MossyRock", 6f), TL("BrownMud", 4f), TL("BrownMud", 4f), null);
+                        break;
+                    case "Crystal":
+                        Layers(s, TL("DarkRock02", 5f), TL("RockFace03", 8f, 0.9f), TL("DarkRock", 5f), TL("DarkRock02", 5f), null);
+                        break;
+                    case "Volcanic":
+                        Layers(s, TL("DarkRock", 5f), TL("DarkRock02", 8f), TL("MoonDusted02", 5f), TL("DarkRock", 5f), null);
+                        break;
+                }
+                EditorUtility.SetDirty(s);
+            }
+        }
+
+        static void Layers(PlanetShapeDef s, PlanetShapeDef.SurfaceLayer ground, PlanetShapeDef.SurfaceLayer cliff, PlanetShapeDef.SurfaceLayer region,
+            PlanetShapeDef.SurfaceLayer low, PlanetShapeDef.SurfaceLayer peak)
+        {
+            s.GroundLayer = ground ?? new PlanetShapeDef.SurfaceLayer();
+            s.CliffLayer = cliff ?? new PlanetShapeDef.SurfaceLayer();
+            s.RegionLayer = region ?? new PlanetShapeDef.SurfaceLayer();
+            s.LowLayer = low ?? new PlanetShapeDef.SurfaceLayer();
+            s.PeakLayer = peak ?? new PlanetShapeDef.SurfaceLayer();
+        }
+
+        /// <summary>One terrain set as a layer; null when the set is missing (the planet keeps the procedural look).</summary>
+        static PlanetShapeDef.SurfaceLayer TL(string set, float scale, float tint = 0.8f, float normal = 1.3f, float contrast = 1f)
+        {
+            string dir = TerrainArtDir + "/" + set + "/" + set;
+            if (AssetImporter.GetAtPath(dir + "_baseColor.jpg") == null) return null;
+            var layer = new PlanetShapeDef.SurfaceLayer
+            {
+                Albedo = TerrainTexture(dir + "_baseColor.jpg", true, false),
+                Normal = TerrainTexture(dir + "_normal.jpg", false, true),
+                Mask = TerrainTexture(dir + "_arm.jpg", false, false),
+                Scale = scale, Tint = tint, NormalStrength = normal, Contrast = contrast,
+            };
+            layer.Mean = TerrainMean(dir + "_baseColor.jpg");
+            return layer;
+        }
+
+        static Texture2D TerrainTexture(string path, bool srgb, bool normal)
+        {
+            var tex = ImportTexture(path, srgb, normal, false, 2048);
+            var imp = (TextureImporter)AssetImporter.GetAtPath(path);
+            if (imp.anisoLevel != 8 || imp.wrapMode != TextureWrapMode.Repeat)
+            {
+                imp.anisoLevel = 8;
+                imp.wrapMode = TextureWrapMode.Repeat;
+                imp.SaveAndReimport();
+                tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            }
+            return tex;
+        }
+
+        /// <summary>Mean albedo of a set, averaged in linear space, stored as a gamma colour (Material.SetColor linearizes it).</summary>
+        static Color TerrainMean(string path)
+        {
+            if (terrainMeans.TryGetValue(path, out var c)) return c;
+            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            tex.LoadImage(System.IO.File.ReadAllBytes(path));
+            var px = tex.GetPixels32();
+            double r = 0, g = 0, b = 0;
+            int n = 0;
+            for (int i = 0; i < px.Length; i += 61)
+            {
+                Color lin = ((Color)px[i]).linear;
+                r += lin.r; g += lin.g; b += lin.b; n++;
+            }
+            Object.DestroyImmediate(tex);
+            c = new Color((float)(r / n), (float)(g / n), (float)(b / n)).gamma;
+            terrainMeans[path] = c;
+            return c;
         }
 
         // ================================================================ preview scene

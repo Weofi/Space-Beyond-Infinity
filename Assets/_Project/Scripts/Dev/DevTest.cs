@@ -1039,6 +1039,36 @@ namespace Voidward.Dev
         /// main camera through the requested views (so LOD, decor and PlanetAmbience react like in game), and writes ONE
         /// sheet: one row per shape, one column per view, no HUD. Needs play mode (any phase). Logs "[Dev] end name -> path".
         /// </summary>
+        /// <summary>
+        /// Cost of the PBR terrain layers (#100) at the current view: average frame time with the layers on, then off
+        /// (keyword _SURFACE_LAYERS on every planet's terrain material), `seconds` each. Logs
+        /// "[Dev] end terraincost on X ms off Y ms (n planets)". Editor frame times include editor overhead: compare, don't quote.
+        /// </summary>
+        public static void TerrainLayerCost(float seconds = 3f)
+        {
+            Log("begin terraincost");
+            DevRunner.Get().Run(TerrainLayerCostCo(seconds));
+        }
+
+        static IEnumerator TerrainLayerCostCo(float seconds)
+        {
+            var planets = UnityEngine.Object.FindObjectsByType<PlanetVisuals>(FindObjectsSortMode.None);
+            var mats = new List<Material>();
+            foreach (var p in planets) if (p.TerrainMat != null && p.TerrainMat.IsKeywordEnabled("_SURFACE_LAYERS")) mats.Add(p.TerrainMat);
+            if (mats.Count == 0) { Log("end terraincost FAILED: no planet with surface layers"); yield break; }
+            var ms = new float[2];
+            for (int pass = 0; pass < 2; pass++)
+            {
+                foreach (var m in mats) { if (pass == 0) m.EnableKeyword("_SURFACE_LAYERS"); else m.DisableKeyword("_SURFACE_LAYERS"); }
+                for (int i = 0; i < 10; i++) yield return null;     // shader variant warm-up
+                float t = 0f; int frames = 0;
+                while (t < seconds) { yield return null; t += Time.unscaledDeltaTime; frames++; }
+                ms[pass] = t * 1000f / Mathf.Max(1, frames);
+            }
+            foreach (var m in mats) m.EnableKeyword("_SURFACE_LAYERS");
+            Log($"end terraincost on {ms[0]:0.00} ms off {ms[1]:0.00} ms ({mats.Count} planets)");
+        }
+
         public static void PlanetSurvey(string name, PlanetShapeDef[] shapes, PlanetView views = PlanetView.All, float radius = 1500f, int seed = 4242, float settle = 4f)
         {
             Log("begin " + name);
