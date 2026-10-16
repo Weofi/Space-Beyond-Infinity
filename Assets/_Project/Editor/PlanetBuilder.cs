@@ -512,15 +512,18 @@ namespace Voidward.EditorTools
                         s.PeakStart = 0.78f;
                         break;
                     case "Ocean":
-                        Layers(s, TL("Moss002", 3f), TL("RockFace03", 9f), TL("RockyTerrain02", 4f), TL("CoastSand01", 3f), TL("Snow006", 5f, 0.6f));
+                        // the textured sea floor shows through the shallows: a darker, wetter sand there than the
+                        // beach ramp colour (the seabed under clear water read milky white with the photo sand)
+                        Layers(s, TL("Moss002", 3f), TL("RockFace03", 9f), TL("RockyTerrain02", 4f), TL("CoastSand01", 3f, 0.9f, contrast: 1.2f), TL("Snow006", 5f, 0.6f));
                         s.PeakStart = 0.84f;
+                        s.Underwater = Grad((0f, "#142a44"), (0.75f, "#2a5f66"), (1f, "#7d8f6c"));
                         break;
                     case "Desert":
                         Layers(s, TL("RedSand", 3f, contrast: 1.6f, normal: 1.6f), TL("RockFace03", 8f), TL("SandstoneCracks", 5f, contrast: 1.4f), TL("RedSand", 3f, contrast: 1.6f), null);
                         break;
                     case "Ice":
                         // region = the same snow at another scale (breaks the repeat); Ice003's caustic-like cracks only under water
-                        Layers(s, TL("Snow006", 5f, 0.7f, contrast: 1.4f, normal: 1.6f), TL("Ice002", 7f), TL("Snow006", 11f, 0.8f, contrast: 1.2f), TL("Ice003", 8f, contrast: 0.5f, normal: 0.8f), null);
+                        Layers(s, TL("Snow006", 5f, 0.7f, contrast: 1.4f, normal: 1.6f), TL("Ice002", 7f), TL("Snow006", 11f, 0.8f, contrast: 1.2f), TL("Ice003", 12f, 0.9f, contrast: 0.35f, normal: 0.6f), null);
                         break;
                     case "ToxicJungle":
                         Layers(s, TL("Moss002", 3f), TL("MossyRock", 6f), TL("BrownMud", 4f), TL("BrownMud", 4f), null);

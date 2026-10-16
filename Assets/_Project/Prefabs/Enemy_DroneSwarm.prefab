@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &2786357680818985016
+--- !u!1 &1748192409494971779
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,7 +8,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 3929160877668681158}
+  - component: {fileID: 7290276991116478955}
   m_Layer: 0
   m_Name: Muzzle
   m_TagString: Untagged
@@ -16,22 +16,22 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &3929160877668681158
+--- !u!4 &7290276991116478955
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2786357680818985016}
+  m_GameObject: {fileID: 1748192409494971779}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 1}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 658993894825141717}
+  m_Father: {fileID: 416882543842266524}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &3016209259390732948
+--- !u!1 &2755830295090974073
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -39,10 +39,10 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2000839630119675610}
-  - component: {fileID: 1815988823147673518}
-  - component: {fileID: 3999006683880737575}
-  - component: {fileID: 3110154398572976318}
+  - component: {fileID: 2449825652035150113}
+  - component: {fileID: 3797798991335108197}
+  - component: {fileID: 4847112151817826162}
+  - component: {fileID: 4379724289320601458}
   m_Layer: 0
   m_Name: Halo
   m_TagString: Untagged
@@ -50,36 +50,36 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2000839630119675610
+--- !u!4 &2449825652035150113
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3016209259390732948}
+  m_GameObject: {fileID: 2755830295090974073}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.19080901, z: 0, w: 0.9816272}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 658993894825141717}
+  m_Father: {fileID: 416882543842266524}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &1815988823147673518
+--- !u!33 &3797798991335108197
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3016209259390732948}
+  m_GameObject: {fileID: 2755830295090974073}
   m_Mesh: {fileID: 4300000, guid: 8dc11f32a6466d641aec865da5249713, type: 2}
---- !u!23 &3999006683880737575
+--- !u!23 &4847112151817826162
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3016209259390732948}
+  m_GameObject: {fileID: 2755830295090974073}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -122,13 +122,13 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &3110154398572976318
+--- !u!114 &4379724289320601458
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3016209259390732948}
+  m_GameObject: {fileID: 2755830295090974073}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 06d0a90de35276a4f879d7fee3d77f67, type: 3}
@@ -137,7 +137,7 @@ MonoBehaviour:
   Axis: {x: 0, y: 0, z: 1}
   Speed: 70
   Wobble: 6
---- !u!1 &3901807058763232200
+--- !u!1 &3425069658433752841
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -145,9 +145,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 549312848154767109}
-  - component: {fileID: 501112351851910114}
-  - component: {fileID: 1710494678706805420}
+  - component: {fileID: 2480828763212209909}
+  - component: {fileID: 6261682265493449418}
+  - component: {fileID: 8385667804462365304}
   m_Layer: 0
   m_Name: Visual
   m_TagString: Untagged
@@ -155,36 +155,36 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &549312848154767109
+--- !u!4 &2480828763212209909
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3901807058763232200}
+  m_GameObject: {fileID: 3425069658433752841}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 658993894825141717}
+  m_Father: {fileID: 416882543842266524}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &501112351851910114
+--- !u!33 &6261682265493449418
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3901807058763232200}
+  m_GameObject: {fileID: 3425069658433752841}
   m_Mesh: {fileID: 4300000, guid: ec7070882bf74f942bf337f5ae2c7529, type: 2}
---- !u!23 &1710494678706805420
+--- !u!23 &8385667804462365304
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3901807058763232200}
+  m_GameObject: {fileID: 3425069658433752841}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -227,7 +227,7 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!1 &5718668929106862526
+--- !u!1 &3638681087372901669
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -235,14 +235,14 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 658993894825141717}
-  - component: {fileID: 1952667744631959995}
-  - component: {fileID: 8293557093996247815}
-  - component: {fileID: 3566557399012815347}
-  - component: {fileID: 7029099133389284958}
-  - component: {fileID: 5673661143870011469}
-  - component: {fileID: 199089772758599495}
-  - component: {fileID: 5081156134035320984}
+  - component: {fileID: 416882543842266524}
+  - component: {fileID: 5294564681071864985}
+  - component: {fileID: 4763084051492638983}
+  - component: {fileID: 7348698331784138992}
+  - component: {fileID: 1663886947884433297}
+  - component: {fileID: 3485318270826051627}
+  - component: {fileID: 8717807203894477839}
+  - component: {fileID: 5354896324789060119}
   m_Layer: 0
   m_Name: Enemy_DroneSwarm
   m_TagString: Untagged
@@ -250,37 +250,37 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &658993894825141717
+--- !u!4 &416882543842266524
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718668929106862526}
+  m_GameObject: {fileID: 3638681087372901669}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2000839630119675610}
-  - {fileID: 549312848154767109}
-  - {fileID: 3929160877668681158}
+  - {fileID: 2449825652035150113}
+  - {fileID: 2480828763212209909}
+  - {fileID: 7290276991116478955}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1952667744631959995
+--- !u!114 &5294564681071864985
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718668929106862526}
+  m_GameObject: {fileID: 3638681087372901669}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1010983196
+  GlobalObjectIdHash: 3432435525
   InScenePlacedSourceGlobalObjectIdHash: 0
   m_InScenePlacedDisabledByDefault: 0
   DeferredDespawnTick: 0
@@ -295,13 +295,13 @@ MonoBehaviour:
   AutoObjectParentSync: 0
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
---- !u!114 &8293557093996247815
+--- !u!114 &4763084051492638983
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718668929106862526}
+  m_GameObject: {fileID: 3638681087372901669}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e96cb6065543e43c4a752faaa1468eb1, type: 3}
@@ -341,13 +341,13 @@ MonoBehaviour:
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
   SlerpPosition: 0
---- !u!54 &3566557399012815347
+--- !u!54 &7348698331784138992
 Rigidbody:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718668929106862526}
+  m_GameObject: {fileID: 3638681087372901669}
   serializedVersion: 5
   m_Mass: 1
   m_LinearDamping: 0
@@ -368,13 +368,13 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &7029099133389284958
+--- !u!114 &1663886947884433297
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718668929106862526}
+  m_GameObject: {fileID: 3638681087372901669}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e5ad24db38de64a86a303b7eae8f489b, type: 3}
@@ -399,13 +399,13 @@ MonoBehaviour:
       MinSecondsBetweenUpdates: 0
       MaxSecondsBetweenUpdates: 0
     m_InternalValue: 100
---- !u!114 &5673661143870011469
+--- !u!114 &3485318270826051627
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718668929106862526}
+  m_GameObject: {fileID: 3638681087372901669}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3c315a6e0647d476ea14a7db28f5172d, type: 3}
@@ -413,21 +413,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Voidward.AI::Voidward.AI.EnemyBrain
   ShowTopMostFoldoutHeaderGroup: 1
   Kind: 1
-  Muzzle: {fileID: 3929160877668681158}
+  Muzzle: {fileID: 7290276991116478955}
   HoverHeight: 0
-  Visual: {fileID: 549312848154767109}
+  Visual: {fileID: 2480828763212209909}
   CurrentState:
     UpdateTraits:
       MinSecondsBetweenUpdates: 0
       MaxSecondsBetweenUpdates: 0
     m_InternalValue: 0
---- !u!135 &199089772758599495
+--- !u!135 &8717807203894477839
 SphereCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718668929106862526}
+  m_GameObject: {fileID: 3638681087372901669}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -442,13 +442,13 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 1.3
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5081156134035320984
+--- !u!114 &5354896324789060119
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5718668929106862526}
+  m_GameObject: {fileID: 3638681087372901669}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f03d1f9991d787d4083c1d80ebddb0f5, type: 3}
@@ -456,6 +456,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Voidward.AI::Voidward.AI.EnemyAnimator
   Kind: 2
   Anim: {fileID: 0}
-  Body: {fileID: 549312848154767109}
+  Body: {fileID: 2480828763212209909}
   Lunge: 0.4
   Lean: 28
