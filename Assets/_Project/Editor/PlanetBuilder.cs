@@ -541,7 +541,7 @@ namespace Voidward.EditorTools
                     Feature(PlanetFeatureKind.Mesa, 1, 2, 0.06f, 0.1f, 0.2f, 0.35f, 0.95f, 2, 0.3f),         // basalt buttes
                 };
                 Canyons(s, 1.8f, 0.04f, 0.03f, 0.3f, 2.5f, 0.65f, 0.55f, rivers: true);                     // lava channels
-                s.OceanCoverage = new Vector2(0.12f, 0.22f);
+                s.OceanCoverage = new Vector2(0.07f, 0.12f); // lava lakes and channels, not a lava ocean
                 s.OceanFloorDepth = 1f;
                 s.Lava = true;
                 s.ShallowWater = MathUtils.Hex("#ff5a1a");

@@ -347,6 +347,22 @@ namespace Voidward.Planet
 
             int count = Mathf.Clamp(shape.ProvinceCount, 4, MaxProvinces);
             provinces = new Province[count];
+            // Quotas, not dice: every kind gets its share of the cells (at least one), so each planet shows the
+            // intended mix; only where they land is random.
+            var kinds = new List<int>(count);
+            for (int k = 0; k < provinceDefs.Length; k++)
+            {
+                int quota = Mathf.Max(1, Mathf.FloorToInt(provinceDefs[k].Share / total * count));
+                for (int q = 0; q < quota && kinds.Count < count; q++) kinds.Add(k);
+            }
+            while (kinds.Count < count)
+            {
+                float pick = Range(prng, 0f, total);
+                int k = 0;
+                for (; k < provinceDefs.Length - 1; k++) { pick -= provinceDefs[k].Share; if (pick <= 0f) break; }
+                kinds.Add(k);
+            }
+            for (int i = kinds.Count - 1; i > 0; i--) { int j = prng.Next(i + 1); (kinds[i], kinds[j]) = (kinds[j], kinds[i]); }
             float golden = Mathf.PI * (3f - Mathf.Sqrt(5f));
             float spin = Range(prng, 0f, Mathf.PI * 2f);
             for (int i = 0; i < count; i++)
@@ -357,12 +373,9 @@ namespace Voidward.Planet
                 Vector3 c = new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
                 // Jitter so the cells are not a regular pattern.
                 c = (c + new Vector3(Range(prng, -1f, 1f), Range(prng, -1f, 1f), Range(prng, -1f, 1f)) * (0.9f / Mathf.Sqrt(count))).normalized;
-                float pick = Range(prng, 0f, total);
-                int def = 0;
-                for (; def < provinceDefs.Length - 1; def++) { pick -= provinceDefs[def].Share; if (pick <= 0f) break; }
                 provinces[i] = new Province
                 {
-                    Center = c, Def = def,
+                    Center = c, Def = kinds[i],
                     Offset = new Vector3(Range(prng, -300f, 300f), Range(prng, -300f, 300f), Range(prng, -300f, 300f)),
                     Lift = Range(prng, 0.55f, 1.45f),
                 };
