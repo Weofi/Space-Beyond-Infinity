@@ -22,6 +22,8 @@ namespace Voidward.Data
         public Sprite Icon;
         [Tooltip("Generated (ContentBuilder item art): world pickup model, ~0.5 m, vertex-coloured for VW_Hull.")]
         public Mesh Model;
+        [Tooltip("Generated: materials of an asset model (#99, one per submesh); empty = the procedural VW_Hull model.")]
+        public Material[] ModelMaterials;
         [Tooltip("Set when Kind=Module: which module this item installs.")]
         public ModuleDef Module;
         [Tooltip("Set when Kind=DriveComponent: which warp drive component this item installs (#78).")]

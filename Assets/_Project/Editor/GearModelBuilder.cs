@@ -17,7 +17,10 @@ namespace Voidward.EditorTools
         static readonly string[] ToolFbx = { "Tool_Drill", "Tool_Blaster", "Tool_Rifle" };
 
         /// <summary>Muzzle relative to the grip origin per tool (printed by crew_assets.py), index = PlayerPawn.Tool.</summary>
-        static readonly Vector3[] ToolMuzzle = { new Vector3(0f, 0.094f, 0.493f), new Vector3(0f, 0.057f, 0.191f), new Vector3(0f, 0.095f, 0.609f) };
+        static readonly Vector3[] ToolMuzzle = { new Vector3(0f, 0.094f, 0.493f), new Vector3(0f, 0.057f, 0.191f), new Vector3(0f, 0.095f, 0.609f), new Vector3(0f, 0.05f, 0.12f) };
+
+        /// <summary>Tool 3 = the medkit (#99): the Sketchfab "Sci-fi Medkit" (World_Medkit, 0.42 m, origin at its foot), held by its side.</summary>
+        const int MedkitTool = 3;
 
         /// <summary>URP Lit from separate maps (any may be null): base colour, metallic + roughness (packed), normal, AO, emission.</summary>
         static Material LitMaterial(string name, string baseMap, string metal, string rough, string normal, bool flipGreen,
@@ -140,6 +143,17 @@ namespace Voidward.EditorTools
         /// <summary>A tool model (index = PlayerPawn.Tool) under parent, origin = grip; null when its FBX is missing.</summary>
         static GameObject ToolModel(Transform parent, int tool, string name)
         {
+            if (tool == MedkitTool)
+            {
+                // held like a case: upright, turned towards the view, origin (= palm) at its middle
+                var root = new GameObject(name);
+                if (parent != null) root.transform.SetParent(parent, false);
+                var kit = WorldModel(root.transform, "World_Medkit", "Kit");
+                if (kit == null) { Object.DestroyImmediate(root); return null; }
+                kit.transform.localPosition = new Vector3(0.02f, -0.2f, 0.06f);
+                kit.transform.localRotation = Quaternion.Euler(0f, 152f, -8f);   // label side towards the view
+                return root;
+            }
             if (tool < 0 || tool >= ToolFbx.Length) return null;
             string path = ToolModelDir + "/" + ToolFbx[tool] + ".fbx";
             if (!(AssetImporter.GetAtPath(path) is ModelImporter imp)) return null;
@@ -180,6 +194,7 @@ namespace Voidward.EditorTools
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
-        static bool HasToolModel(int tool) => tool >= 0 && tool < ToolFbx.Length && AssetImporter.GetAtPath(ToolModelDir + "/" + ToolFbx[tool] + ".fbx") is ModelImporter;
+        static bool HasToolModel(int tool) => tool == MedkitTool ? HasWorldModel("World_Medkit")
+            : tool >= 0 && tool < ToolFbx.Length && AssetImporter.GetAtPath(ToolModelDir + "/" + ToolFbx[tool] + ".fbx") is ModelImporter;
     }
 }

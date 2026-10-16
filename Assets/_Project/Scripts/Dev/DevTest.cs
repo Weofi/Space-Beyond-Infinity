@@ -819,6 +819,44 @@ namespace Voidward.Dev
         }
 
         /// <summary>
+        /// Server (#99): a world object `ahead` m in front of the local pawn, on the ground and upright on the pawn's up:
+        /// "Ruin", "Crash", "Nest", "Wreck", "Station", "Crate", node variants "Ore" / "Crystal" / "Scrap" / "Fuel", or
+        /// "Pickup:&lt;item id&gt;". Logs "[Dev] end poi &lt;kind&gt; &lt;position&gt;".
+        /// </summary>
+        public static GameObject SpawnPoi(string kind, float ahead = 20f, float side = 0f)
+        {
+            Log("begin poi " + kind);
+            var cat = ContentCatalog.Instance;
+            var p = Pawn;
+            if (!IsServer || cat == null || p == null) { Log("end poi FAILED: needs the host with a pawn"); return null; }
+            Vector3 pos = GroundAhead(ahead, side);
+            Vector3 up = p.transform.up;
+            var rot = Quaternion.LookRotation(Vector3.ProjectOnPlane(p.transform.position - pos, up).normalized, up);
+            GameObject go = null;
+            switch (kind)
+            {
+                case "Crate": go = LootCrate.SpawnServer(pos, rot, 2)?.gameObject; break;
+                case "Ore": go = ResourceNode.SpawnServer(ScatterKind.OreNode, pos, rot, 10)?.gameObject; break;
+                case "Crystal": go = ResourceNode.SpawnServer(ScatterKind.CrystalNode, pos, rot, 10)?.gameObject; break;
+                case "Scrap": go = ResourceNode.SpawnServer(ScatterKind.ScrapNode, pos, rot, 10)?.gameObject; break;
+                case "Fuel": go = ResourceNode.SpawnServer(ScatterKind.FuelNode, pos, rot, 10)?.gameObject; break;
+                default:
+                    if (kind.StartsWith("Pickup:")) { go = WorldPickup.SpawnServer(kind.Substring(7), 1, pos + up * 0.3f)?.gameObject; break; }
+                    var prefab = kind switch
+                    {
+                        "Ruin" => cat.RuinPrefab, "Crash" => cat.CrashedShipPrefab, "Nest" => cat.NestPrefab,
+                        "Wreck" => cat.Wreck, "Station" => cat.TraderStation, _ => null,
+                    };
+                    if (prefab == null) break;
+                    go = UnityEngine.Object.Instantiate(prefab, pos, rot);
+                    go.GetComponent<NetworkObject>().Spawn(true);
+                    break;
+            }
+            Log(go != null ? $"end poi {kind} {pos}" : $"end poi FAILED: unknown or missing {kind}");
+            return go;
+        }
+
+        /// <summary>
         /// Server (#98): wake the Warden `ahead` m in front of the local ship (or pawn) in any system, the real enclave spawn
         /// path (announcement, boss music, hoard on defeat). Logs "[Dev] end warden &lt;position&gt;".
         /// </summary>

@@ -291,14 +291,15 @@ namespace Voidward.EditorTools
             catalog.EnemyCritter = BuildEnemy(EnemyKind.FlyingCritter);
             catalog.EnemyGuardian = BuildEnemy(EnemyKind.NestGuardian);
             catalog.BossMothership = BuildBoss();
-            catalog.WorldPickup = BuildPickup();
-            catalog.LootCrate = BuildCrate();
-            catalog.ResourceNode = BuildNode();
-            catalog.NestPrefab = BuildNest();
-            catalog.RuinPrefab = BuildRuin();
+            catalog.WorldPickup = HasWorldModel("World_Battery") ? BuildAssetPickup() : BuildPickup();
+            catalog.LootCrate = HasWorldModel("World_Crate") ? BuildAssetCrate() : BuildCrate();
+            catalog.ResourceNode = HasWorldModel("World_Rock") ? BuildAssetNode() : BuildNode();
+            catalog.NestPrefab = HasWorldModel("World_Nest") ? BuildAssetNest() : BuildNest();
+            var ruinMesh = WorldRuinMesh();
+            catalog.RuinPrefab = ruinMesh != null ? BuildAssetRuin(ruinMesh) : BuildRuin();
             catalog.CrashedShipPrefab = BuildCrashed();
-            catalog.Wreck = BuildWreck();
-            catalog.TraderStation = BuildStation();
+            catalog.Wreck = HasWorldModel("World_Wreck") ? BuildAssetWreck() : BuildWreck();
+            catalog.TraderStation = HasWorldModel("World_Station") ? BuildAssetStation() : BuildStation();
             catalog.GameDirector = BuildDirector();
             catalog.LaserBolt = catalog.Missile = catalog.FlakBurst = catalog.SpitProjectile = catalog.Meteor = null;
             EditorUtility.SetDirty(catalog);
@@ -622,7 +623,7 @@ namespace Voidward.EditorTools
             }
             string[] names = { "Drill", "Blaster", "Rifle", "Medkit" };
             // asset tools (#95) at real size, grip origin in the lower right of the view; procedural ones as before
-            var gripAt = new[] { new Vector3(0.2f, -0.23f, 0.36f), new Vector3(0.19f, -0.18f, 0.33f), new Vector3(0.21f, -0.24f, 0.38f) };
+            var gripAt = new[] { new Vector3(0.2f, -0.23f, 0.36f), new Vector3(0.19f, -0.18f, 0.33f), new Vector3(0.21f, -0.24f, 0.38f), new Vector3(0.2f, -0.2f, 0.42f) };
             var muzzles = new Vector3[4];
             for (int i = 0; i < 4; i++)
             {
@@ -3262,6 +3263,8 @@ namespace Voidward.EditorTools
 
         static GameObject BuildCrashed()
         {
+            var hullMesh = CrashedDartMesh("");
+            if (hullMesh != null) return BuildCrashedFabDart(hullMesh);
             var go = NetRoot("CrashedShip", false);
             // A downed Dart: the hero hull (scorched, left wing torn off) nosed into the ground, wing and debris nearby.
             var hull = Child(go.transform, "Hull", new Vector3(0, 0.9f, 0), Quaternion.Euler(8f, 15f, 12f));
@@ -3280,6 +3283,98 @@ namespace Voidward.EditorTools
             AddLight(go.transform, "Warning", new Vector3(0.6f, 2.6f, 1f), Red, 8f, 10f);
             Box(go, new Vector3(0, 0.8f, 0), new Vector3(3.4f, 2.2f, 9f));
             return SavePrefab(go);
+        }
+
+        /// <summary>
+        /// The crashed Dart from Tools/Blender/crashed_dart.py (#99): the Fab hull burnt and posed in the script (nose dug in,
+        /// left wing torn off beside it, guns scattered), static mesh colliders, smoke and an ember glow at the wing root.
+        /// </summary>
+        static GameObject BuildCrashedFabDart(Mesh hullMesh)
+        {
+            var go = NetRoot("CrashedShip", false);
+            var burnt = CrashedDartMaterial();
+            var hull = Visual(go.transform, "Hull", hullMesh, burnt);
+            hull.AddComponent<MeshCollider>().sharedMesh = hullMesh;
+            var glass = CrashedDartMesh("_Canopy");
+            if (glass != null) Visual(go.transform, "Canopy", glass, CrashedDartGlassMaterial());
+            var wing = CrashedDartMesh("_Wing");
+            if (wing != null) Visual(go.transform, "Wing", wing, burnt).AddComponent<MeshCollider>().sharedMesh = wing;
+            var debris = CrashedDartMesh("_Debris");
+            if (debris != null) Visual(go.transform, "Debris", debris, burnt);
+            // a few rocks thrown up by the impact around the buried nose (crashed_dart.py: nose near (-1.6, 0, 7))
+            var rocks = Stone();
+            for (int i = 0; i < 9; i++)
+                rocks.AddRock(Matrix4x4.TRS(new Vector3(-1.6f + Mathf.Sin(i * 2.1f) * 3.4f, 0.05f, 7.6f + Mathf.Cos(i * 1.7f) * 1.8f), Quaternion.identity, new Vector3(1f, 0.6f, 1f)), 0.35f + (i % 3) * 0.18f, 90 + i, new Color(0.35f, 0.33f, 0.32f));
+            Visual(go.transform, "Rubble", SaveMesh(rocks, "CrashedShip_Rubble"), MatHull);
+            // crashed_dart.py prints the wing tear at (-2.68, 0.09, -3.24): embers + smoke there, a thinner trail from the nose
+            var tear = new Vector3(-2.7f, 0.6f, -3.2f);
+            SmokeColumn(go.transform, "Smoke", tear, 1f);
+            SmokeColumn(go.transform, "NoseSmoke", new Vector3(-1.4f, 1.2f, 5.6f), 0.55f);
+            AddLight(go.transform, "Embers", tear + new Vector3(0, 0.4f, 0), new Color(1f, 0.45f, 0.15f), 6f, 8f);
+            AddLight(go.transform, "Warning", new Vector3(0.4f, 3.2f, 1.2f), Red, 5f, 10f);
+            return SavePrefab(go);
+        }
+
+        /// <summary>Looping smoke column (VW_Fx_Smoke flipbook), rising along the prefab's local up.</summary>
+        static void SmokeColumn(Transform parent, string name, Vector3 pos, float scale)
+        {
+            var mat = VfxMat("VW_Fx_Smoke", "FB_WispySmoke01_8x8.png", false, 0f, 1.5f);
+            if (mat == null) return;
+            var go = Child(parent, name, pos);
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = ps.main;
+            main.loop = true;
+            main.prewarm = true;
+            main.duration = 5f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(5f, 7f);
+            main.startSpeed = 0f;
+            main.startSize = new ParticleSystem.MinMaxCurve(1.6f * scale, 2.8f * scale);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startColor = new Color(0.16f, 0.15f, 0.15f, 0.55f);
+            main.maxParticles = 60;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            var em = ps.emission;
+            em.rateOverTime = 6f;
+            var sh = ps.shape;
+            sh.shapeType = ParticleSystemShapeType.Sphere;
+            sh.radius = 0.5f * scale;
+            var vel = ps.velocityOverLifetime;
+            vel.enabled = true;
+            vel.space = ParticleSystemSimulationSpace.Local;
+            vel.x = new ParticleSystem.MinMaxCurve(0.2f, 0.6f);
+            vel.y = new ParticleSystem.MinMaxCurve(1.6f * scale, 2.4f * scale);
+            vel.z = new ParticleSystem.MinMaxCurve(-0.2f, 0.2f);
+            var size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.5f), new Keyframe(1f, 2.6f)));
+            var col = ps.colorOverLifetime;
+            col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(new Color(0.7f, 0.7f, 0.72f), 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.12f), new GradientAlphaKey(0.6f, 0.6f), new GradientAlphaKey(0f, 1f) });
+            col.color = g;
+            var rot = ps.rotationOverLifetime;
+            rot.enabled = true;
+            rot.z = new ParticleSystem.MinMaxCurve(-0.3f, 0.3f);
+            var t = ps.textureSheetAnimation;
+            t.enabled = true;
+            t.mode = ParticleSystemAnimationMode.Grid;
+            t.numTilesX = 8;
+            t.numTilesY = 8;
+            t.animation = ParticleSystemAnimationType.WholeSheet;
+            t.cycleCount = 1;
+            t.frameOverTime = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+            var r = go.GetComponent<ParticleSystemRenderer>();
+            r.sharedMaterial = mat;
+            r.SetActiveVertexStreams(new List<ParticleSystemVertexStream>
+            {
+                ParticleSystemVertexStream.Position, ParticleSystemVertexStream.Color,
+                ParticleSystemVertexStream.UV, ParticleSystemVertexStream.UV2, ParticleSystemVertexStream.AnimBlend,
+            });
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            ps.Play();
         }
 
         static GameObject BuildWreck()

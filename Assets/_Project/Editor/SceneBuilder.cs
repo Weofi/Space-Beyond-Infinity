@@ -224,13 +224,13 @@ namespace Voidward.EditorTools
             for (int i = 0; i < 90; i++)
             {
                 float x = MathUtils.Range(rng, -60f, 60f), z = MathUtils.Range(rng, 3f, 100f);
-                if (x > -3f && x < 20f && z > 6f && z < 34f) continue; // keep the figures and ship clear
+                if (x > -3f && x < 26f && z > 6f && z < 44f) continue; // keep the figures and the landing pad clear
                 float s = Mathf.Lerp(0.3f, 2.6f, Mathf.Pow((float)rng.NextDouble(), 2f));
                 props.Surface(0.05f);
                 props.AddRock(Matrix4x4.TRS(new Vector3(x, H(x, z) + s * 0.2f, z), Quaternion.Euler(0, i * 37f, 0), new Vector3(1f, 0.65f, 1f)), s, 300 + i,
                     Color.Lerp(low, high, 0.35f + (float)rng.NextDouble() * 0.3f));
             }
-            Vector2[] clusters = { new Vector2(-3f, 12f), new Vector2(13f, 10f), new Vector2(-10f, 30f), new Vector2(22f, 34f) };
+            Vector2[] clusters = { new Vector2(-3f, 12f), new Vector2(13f, 10f), new Vector2(-10f, 30f), new Vector2(28f, 44f) };
             for (int c = 0; c < clusters.Length; c++)
             {
                 props.Surface(0.9f, 0.45f);
@@ -242,8 +242,59 @@ namespace Voidward.EditorTools
             props.Surface();
             Visual(root.transform, "Props", SaveMesh(props, "MenuProps"), MatTerrain);
 
+            // #99: the Fab Dart parked on the landing pad asset, the crew in their suits (idle); else the legacy props below
+            var fabHull = FabShipMesh();
+            bool fabBuilt = fabHull != null && HasWorldModel("World_Pad");
+            if (fabBuilt)
+            {
+                const float padScale = 0.75f;
+                var padAt = new Vector2(12f, 30f);
+                float deckY = 0f;
+                for (int k = 0; k < 9; k++)
+                {
+                    float px = padAt.x + (k % 3 - 1) * 10f, pz = padAt.y + (k / 3 - 1) * 10f;
+                    deckY = Mathf.Max(deckY, H(px, pz));
+                }
+                deckY += 0.3f;
+                var pad = Child(root.transform, "Pad", new Vector3(padAt.x, deckY, padAt.y), Quaternion.Euler(0f, 22f, 0f));
+                pad.transform.localScale = Vector3.one * padScale;
+                WorldModel(pad.transform, "World_Pad");
+                var dart = Child(root.transform, "Ship", new Vector3(padAt.x, deckY + 2.1f, padAt.y), Quaternion.Euler(-1.5f, -140f, 0f));
+                Visual(dart.transform, "Hull", fabHull, FabShipMaterial());
+                var glass = FabShipCanopyMesh();
+                if (glass != null) Visual(dart.transform, "Canopy", glass, FabShipGlassMaterial());
+                var gear = MB(0.2f);
+                Shiny(gear, Matte, () =>
+                {
+                    foreach (var sp in new[] { new Vector3(-1.6f, -1.4f, 3.2f), new Vector3(1.6f, -1.4f, 3.2f), new Vector3(-2.6f, -1.4f, -3.4f), new Vector3(2.6f, -1.4f, -3.4f) })
+                    {
+                        gear.AddPrism(T(sp.x, sp.y, sp.z), 0.16f, 0.16f, 1.4f, 6, Mid);
+                        gear.AddBox(T(sp.x, sp.y - 0.65f, sp.z), new Vector3(0.8f, 0.14f, 0.8f), Dark);
+                    }
+                });
+                Visual(dart.transform, "Gear", SaveMesh(gear, "MenuShipGear"));
+                // reuse the pawn's controller: CrewController() recreates the asset and would orphan the prefabs' reference
+                if (crewCtrl == null) crewCtrl = AssetDatabase.LoadAssetAtPath<UnityEditor.Animations.AnimatorController>(AnimDir + "/Crew_Locomotion.controller");
+                if (crewCtrl == null) crewCtrl = CrewController();
+                var idle = crewCtrl;
+                (float x, float z, float yaw)[] spots = { (2.2f, 12f, 195f), (4f, 13.6f, 165f), (5.7f, 12.4f, 30f) };
+                bool crewOk = true;
+                foreach (var (x, z, yaw) in spots)
+                {
+                    var spot = Child(root.transform, "Crew", new Vector3(x, H(x, z) - 0.03f, z), Quaternion.Euler(0f, yaw, 0f));
+                    if (CrewModel(spot.transform, "Body", idle) == null) { Object.DestroyImmediate(spot); crewOk = false; break; }
+                }
+                if (crewOk) return;
+            }
+
             // Landed Dart on struts
-            var ship = Child(root.transform, "Ship", new Vector3(10f, H(10f, 26f) + 1.65f, 26f), Quaternion.Euler(-2f, -140f, 3f));
+            if (!fabBuilt) BuildMenuLegacyDart(root.transform, H(10f, 26f));
+            BuildMenuLegacyCrew(root.transform, H);
+        }
+
+        static void BuildMenuLegacyDart(Transform root, float groundY)
+        {
+            var ship = Child(root, "Ship", new Vector3(10f, groundY + 1.65f, 26f), Quaternion.Euler(-2f, -140f, 3f));
             Visual(ship.transform, "Hull", AssetDatabase.LoadAssetAtPath<Mesh>(MeshDir + "/Ship_Dart.asset"), MatHull);
             Visual(ship.transform, "Canopy", AssetDatabase.LoadAssetAtPath<Mesh>(MeshDir + "/Ship_Dart_Canopy.asset"), MatGlass);
             var struts = MB(0.2f);
@@ -256,7 +307,10 @@ namespace Voidward.EditorTools
                 }
             });
             Visual(ship.transform, "Struts", SaveMesh(struts, "MenuShipStruts"));
+        }
 
+        static void BuildMenuLegacyCrew(Transform root, System.Func<float, float, float> H)
+        {
             // Three astronauts: one pointing at the planet, two looking back at the camera
             var blue = AssetDatabase.LoadAssetAtPath<Mesh>(MeshDir + "/Astronaut.asset");
             var orange = AstronautMesh(new Color(1f, 0.5f, 0.12f), "Astronaut_Orange");
@@ -264,7 +318,7 @@ namespace Voidward.EditorTools
             (Mesh mesh, float x, float z, float yaw)[] crew = { (blue, 2.2f, 12f, 195f), (orange, 4f, 13.6f, 165f), (white, 5.7f, 12.4f, 30f) };
             foreach (var (mesh, x, z, yaw) in crew)
             {
-                var a = Visual(root.transform, "Astronaut", mesh, MatHull);
+                var a = Visual(root, "Astronaut", mesh, MatHull);
                 a.transform.localPosition = new Vector3(x, H(x, z) - 0.03f, z);
                 a.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
             }

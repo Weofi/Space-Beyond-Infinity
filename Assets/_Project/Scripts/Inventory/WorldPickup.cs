@@ -24,6 +24,8 @@ namespace Voidward.Inventory
         public NetworkVariable<double> DropTime = new NetworkVariable<double>();
 
         [SerializeField] Transform visual;
+        /// <summary>Generic look for items without a model (#99: the energy cell asset); null = the tinted mesh child.</summary>
+        [SerializeField] GameObject generic;
 
         public static readonly List<WorldPickup> All = new List<WorldPickup>();
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -157,29 +159,51 @@ namespace Voidward.Inventory
             magnetUntil = Time.time + 0.3f;
         }
 
-        /// <summary>Shows the item's own model (fallback: the generic capsule tinted in the item colour).</summary>
+        /// <summary>
+        /// Shows the item's own model (procedural VW_Hull mesh, or an asset mesh with its materials), else the generic
+        /// look: the energy cell asset lightly tinted in the item colour (older prefabs: the capsule mesh, fully tinted).
+        /// </summary>
         void ApplyTint()
         {
             var d = Def;
             if (d == null || visual == null) return;
-            var mf = visual.GetComponentInChildren<MeshFilter>();
+            var mf = MeshChild();
+            var mr = mf != null ? mf.GetComponent<MeshRenderer>() : null;
             if (mf != null && genericMesh == null) genericMesh = mf.sharedMesh;
+            if (mr != null && hullMaterial == null) hullMaterial = mr.sharedMaterial;
             bool model = d.Model != null && mf != null;
-            if (mf != null) mf.sharedMesh = model ? d.Model : genericMesh;
-            if (mf != null) mf.transform.localScale = Vector3.one * (model ? 1.25f : 1f);
-            if (mf != null) mf.transform.localPosition = model ? new Vector3(0f, -0.25f, 0f) : Vector3.zero;
+            bool cell = !model && generic != null;
+            if (generic != null) generic.SetActive(cell);
+            if (mf != null)
+            {
+                mf.gameObject.SetActive(!cell);
+                mf.sharedMesh = model ? d.Model : genericMesh;
+                mf.transform.localScale = Vector3.one * (model ? 1.25f : 1f);
+                mf.transform.localPosition = model ? new Vector3(0f, -0.25f, 0f) : Vector3.zero;
+                bool assetModel = model && d.ModelMaterials != null && d.ModelMaterials.Length > 0;
+                if (mr != null) mr.sharedMaterials = assetModel ? d.ModelMaterials : new[] { hullMaterial };
+            }
             rarity = LootRarity.Of(d);
             rarityColor = LootRarity.ColorOf(rarity);
             // Rarer loot glows in its rarity colour, so it reads at a glance even without the beam.
             float rim = rarity == Rarity.Common ? 0f : rarity == Rarity.Uncommon ? 0.12f : rarity == Rarity.Rare ? 0.22f : 0.32f;
             var mpb = new MaterialPropertyBlock();
-            mpb.SetColor("_BaseColor", model ? Color.white : d.Tint);
-            mpb.SetColor("_EmissionColor", (model ? Color.black : d.Tint * 0.35f) + rarityColor.linear * rim);
-            foreach (var r in visual.GetComponentsInChildren<Renderer>()) r.SetPropertyBlock(mpb);
+            mpb.SetColor("_BaseColor", model ? Color.white : cell ? Color.Lerp(Color.white, d.Tint, 0.45f) : d.Tint);
+            mpb.SetColor("_EmissionColor", (model || cell ? Color.black : d.Tint * 0.35f) + rarityColor.linear * rim);
+            foreach (var r in visual.GetComponentsInChildren<Renderer>(true)) r.SetPropertyBlock(mpb);
             BuildBeam();
         }
 
+        /// <summary>The swappable mesh child of the visual (not one inside the generic model).</summary>
+        MeshFilter MeshChild()
+        {
+            foreach (var f in visual.GetComponentsInChildren<MeshFilter>(true))
+                if (generic == null || !f.transform.IsChildOf(generic.transform)) return f;
+            return null;
+        }
+
         Mesh genericMesh;
+        Material hullMaterial;
 
         void Update()
         {

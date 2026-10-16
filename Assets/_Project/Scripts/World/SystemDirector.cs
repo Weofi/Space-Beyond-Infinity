@@ -138,13 +138,15 @@ namespace Voidward.World
                 {
                     case SiteKind.Ruins:
                         SpawnPrefab(cat.RuinPrefab, c, rot);
-                        Crate(c + up * 0.5f + rot * Vector3.forward * 2f, rot, richLoot);
+                        // the relic (16 m, #99): its ring plate reaches ~4.5 m, the arms run along the axes; the cache sits between two arms
+                        Crate(c + up * 0.5f + rot * new Vector3(4.2f, 0f, 4.2f), rot, richLoot);
                         Ring(planet, c, 12f, 24f, 2, rng, (p, r) => Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, p, r, Amount())?.NetworkObject));
                         break;
                     case SiteKind.CrashSite:
                         SpawnPrefab(cat.CrashedShipPrefab, c, rot);
-                        Crate(c + up * 0.5f + rot * Vector3.right * 6f, rot, loot);
-                        Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, c + rot * Vector3.left * 7f, rot, 10)?.NetworkObject);
+                        // crashed Dart (#99): hull x -4..8 / z -8..6, the torn wing lies at x -14..-5 / z -4..0, debris in front
+                        Crate(c + up * 0.5f + rot * new Vector3(-5f, 0f, -8f), rot, loot);
+                        Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, c + rot * new Vector3(12f, 0f, 2f), rot, 10)?.NetworkObject);
                         Ring(planet, c, 14f, 26f, 1, rng, (p, r) => Track(ResourceNode.SpawnServer(ScatterKind.FuelNode, p, r, Amount())?.NetworkObject));
                         break;
                     case SiteKind.Hive:
@@ -234,15 +236,16 @@ namespace Voidward.World
             SpawnPrefab(cat.Wreck, pos, rot);
             if (loot > 0)
                 for (int i = 0; i < 2; i++)
-                    Track(LootCrate.SpawnServer(pos + rot * new Vector3(i == 0 ? 7f : -6f, 3f, 2f), rot, Mathf.Clamp(loot, 1, 3))?.NetworkObject);
-            Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, pos + rot * new Vector3(0f, -4f, 8f), rot, 12)?.NetworkObject);
-            Track(ResourceNode.SpawnServer(ScatterKind.FuelNode, pos + rot * new Vector3(0f, 4f, -9f), rot, 6)?.NetworkObject);
+                    Track(LootCrate.SpawnServer(pos + rot * new Vector3(i == 0 ? 12f : -12f, i == 0 ? 2f : 0f, i == 0 ? 6f : -8f), rot, Mathf.Clamp(loot, 1, 3))?.NetworkObject);
+            // the destroyer section (#99) is ~16 x 17 x 47 m around the origin: everything floats just outside its hull
+            Track(ResourceNode.SpawnServer(ScatterKind.ScrapNode, pos + rot * new Vector3(0f, -11f, 14f), rot, 12)?.NetworkObject);
+            Track(ResourceNode.SpawnServer(ScatterKind.FuelNode, pos + rot * new Vector3(0f, 12f, -12f), rot, 6)?.NetworkObject);
             // Wrecks carry what was left of their own drive: Exotic Matter, sometimes a warp core one tier below the enclave's.
             if (loot > 0)
             {
-                Track(WorldPickup.SpawnServer(WarpDrive.ExoticId, 1 + rng.Next(0, 3), pos + rot * new Vector3(0f, 2f, 0f))?.NetworkObject);
+                Track(WorldPickup.SpawnServer(WarpDrive.ExoticId, 1 + rng.Next(0, 3), pos + rot * new Vector3(0f, 12f, 4f))?.NetworkObject);
                 if (rng.NextDouble() < 0.2)
-                    Track(WorldPickup.SpawnServer(DriveComponentDef.ItemId(DriveSlot.Core, Mathf.Max(1, DriveTier - 1)), 1, pos + rot * new Vector3(2f, 2f, 0f))?.NetworkObject);
+                    Track(WorldPickup.SpawnServer(DriveComponentDef.ItemId(DriveSlot.Core, Mathf.Max(1, DriveTier - 1)), 1, pos + rot * new Vector3(3f, 12f, 4f))?.NetworkObject);
             }
         }
 
