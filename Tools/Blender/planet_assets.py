@@ -9,16 +9,25 @@ Terrain texture sets (Poly Haven + ambientCG, CC0), one or more per PlanetDecorS
 Models (Poly Haven, CC0):
   Planet_MoonRock01..07   moon rock scans: barren/rocky decor + asteroids (system fields, warp corridor)
   Planet_MossRocks01/02   mossy rock sets (jungle decor)
+Models (Sketchfab, CC BY 4.0):
+  Planet_CrystalCluster01/02   "Crystal Cluster (Free)" / "Crystal Cluster 2 (Free)" by chrismartin1337 (crystal decor)
+  Planet_IceCluster01..03      "Ice Cluster (free)", "Ice Cluster2 (free)", "Ice Cluster 4 (Free)" by chrismartin1337
+  Planet_AlienPlant            "Alien Plant (Cydrakoniss)" by Blake Stahlbaum (jungle/toxic decor)
+  Planet_AlienPlants           "Alien Plants" by Terran Orion (kit: fist fruit, potato, tree, be-mine plants)
+  Planet_GlowMushrooms         "Glowing Mushrooms" by caue.oc (jungle decor, emissive)
 
 Run headless from the repo root:
   ingest (once, from the downloaded files):
     blender -b --factory-startup -P Tools/Blender/planet_assets.py -- --ingest <dir>
       <dir>/tex/<polyhaven id>/<id>_<diff|nor_gl|arm>_2k.jpg, <dir>/acg/<ambientCG id>/<id>_2K-JPG.zip,
       <dir>/mod/<polyhaven id>/<id>_2k.gltf + .bin + textures/
+    blender -b --factory-startup -P Tools/Blender/planet_assets.py -- --ingest-sketchfab <Downloads dir>
+      <dir>/<stem>.zip (the Sketchfab glTF download)
       -> Assets/_Project/Art/Terrain/<Set>/<Set>_<baseColor|normal|arm|emissive>.jpg (2K, normal = OpenGL,
          arm = R ambient occlusion, G roughness, B metallic)
       -> Tools/Blender/Sources/Planet/<Name>.zip (scene.gltf + scene.bin + license.txt, no textures)
-      -> Assets/_Project/Art/Models/Planet/<Name>/<material>_<baseColor|normal|metallicRoughness>.jpg
+      -> Assets/_Project/Art/Models/Planet/<Name>/<material>_<baseColor|normal|metallicRoughness|emissive|ao>.jpg
+         (glTF factors baked in; a blended/masked material keeps its alpha in <material>_baseColor.png)
   build (reproducible from the repo):
     blender -b --factory-startup -P Tools/Blender/planet_assets.py -- [--only Name]
       -> Assets/_Project/Art/Models/Planet/<Name>.fbx
@@ -67,6 +76,18 @@ TERRAIN_SETS = {
 # model name: polyhaven id
 MODELS = {"Planet_MoonRock%02d" % i: "moon_rock_%02d" % i for i in range(1, 8)}
 MODELS.update({"Planet_MossRocks01": "rock_moss_set_01", "Planet_MossRocks02": "rock_moss_set_02"})
+
+# model name: Sketchfab download stem
+SKETCHFAB = {
+    "Planet_CrystalCluster01": "crystal_cluster_free",
+    "Planet_CrystalCluster02": "crystal_cluster_2_free",
+    "Planet_IceCluster01": "ice_cluster_free",
+    "Planet_IceCluster02": "ice_cluster2_free",
+    "Planet_IceCluster03": "ice_cluster_4_free",
+    "Planet_AlienPlant": "alien_plant_cydrakoniss",
+    "Planet_AlienPlants": "alien_plants",
+    "Planet_GlowMushrooms": "glowing_mushrooms",
+}
 
 
 def arg(name):
@@ -206,9 +227,89 @@ def ingest_model(name, ident, root):
         print("[planet] model %s material %s %s" % (name, mname, sorted(k for k, v in roles.items() if v)))
 
 
+def flat(rgba):
+    px = np.ones((4, 4, 4), dtype=np.float32)
+    px[..., :len(rgba)] = rgba
+    return px
+
+
+def ingest_sketchfab(name, stem, downloads):
+    z = os.path.join(downloads, stem + ".zip")
+    if not os.path.exists(z):
+        print("[planet] ingest: missing", z)
+        return
+    tmp = tempfile.mkdtemp(prefix="vw_sf_")
+    with zipfile.ZipFile(z) as src:
+        for n in src.namelist():
+            base = os.path.basename(n)
+            if base in ("scene.gltf", "scene.bin", "license.txt") or base.lower().endswith((".png", ".jpg", ".jpeg")):
+                src.extract(n, tmp)
+    os.makedirs(SRC_DIR, exist_ok=True)
+    with zipfile.ZipFile(os.path.join(SRC_DIR, name + ".zip"), "w", zipfile.ZIP_DEFLATED, compresslevel=9) as dst:
+        for n in ("scene.gltf", "scene.bin", "license.txt"):
+            dst.write(os.path.join(tmp, n), n)
+    g = json.load(open(os.path.join(tmp, "scene.gltf"), encoding="utf-8"))
+
+    def image(info, data):
+        if not info:
+            return None
+        s = g["textures"][info["index"]].get("source")
+        path = os.path.join(tmp, g["images"][s]["uri"].replace("%20", " ")) if s is not None else None
+        return load_px(path, data) if path and os.path.exists(path) else None
+
+    tex_out = os.path.join(OUT, name)
+    os.makedirs(tex_out, exist_ok=True)
+    for m in g.get("materials", []):
+        mname = safe(m["name"])
+        pbr = m.get("pbrMetallicRoughness", {})
+        dst = lambda role, ext="jpg": os.path.join(tex_out, "%s_%s.%s" % (mname, role, ext))
+        # base colour x factor; a blended/masked material keeps its alpha (PNG)
+        base = image(pbr.get("baseColorTexture"), False)
+        factor = np.array(pbr.get("baseColorFactor", [1, 1, 1, 1]), dtype=np.float32)
+        base = flat(factor) if base is None else base * factor
+        if m.get("alphaMode", "OPAQUE") != "OPAQUE" and base[..., 3].min() < 0.98:
+            h, w = base.shape[:2]
+            img = bpy.data.images.new(mname + "_baseColor", w, h, alpha=True)
+            img.pixels.foreach_set(np.clip(base, 0, 1).astype(np.float32).ravel())
+            img.filepath_raw = dst("baseColor", "png")
+            img.file_format = 'PNG'
+            img.save()
+            bpy.data.images.remove(img)
+        else:
+            save_px(base, dst("baseColor"), False)
+        # metallicRoughness x factors (G roughness, B metallic), flat from the factors without a texture
+        mr = image(pbr.get("metallicRoughnessTexture"), True)
+        rf, mf = pbr.get("roughnessFactor", 1.0), pbr.get("metallicFactor", 1.0)
+        if mr is None:
+            mr = flat((0.0, rf, mf, 1.0))
+        else:
+            mr[..., 0] = 0.0
+            mr[..., 1] *= rf
+            mr[..., 2] *= mf
+        save_px(mr, dst("metallicRoughness"), True)
+        nrm = image(m.get("normalTexture"), True)
+        if nrm is not None:
+            save_px(nrm, dst("normal"), True)
+        emi = image(m.get("emissiveTexture"), False)
+        ef = np.array(m.get("emissiveFactor", [0, 0, 0]) + [1], dtype=np.float32)
+        if emi is not None or ef[:3].max() > 0:
+            emi = flat(ef) if emi is None else emi * ef
+            save_px(emi, dst("emissive"), False)
+        occ = m.get("occlusionTexture")
+        if occ and occ.get("index") != (pbr.get("metallicRoughnessTexture") or {}).get("index"):
+            save_px(image(occ, True), dst("ao"), True)
+        print("[planet] sketchfab %s material %s %s" % (name, mname, m.get("alphaMode", "OPAQUE")))
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
 # ---------------------------------------------------------------- main
 
-if "--ingest" in ARGS:
+if "--ingest-sketchfab" in ARGS:
+    only = arg("--only")
+    for name, stem in SKETCHFAB.items():
+        if not only or name == only:
+            ingest_sketchfab(name, stem, arg("--ingest-sketchfab"))
+elif "--ingest" in ARGS:
     root = arg("--ingest")
     only = arg("--only")
     for name, (kind, ident) in TERRAIN_SETS.items():
