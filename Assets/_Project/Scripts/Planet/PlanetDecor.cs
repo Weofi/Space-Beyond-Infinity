@@ -179,7 +179,15 @@ namespace Voidward.Planet
         /// <summary>The asset family that replaces a procedural prop (#100); null = the prop stays procedural.</summary>
         static string AssetFamily(Prop prop, PlanetDecorStyle style) => prop switch
         {
-            Prop.Rock or Prop.Pebbles or Prop.Boulder => style == PlanetDecorStyle.Jungle ? "MossRock" : "Rock",
+            Prop.Rock or Prop.Pebbles or Prop.Boulder => style == PlanetDecorStyle.Jungle ? "MossRock" : style == PlanetDecorStyle.Desert ? "DesertRock" : "Rock",
+            Prop.Shrub => "SpruceBush",
+            Prop.Conifer => "Spruce",
+            Prop.Cactus => "Saguaro",
+            Prop.DryBush => "Rooibos",
+            Prop.Fern => "Fern",
+            Prop.DeadTree => "DeadTree",
+            Prop.Basalt => "Basalt",
+            Prop.Hoodoo => "DesertRock",
             Prop.IceShard or Prop.IceSpike => "Ice",
             Prop.Crystal or Prop.CrystalSpire => "Crystal",
             Prop.Pod => "Pod",
@@ -187,6 +195,21 @@ namespace Voidward.Planet
             Prop.Mushroom => "Mushroom",
             _ => null,
         };
+
+        /// <summary>
+        /// A basalt column of height `h` and width `w` from the column scan (height 1, ~0.35 wide): stacked pieces, each
+        /// scaled to the width, the top one sunk to the height. Shared by decor and the basalt organ landmark.
+        /// </summary>
+        public static void StackBasalt(PropBatch batch, int model, Vector3 basePos, Quaternion rot, Vector3 up, float h, float w, System.Random r)
+        {
+            float piece = w / 0.35f;
+            int pieces = Mathf.Max(1, Mathf.CeilToInt(h / piece));
+            for (int i = 0; i < pieces; i++)
+            {
+                float y = Mathf.Min(i * piece, h - piece);
+                batch.Add(model, basePos + up * y, rot * Quaternion.Euler(0f, (float)r.NextDouble() * 360f, 0f), piece);
+            }
+        }
 
         /// <summary>
         /// Adds an asset prop (variant from the prop seed, so placement stays as before); returns its collider radius.
@@ -237,6 +260,50 @@ namespace Voidward.Planet
                 case Prop.Mushroom:
                     batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.03f, Tilt(5f), s);
                     return s * 0.08f + 0.3f;
+                case Prop.Shrub:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * 0.05f, Tilt(8f), s * 1.2f);
+                    return 0f;
+                case Prop.Conifer:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.02f, Tilt(3f), s);
+                    return s * 0.06f + 0.4f;
+                case Prop.Cactus:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.03f, Tilt(4f), s);
+                    return s * 0.12f + 0.2f;
+                case Prop.DryBush:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * 0.04f, Tilt(8f), s * 1.1f);
+                    return 0f;
+                case Prop.Fern:
+                    // the fern scans are ~2.3x as wide as tall
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * 0.03f, Tilt(6f), s * 0.45f);
+                    return 0f;
+                case Prop.DeadTree:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.04f, Tilt(8f), s);
+                    return s * 0.06f + 0.25f;
+                case Prop.Basalt:
+                {
+                    int n = r.Next(4, 9);
+                    for (int i = 0; i < n; i++)
+                    {
+                        float h = s * Rn(0.4f, 1f);
+                        Vector3 off = rot * new Vector3(Rn(-1f, 1f), 0f, Rn(-1f, 1f)) * s * 0.28f;
+                        StackBasalt(batch, lib.Pick(family, r.Next()), pos + off - up * s * 0.05f, rot, up, h, s * 0.28f, r);
+                    }
+                    return s * 0.35f;
+                }
+                case Prop.Hoodoo:
+                {
+                    // sandstone scans stacked into a spire, a wider flat cap on top
+                    int model = lib.Pick(family, r.Next());
+                    float y = 0f;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        float rad = s * (i % 2 == 0 ? 0.16f : 0.12f) * (1f - i * 0.08f);
+                        batch.Add(model, pos + up * (y + rad * 0.5f), rot * Quaternion.Euler(Rn(-6f, 6f), Rn(0f, 360f), Rn(-6f, 6f)), rad);
+                        y += rad * 1.05f;
+                    }
+                    batch.Add(model, pos + up * (y + s * 0.05f), rot * Quaternion.Euler(Rn(-4f, 4f), Rn(0f, 360f), Rn(-4f, 4f)), s * 0.2f);
+                    return s * 0.17f;
+                }
             }
             return 0f;
         }

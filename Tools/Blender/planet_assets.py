@@ -9,7 +9,13 @@ Terrain texture sets (Poly Haven + ambientCG, CC0), one or more per PlanetDecorS
 Models (Poly Haven, CC0):
   Planet_MoonRock01..07   moon rock scans: barren/rocky decor + asteroids (system fields, warp corridor)
   Planet_MossRocks01/02   mossy rock sets (jungle decor)
+  Planet_Fern / Planet_Rooibos  fern_02 / wild_rooibos_bush (jungle ferns, desert dry bush; alpha map -> RGBA PNG)
 Models (Sketchfab, CC BY 4.0):
+  Planet_SpruceTrees     "Spruce Trees" by INT (conifer + two small spruces = rocky/ocean shrubs)
+  Planet_Saguaro16/18/26 "Realistic HD Saguaro cactus (16/30, 18/30, 26/30)" by PlantCatalog (desert cactus)
+  Planet_DeadTreeSrc     "Dead Tree" by MaX3Dd (volcanic dead tree)
+  Planet_BasaltColumn    "Basalt column" by irs1182 (volcanic basalt, basalt organ landmark)
+  Planet_DesertRock      "Desert Rock Formation, Makhtesh Ramon, Israel" by Doron Altaratz (hoodoo caps + segments)
   Planet_CrystalCluster01/02   "Crystal Cluster (Free)" / "Crystal Cluster 2 (Free)" by chrismartin1337 (crystal decor)
   Planet_IceCluster01..03      "Ice Cluster (free)", "Ice Cluster2 (free)", "Ice Cluster 4 (Free)" by chrismartin1337
   Planet_AlienPlant            "Alien Plant (Cydrakoniss)" by Blake Stahlbaum (jungle/toxic decor)
@@ -79,7 +85,8 @@ TERRAIN_SETS = {
 
 # model name: polyhaven id
 MODELS = {"Planet_MoonRock%02d" % i: "moon_rock_%02d" % i for i in range(1, 8)}
-MODELS.update({"Planet_MossRocks01": "rock_moss_set_01", "Planet_MossRocks02": "rock_moss_set_02"})
+MODELS.update({"Planet_MossRocks01": "rock_moss_set_01", "Planet_MossRocks02": "rock_moss_set_02",
+               "Planet_Fern": "fern_02", "Planet_Rooibos": "wild_rooibos_bush"})
 
 # model name: Sketchfab download stem
 SKETCHFAB = {
@@ -91,6 +98,13 @@ SKETCHFAB = {
     "Planet_AlienPlant": "alien_plant_cydrakoniss",
     "Planet_AlienPlants": "alien_plants",
     "Planet_GlowMushrooms": "glowing_mushrooms",
+    "Planet_SpruceTrees": "spruce_trees",
+    "Planet_Saguaro16": "realistic_hd_saguaro_cactus_1630",
+    "Planet_Saguaro18": "realistic_hd_saguaro_cactus_1830",
+    "Planet_Saguaro26": "realistic_hd_saguaro_cactus_2630",
+    "Planet_DeadTreeSrc": "dead_tree",
+    "Planet_BasaltColumn": "basalt_column",
+    "Planet_DesertRock": "desert_rock_formation_makhtesh_ramon_israel",
 }
 
 
@@ -222,6 +236,19 @@ def ingest_model(name, ident, root):
                 continue
             data = role != "baseColor"
             px = load_px(path, data)
+            alpha = os.path.join(folder, "textures", "%s_alpha_2k.png" % ident)
+            if role == "baseColor" and m.get("alphaMode", "OPAQUE") != "OPAQUE" and os.path.exists(alpha):
+                # Poly Haven foliage: the cut-out lives in its own map -> one RGBA base colour (PNG = alpha clip in Unity)
+                a = resample(load_px(alpha, True), px.shape[0], px.shape[1])
+                px[..., 3] = a[..., 0]
+                h, w = px.shape[:2]
+                img = bpy.data.images.new(mname + "_baseColor", w, h, alpha=True)
+                img.pixels.foreach_set(np.clip(px, 0, 1).astype(np.float32).ravel())
+                img.filepath_raw = os.path.join(tex_out, "%s_baseColor.png" % mname)
+                img.file_format = 'PNG'
+                img.save()
+                bpy.data.images.remove(img)
+                continue
             if role == "metallicRoughness":
                 # moon rocks ship an ARM map, the moss sets a grey roughness map; both rely on metallicFactor 0,
                 # so the packed map gets G = roughness, B = the factor (Unity reads B as metal)
@@ -397,6 +424,31 @@ def smooth(obj, angle):
     bpy.ops.object.shade_smooth_by_angle(angle=math.radians(angle))
 
 
+# foliage materials (alpha cards): their normals are bent outwards + up from the plant's axis, the usual foliage
+# trick, so cards lit from behind do not turn black and a bush reads as one soft volume
+FOLIAGE = ("branch", "leaves", "twigs", "fern", "spines", "Leaves")
+
+
+def foliage_normals(obj):
+    mesh = obj.data
+    mats = [m.name if m else "" for m in mesh.materials]
+    if not any(any(k in n for k in FOLIAGE) for n in mats):
+        return
+    lo, hi = bounds(obj)
+    height = max(hi.z - lo.z, 1e-4)
+    normals = [Vector(n.vector) for n in mesh.corner_normals]
+    for poly in mesh.polygons:
+        if not any(k in mats[poly.material_index] for k in FOLIAGE):
+            continue
+        for li in poly.loop_indices:
+            co = mesh.vertices[mesh.loops[li].vertex_index].co
+            out = Vector((co.x, co.y, (co.z - lo.z - height * 0.35) * 0.5))
+            if out.length < 1e-5:
+                out = Vector((0, 0, 1))
+            normals[li] = (out.normalized() * 0.7 + Vector((0, 0, 0.6))).normalized()
+    mesh.normals_split_custom_set(normals)
+
+
 def export(obj, name):
     activate(obj)
     bpy.ops.object.material_slot_remove_unused()
@@ -410,14 +462,27 @@ def export(obj, name):
         name, hi.x - lo.x, hi.z - lo.z, hi.y - lo.y, lo.z, hi.z, tris(obj), [m.name for m in obj.data.materials if m]))
 
 
+def centre_x(o):
+    pts = [o.matrix_world @ Vector(c) for c in o.bound_box]
+    return sum(p.x for p in pts) / 8.0
+
+
 def prop(src, out, match, target, rock, angle=60.0, drop=None):
-    """One exported prop from the objects of `src` whose name contains any of `match` (None = all)."""
+    """
+    One exported prop from the objects of `src` whose name contains any of `match` (None = all; a ("x", lo, hi)
+    tuple = objects whose bounds centre lies in that Blender x range, for packs laid out side by side).
+    """
     import_source(src)
-    objs = [o for o in meshes(match) if not (drop and any(k in o.name for k in drop))]
+    if isinstance(match, tuple):
+        objs = [o for o in meshes() if match[1] <= centre_x(o) <= match[2]]
+    else:
+        objs = meshes(match)
+    objs = [o for o in objs if not (drop and any(k in o.name for k in drop))]
     obj = bake(objs, out)
     decimate(obj, target)
     normalize(obj, rock)
     smooth(obj, angle)
+    foliage_normals(obj)
     export(obj, out)
 
 
@@ -442,6 +507,24 @@ BUILDS.update({
     "Planet_AlienPlant": ("Planet_AlienPlant", None, 4500, False, 45.0, ["Cylinder001"]),
     "Planet_Mushroom01": ("Planet_GlowMushrooms", ["TallMush1_"], 2000, False, 45.0, None),
     "Planet_Mushroom02": ("Planet_GlowMushrooms", ["TallMush2_"], 2000, False, 45.0, None),
+    # the spruce pack: the tall tree in the middle, two small spruces (cross cards) on the left = shrubs
+    "Planet_Spruce": ("Planet_SpruceTrees", ("x", -22.0, 30.0), 4000, False, 45.0, None),
+    "Planet_SpruceBush01": ("Planet_SpruceTrees", ("x", -46.0, -36.0), 1000, False, 45.0, None),
+    "Planet_SpruceBush02": ("Planet_SpruceTrees", ("x", -34.0, -24.0), 1000, False, 45.0, None),
+    # saguaro scans keep their spine cards, except the 22k one with the arm (bark only)
+    "Planet_Saguaro01": ("Planet_Saguaro16", None, 8000, False, 60.0, None),
+    "Planet_Saguaro02": ("Planet_Saguaro26", None, 8000, False, 60.0, None),
+    "Planet_Saguaro03": ("Planet_Saguaro18", ["Carneg"], 5000, False, 60.0, None),
+    "Planet_DeadTree": ("Planet_DeadTreeSrc", None, 3300, False, 45.0, None),
+    "Planet_Basalt": ("Planet_BasaltColumn", None, 1200, False, 30.0, None),
+    "Planet_DesertRock01": ("Planet_DesertRock", None, 2000, True, 60.0, None),
+    "Planet_Fern01": ("Planet_Fern", ["fern_02_b"], 2400, False, 60.0, None),
+    "Planet_Fern02": ("Planet_Fern", ["fern_02_c"], 2400, False, 60.0, None),
+    "Planet_Fern03": ("Planet_Fern", ["fern_02_a"], 2400, False, 60.0, None),
+    "Planet_Fern04": ("Planet_Fern", ["fern_02_d"], 2400, False, 60.0, None),
+    "Planet_Rooibos01": ("Planet_Rooibos", ["wild_rooibos_bush_c"], 2500, False, 60.0, None),
+    "Planet_Rooibos02": ("Planet_Rooibos", ["wild_rooibos_bush_d"], 2500, False, 60.0, None),
+    "Planet_Rooibos03": ("Planet_Rooibos", ["wild_rooibos_bush_e"], 2500, False, 60.0, None),
 })
 
 # the texture folder each built prop reads its materials from (the ingest folder of its source)

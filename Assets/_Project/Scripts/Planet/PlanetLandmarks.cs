@@ -225,6 +225,20 @@ namespace Voidward.Planet
                         Vector3 p = (right * Rn(-1f, 1f) + fwd * Rn(-1f, 1f)) * 22f * k;
                         float y = 0f;
                         int segs = r.Next(4, 7);
+                        if (A("DesertRock"))
+                        {
+                            // stacked sandstone scans, each about one segment tall, a wide cap on top
+                            int model = props.Pick("DesertRock", r.Next());
+                            for (int sgi = 0; sgi < segs; sgi++)
+                            {
+                                float seg = h / segs;
+                                float rad = seg * 0.85f * (sgi % 2 == 0 ? 1f : 0.8f);
+                                batch.Add(model, p + up * (y + seg * 0.5f), rot * Quaternion.Euler(Rn(-5f, 5f), Rn(0f, 360f), Rn(-5f, 5f)), rad);
+                                y += seg;
+                            }
+                            batch.Add(model, p + up * (y + h * 0.04f), rot * Quaternion.Euler(0f, Rn(0f, 360f), 0f), h * 0.16f);
+                            continue;
+                        }
                         for (int sgi = 0; sgi < segs; sgi++)
                         {
                             float seg = h / segs;
@@ -401,7 +415,8 @@ namespace Voidward.Planet
                         tallest = Mathf.Max(tallest, h);
                         float w = 2.6f * k + 0.3f;
                         Vector3 p = (right * Mathf.Cos(a) + fwd * Mathf.Sin(a)) * d;
-                        mb.AddPrism(M(p + up * h * 0.5f, rot * Quaternion.Euler(0f, Rn(0f, 60f), 0f), Vector3.one), w, w, h, 6, rock * Rn(0.7f, 1f));
+                        if (A("Basalt")) PlanetDecor.StackBasalt(batch, props.Pick("Basalt", r.Next()), p, rot, up, h, w * 2f, r);
+                        else mb.AddPrism(M(p + up * h * 0.5f, rot * Quaternion.Euler(0f, Rn(0f, 60f), 0f), Vector3.one), w, w, h, 6, rock * Rn(0.7f, 1f));
                     }
                     mb.Surface(0.2f, 1.8f);
                     mb.AddPrism(M(up * 0.4f, rot, Vector3.one), 5f * k, 4f * k, 0.8f, 9, glow);

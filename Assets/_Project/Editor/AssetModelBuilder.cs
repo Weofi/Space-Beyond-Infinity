@@ -102,7 +102,11 @@ namespace Voidward.EditorTools
                 outTex.SetPixels32(o);
                 File.WriteAllBytes(full, outTex.EncodeToPNG());
                 Object.DestroyImmediate(outTex);
+                // inside BuildAll's asset editing block the import would wait until its end: a freshly generated
+                // texture would be missing in this build (first build after adding an asset)
+                if (assetBatching) AssetDatabase.StopAssetEditing();
                 AssetDatabase.ImportAsset(outPath);
+                if (assetBatching) AssetDatabase.StartAssetEditing();
             }
             return ImportTexture(outPath, srgb, maxSize: maxSize);
         }

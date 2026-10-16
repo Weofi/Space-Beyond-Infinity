@@ -30,6 +30,16 @@ namespace Voidward.EditorTools
             list.Add(("Planet_MinePlant", "MinePlant", "Planet_AlienPlants"));
             list.Add(("Planet_AlienPlant", "AlienPlant", "Planet_AlienPlant"));
             for (int i = 1; i <= 2; i++) list.Add(($"Planet_Mushroom{i:00}", $"Mushroom{i:00}", "Planet_GlowMushrooms"));
+            list.Add(("Planet_Spruce", "Spruce", "Planet_SpruceTrees"));
+            for (int i = 1; i <= 2; i++) list.Add(($"Planet_SpruceBush{i:00}", $"SpruceBush{i:00}", "Planet_SpruceTrees"));
+            list.Add(("Planet_Saguaro01", "Saguaro01", "Planet_Saguaro16"));
+            list.Add(("Planet_Saguaro02", "Saguaro02", "Planet_Saguaro26"));
+            list.Add(("Planet_Saguaro03", "Saguaro03", "Planet_Saguaro18"));
+            list.Add(("Planet_DeadTree", "DeadTree", "Planet_DeadTreeSrc"));
+            list.Add(("Planet_Basalt", "Basalt", "Planet_BasaltColumn"));
+            list.Add(("Planet_DesertRock01", "DesertRock01", "Planet_DesertRock"));
+            for (int i = 1; i <= 4; i++) list.Add(($"Planet_Fern{i:00}", $"Fern{i:00}", "Planet_Fern"));
+            for (int i = 1; i <= 3; i++) list.Add(($"Planet_Rooibos{i:00}", $"Rooibos{i:00}", "Planet_Rooibos"));
             return list.ToArray();
         }
 

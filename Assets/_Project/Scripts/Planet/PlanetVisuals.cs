@@ -642,13 +642,14 @@ namespace Voidward.Planet
             var src = m.Materials != null && sub < m.Materials.Length ? m.Materials[sub] : null;
             if (src == null) return decorMat;
             string family = PlanetPropLibrary.Family(m.Id);
-            int colorIndex = family == "Rock" ? 0 : family == "Crystal" || family == "Ice" ? 1 : -1;
+            int colorIndex = family == "Rock" || family == "Basalt" || family == "DesertRock" ? 0 : family == "Crystal" || family == "Ice" ? 1 : -1;
             if (colorIndex < 0) return src;
             if (propMats.TryGetValue((src, family), out var mat) && mat != null) return mat;
             var cols = Terrain.Shape.DecorColors;
             Color c = cols != null && cols.Length > colorIndex ? Terrain.Shift(cols[colorIndex]) : Color.gray;
             // the scans are mid grey (~0.45): divide it out, so the prop ends up near the palette colour
-            float strength = family == "Rock" ? 0.85f : family == "Crystal" ? 0.8f : 0.5f;
+            // the sandstone scan is already warm: only a light pull towards the palette
+            float strength = family == "Rock" || family == "Basalt" ? 0.85f : family == "Crystal" ? 0.8f : family == "DesertRock" ? 0.4f : 0.5f;
             Color tint = Color.Lerp(Color.white, new Color(Mathf.Min(c.r / 0.45f, 1.6f), Mathf.Min(c.g / 0.45f, 1.6f), Mathf.Min(c.b / 0.45f, 1.6f)), strength);
             mat = new Material(src) { name = src.name + " (" + Terrain.Shape.name + ")", hideFlags = HideFlags.DontSave };
             mat.SetColor("_BaseColor", tint);

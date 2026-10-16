@@ -30,18 +30,23 @@ namespace Voidward.EditorTools
         static readonly Dictionary<string, BiomeDef> biomes = new Dictionary<string, BiomeDef>();
         static readonly Dictionary<string, LootTable> loot = new Dictionary<string, LootTable>();
 
+        /// <summary>True inside BuildAll's StartAssetEditing block (imports are deferred there).</summary>
+        static bool assetBatching;
+
         [MenuItem("Voidward/Build All Content", priority = 0)]
         public static void BuildAll()
         {
             try
             {
                 AssetDatabase.StartAssetEditing();
+                assetBatching = true;
                 EnsureFolders();
                 BuildMaterials();
                 BuildData();
             }
             finally
             {
+                assetBatching = false;
                 AssetDatabase.StopAssetEditing();
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
