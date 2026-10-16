@@ -818,6 +818,22 @@ namespace Voidward.Dev
             return EnemyFactory.Spawn(kind, pos, Quaternion.LookRotation(dir.sqrMagnitude > 1e-4f ? dir : Vector3.forward), 1f);
         }
 
+        /// <summary>
+        /// Server (#98): wake the Warden `ahead` m in front of the local ship (or pawn) in any system, the real enclave spawn
+        /// path (announcement, boss music, hoard on defeat). Logs "[Dev] end warden &lt;position&gt;".
+        /// </summary>
+        public static BossBrain SpawnWarden(float ahead = 260f)
+        {
+            Log("begin warden");
+            var rm = RunManager.Instance;
+            Transform from = Ship != null ? Ship.transform : Pawn != null ? Pawn.transform : null;
+            if (!IsServer || rm == null || rm.Director == null || from == null) { Log("end warden FAILED: needs the host in a run"); return null; }
+            rm.Director.SpawnWarden(from.position + from.forward * ahead);
+            var boss = BossBrain.Instance;
+            Log(boss != null ? $"end warden {boss.transform.position}" : "end warden FAILED: not spawned (one is alive already?)");
+            return boss;
+        }
+
         /// <summary>Move the local pawn (owner authority) to a position, standing on 'up', facing 'forward'.</summary>
         public static void Teleport(Vector3 pos, Vector3 up, Vector3 forward)
         {
