@@ -21,7 +21,7 @@ MonoBehaviour:
   Layers:
   - Enabled: 1
     Kind: 0
-    Strength: 0.05
+    Strength: 0.04
     Frequency: 1.1
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 4
@@ -33,37 +33,11 @@ MonoBehaviour:
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
   - Enabled: 1
-    Kind: 1
-    Strength: 0.05
-    Frequency: 2.6
-    Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 5
-    Persistence: 0.5
-    Lacunarity: 2
-    MinValue: 0.35
-    RidgeWeight: 1.8
-    MaskByFirstLayer: 0
-    MaskRange: {x: 0, y: 0.25}
-    Terraces: 0
-  - Enabled: 1
-    Kind: 1
-    Strength: 0.01
-    Frequency: 10
-    Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 3
-    Persistence: 0.45
-    Lacunarity: 2
-    MinValue: 0.2
-    RidgeWeight: 1.4
-    MaskByFirstLayer: 0
-    MaskRange: {x: 0, y: 0.25}
-    Terraces: 0
-  - Enabled: 1
     Kind: 0
-    Strength: 0.003
+    Strength: 0.002
     Frequency: 18
     Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 3
+    Octaves: 2
     Persistence: 0.5
     Lacunarity: 2
     MinValue: 0
@@ -72,10 +46,69 @@ MonoBehaviour:
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
   Variation: 0.2
+  Provinces:
+  - Enabled: 1
+    Kind: 0
+    Share: 2
+    Elevation: 0
+    Relief: 0.004
+    Frequency: 5
+    Sharpness: 0
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.2
+    Region: 0
+  - Enabled: 1
+    Kind: 2
+    Share: 2.5
+    Elevation: 0.02
+    Relief: 0.08
+    Frequency: 4
+    Sharpness: 1
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 1
+    Region: 0.6
+  - Enabled: 1
+    Kind: 3
+    Share: 1.5
+    Elevation: 0.03
+    Relief: 0.005
+    Frequency: 4
+    Sharpness: 0
+    Terraces: 3
+    EdgeCliff: 0.95
+    Erosion: 0.5
+    Region: 1
+  - Enabled: 1
+    Kind: 4
+    Share: 1.5
+    Elevation: -0.025
+    Relief: 0.004
+    Frequency: 4
+    Sharpness: 0
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.2
+    Region: 0.4
+  - Enabled: 1
+    Kind: 1
+    Share: 1.5
+    Elevation: 0.008
+    Relief: 0.02
+    Frequency: 7
+    Sharpness: 0.6
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.7
+    Region: 0.3
+  ProvinceCount: 14
+  ProvinceBlend: 0.05
+  ProvinceWarp: 0.14
   Features:
   - Enabled: 1
     Kind: 3
-    Count: {x: 2, y: 3}
+    Count: {x: 1, y: 2}
     Size: {x: 0.15, y: 0.25}
     Height: {x: 0.08, y: 0.12}
     Sharpness: 0.5
@@ -84,17 +117,17 @@ MonoBehaviour:
     Caldera: 0.2
   - Enabled: 1
     Kind: 2
-    Count: {x: 5, y: 8}
-    Size: {x: 0.025, y: 0.05}
-    Height: {x: 1.4, y: 2.2}
+    Count: {x: 3, y: 5}
+    Size: {x: 0.04, y: 0.07}
+    Height: {x: 1.4, y: 2}
     Sharpness: 1
     Terraces: 0
     Roughness: 0.6
     Caldera: 0.2
   - Enabled: 1
     Kind: 1
-    Count: {x: 2, y: 4}
-    Size: {x: 0.05, y: 0.09}
+    Count: {x: 1, y: 2}
+    Size: {x: 0.06, y: 0.1}
     Height: {x: 0.25, y: 0.4}
     Sharpness: 0.85
     Terraces: 2

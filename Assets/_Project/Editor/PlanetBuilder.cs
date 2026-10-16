@@ -160,6 +160,20 @@ namespace Voidward.EditorTools
             Sharpness = sharp, Terraces = terraces, Roughness = rough, Caldera = caldera,
         };
 
+        /// <summary>Terrain province (#115): share, base elevation and relief (fractions of the radius), noise frequency.</summary>
+        static PlanetShapeDef.ProvinceDef Prov(PlanetProvinceKind kind, float share, float elevation, float relief, float freq, float sharp = 0f,
+            int terraces = 0, float cliff = 0f, float erosion = 1f, float region = 0f) => new PlanetShapeDef.ProvinceDef
+        {
+            Kind = kind, Share = share, Elevation = elevation, Relief = relief, Frequency = freq, Sharpness = sharp,
+            Terraces = terraces, EdgeCliff = cliff, Erosion = erosion, Region = region,
+        };
+
+        static void Provinces(PlanetShapeDef s, int count, params PlanetShapeDef.ProvinceDef[] defs)
+        {
+            s.ProvinceCount = count;
+            s.Provinces = new List<PlanetShapeDef.ProvinceDef>(defs);
+        }
+
         /// <summary>Downhill gully erosion (#115): depth and largest wavelength in meters.</summary>
         static void Erosion(PlanetShapeDef s, float depth, float scale, float branching = 0.6f, int octaves = 5, float slopeMin = 0.03f, float slopeMax = 0.25f)
         {
@@ -203,10 +217,14 @@ namespace Voidward.EditorTools
             s.Warp = 0.08f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
-                Layer(PlanetNoiseKind.Simple, 0.04f, 1.1f, 4),                       // basins / highlands
-                Layer(PlanetNoiseKind.Ridged, 0.025f, 2.4f, 5, 0.5f, 0.35f, ridgeWeight: 1.2f), // rugged ridges
-                Layer(PlanetNoiseKind.Simple, 0.003f, 18f, 3),                       // roughness
+                Layer(PlanetNoiseKind.Simple, 0.02f, 1.1f, 3),                       // broad swell
+                Layer(PlanetNoiseKind.Simple, 0.002f, 18f, 2),                       // roughness
             };
+            // Dark flat maria against bright cratered highlands.
+            Provinces(s, 12,
+                Prov(PlanetProvinceKind.Plains, 2f, -0.012f, 0.002f, 5f, erosion: 0.1f, region: 1f),           // maria
+                Prov(PlanetProvinceKind.Hills, 3f, 0.008f, 0.022f, 5f, 0.5f, erosion: 0.5f),                    // highlands
+                Prov(PlanetProvinceKind.Mountains, 1f, 0.02f, 0.05f, 3.5f, 0.85f, erosion: 1f));
             s.Features = new List<PlanetShapeDef.FeatureSet>
             {
                 Feature(PlanetFeatureKind.Basin, 1, 3, 0.16f, 0.28f, 0.08f, 0.14f),
@@ -245,15 +263,21 @@ namespace Voidward.EditorTools
             s.Warp = 0.12f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
-                Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),                                                 // continents / lowlands
-                Layer(PlanetNoiseKind.Ridged, 0.1f, 2f, 6, 0.5f, 0.3f, 2.1f, 2.2f, new Vector2(0.48f, 0.62f)),  // mountain ranges
-                Layer(PlanetNoiseKind.Ridged, 0.022f, 5f, 4, 0.5f, 0.15f, ridgeWeight: 1.3f),                 // ridged hills everywhere (#115: no clay plains)
-                Layer(PlanetNoiseKind.Simple, 0.008f, 7f, 3, 0.5f),                                           // hills
-                Layer(PlanetNoiseKind.Simple, 0.0015f, 30f, 2),                                               // roughness
+                Layer(PlanetNoiseKind.Simple, 0.03f, 1.1f, 3),                                                 // continents / lowlands
+                Layer(PlanetNoiseKind.Simple, 0.001f, 30f, 2),                                                 // roughness
             };
+            // #115: provinces instead of one noise everywhere: calm meadows, rolling hills, a few real ranges,
+            // table mountains with cliff walls and lake basins.
+            Provinces(s, 14,
+                Prov(PlanetProvinceKind.Plains, 3f, 0f, 0.004f, 5f, erosion: 0.2f),
+                Prov(PlanetProvinceKind.Hills, 3f, 0.008f, 0.018f, 6f, 0.25f, erosion: 0.8f, region: 0.2f),
+                Prov(PlanetProvinceKind.Mountains, 2f, 0.02f, 0.09f, 3.5f, 0.9f, erosion: 1.3f, region: 0.5f),
+                Prov(PlanetProvinceKind.Plateau, 1.2f, 0.035f, 0.006f, 4f, 0.2f, 2, 0.85f, 0.6f, 1f),
+                Prov(PlanetProvinceKind.Basin, 1.5f, -0.025f, 0.004f, 4f, erosion: 0.2f));
             s.Features = new List<PlanetShapeDef.FeatureSet>
             {
-                Feature(PlanetFeatureKind.Spire, 2, 4, 0.03f, 0.05f, 0.9f, 1.4f, 0.7f, rough: 0.6f),
+                Feature(PlanetFeatureKind.Spire, 1, 2, 0.05f, 0.08f, 0.9f, 1.3f, 0.7f, rough: 0.6f),   // lone signature peaks
+                Feature(PlanetFeatureKind.Mesa, 1, 2, 0.08f, 0.12f, 0.25f, 0.35f, 0.9f, 2, 0.4f),      // table mountain
             };
             Canyons(s, 1.4f, 0.08f, 0.035f, 0.3f, 1.6f, 0.65f, 0.5f, rivers: true);
             s.CraterCount = 8;
@@ -291,9 +315,16 @@ namespace Voidward.EditorTools
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
                 Layer(PlanetNoiseKind.Simple, 0.1f, 0.8f, 5, 0.5f),                                            // continents
-                Layer(PlanetNoiseKind.Ridged, 0.06f, 2f, 5, 0.5f, 0.3f, 2f, 1.6f, new Vector2(0.55f, 0.68f)),  // coastal mountains
-                Layer(PlanetNoiseKind.Ridged, 0.014f, 6f, 4, 0.5f, 0.2f, ridgeWeight: 1.3f, mask: new Vector2(0.45f, 0.6f)), // ridged hills on land
-                Layer(PlanetNoiseKind.Simple, 0.004f, 12f, 3),                                                 // detail
+                Layer(PlanetNoiseKind.Simple, 0.002f, 12f, 2),                                                 // detail
+            };
+            Provinces(s, 14,
+                Prov(PlanetProvinceKind.Plains, 3f, 0f, 0.004f, 5f, erosion: 0.2f),
+                Prov(PlanetProvinceKind.Hills, 3f, 0.006f, 0.015f, 6f, 0.3f, erosion: 0.8f, region: 0.2f),
+                Prov(PlanetProvinceKind.Mountains, 1.5f, 0.015f, 0.07f, 3.5f, 0.85f, erosion: 1.2f, region: 0.5f),
+                Prov(PlanetProvinceKind.Plateau, 0.8f, 0.025f, 0.005f, 4f, 0.2f, 1, 0.8f, 0.6f, 1f));
+            s.Features = new List<PlanetShapeDef.FeatureSet>
+            {
+                Feature(PlanetFeatureKind.Volcano, 1, 1, 0.12f, 0.16f, 0.5f, 0.7f, 0.5f, 0, 0.5f, 0.15f), // one island volcano
             };
             s.CraterCount = 0;
             s.HasOcean = true;
@@ -322,17 +353,22 @@ namespace Voidward.EditorTools
             s.Warp = 0.12f;
             s.Layers = new List<PlanetShapeDef.NoiseLayer>
             {
-                Layer(PlanetNoiseKind.Simple, 0.035f, 1f, 4),                                                                   // broad basins
+                Layer(PlanetNoiseKind.Simple, 0.02f, 1f, 3),                                                                    // broad basins
                 Layer(PlanetNoiseKind.Ridged, 0.004f, 9f, 2, 0.35f, ridgeWeight: 0.6f, mask: new Vector2(0.62f, 0.38f), stretch: new Vector3(1f, 4f, 1f)), // dunes in the lowlands
-                Layer(PlanetNoiseKind.Simple, 0.03f, 2.2f, 4, 0.5f, 0.52f, terraces: 4),                                       // stepped plateaus
-                Layer(PlanetNoiseKind.Ridged, 0.008f, 11f, 3, 0.45f, 0.2f, ridgeWeight: 1.2f),                                 // rocky ridges
-                Layer(PlanetNoiseKind.Simple, 0.0012f, 30f, 2),                                                                 // grain
+                Layer(PlanetNoiseKind.Simple, 0.0008f, 30f, 2),                                                                 // grain
             };
+            // Canyonlands: dune seas, badlands, stepped red mesas with sheer walls, salt flats.
+            Provinces(s, 14,
+                Prov(PlanetProvinceKind.Plains, 3f, 0f, 0.003f, 5f, erosion: 0.1f),                             // dune sea
+                Prov(PlanetProvinceKind.Hills, 2f, 0.01f, 0.02f, 8f, 0.7f, erosion: 1.4f, region: 0.5f),         // badlands
+                Prov(PlanetProvinceKind.Plateau, 2f, 0.04f, 0.004f, 4f, 0f, 3, 0.95f, 0.8f, 1f),                 // mesa country
+                Prov(PlanetProvinceKind.Basin, 1f, -0.015f, 0.001f, 3f, erosion: 0f, region: 0.2f),              // salt flat
+                Prov(PlanetProvinceKind.Mountains, 0.8f, 0.02f, 0.06f, 4f, 0.85f, erosion: 1.2f, region: 0.6f));
             s.Features = new List<PlanetShapeDef.FeatureSet>
             {
-                Feature(PlanetFeatureKind.Mesa, 6, 10, 0.05f, 0.12f, 0.4f, 0.7f, 0.9f, 3, 0.5f),      // buttes
-                Feature(PlanetFeatureKind.Spire, 8, 14, 0.01f, 0.02f, 1.5f, 2.6f, 0.75f, 0, 0.4f),   // hoodoo towers
-                Feature(PlanetFeatureKind.Basin, 1, 3, 0.12f, 0.2f, 0.08f, 0.12f),
+                Feature(PlanetFeatureKind.Mesa, 3, 5, 0.08f, 0.14f, 0.35f, 0.55f, 0.95f, 3, 0.5f),   // big buttes
+                Feature(PlanetFeatureKind.Spire, 3, 5, 0.015f, 0.025f, 1.5f, 2.4f, 0.75f, 0, 0.4f), // hoodoo towers
+                Feature(PlanetFeatureKind.Basin, 1, 1, 0.14f, 0.2f, 0.08f, 0.12f),
             };
             Canyons(s, 1.6f, 0.085f, 0.07f, 0.45f, 3f, 0.65f, 0.45f, 4);
             s.CraterCount = 4;
@@ -373,15 +409,19 @@ namespace Voidward.EditorTools
                 s.Layers = new List<PlanetShapeDef.NoiseLayer>
                 {
                     Layer(PlanetNoiseKind.Simple, 0.06f, 0.9f, 5),                                                   // continents / ice sheets
-                    Layer(PlanetNoiseKind.Ridged, 0.09f, 2.2f, 6, 0.5f, 0.35f, 2.1f, 2.4f, new Vector2(0.5f, 0.65f)), // jagged ranges
-                    Layer(PlanetNoiseKind.Simple, 0.012f, 8f, 3),                                                    // hills
-                    Layer(PlanetNoiseKind.Ridged, 0.006f, 16f, 3, 0.45f, 0.25f, ridgeWeight: 1.4f),                  // pressure ridges
-                    Layer(PlanetNoiseKind.Ridged, 0.002f, 26f, 2, ridgeWeight: 1f),                                   // ice ridges
+                    Layer(PlanetNoiseKind.Ridged, 0.0015f, 26f, 2, ridgeWeight: 1f),                                  // ice ridges
                 };
+                // Smooth ice sheets, jagged ranges, ice shelves ending in cliffs, frozen basins.
+                Provinces(s, 13,
+                    Prov(PlanetProvinceKind.Plains, 3f, 0.005f, 0.004f, 4f, erosion: 0.1f),                        // ice sheet
+                    Prov(PlanetProvinceKind.Hills, 2f, 0.01f, 0.015f, 6f, 0.3f, erosion: 0.5f, region: 0.3f),
+                    Prov(PlanetProvinceKind.Mountains, 2f, 0.025f, 0.1f, 3.5f, 0.95f, erosion: 1f, region: 0.6f),
+                    Prov(PlanetProvinceKind.Plateau, 1.2f, 0.03f, 0.004f, 4f, 0f, 1, 0.9f, 0.4f, 1f),             // ice shelf
+                    Prov(PlanetProvinceKind.Basin, 1f, -0.02f, 0.003f, 4f, erosion: 0.1f));
                 s.Features = new List<PlanetShapeDef.FeatureSet>
                 {
-                    Feature(PlanetFeatureKind.Spire, 3, 5, 0.04f, 0.08f, 1f, 1.6f, 0.8f, 0, 0.7f),   // lone jagged peaks
-                    Feature(PlanetFeatureKind.Dome, 3, 6, 0.08f, 0.15f, 0.2f, 0.35f),                // glacier domes
+                    Feature(PlanetFeatureKind.Spire, 1, 3, 0.06f, 0.1f, 1f, 1.5f, 0.8f, 0, 0.7f),    // huge lone peaks
+                    Feature(PlanetFeatureKind.Dome, 2, 3, 0.12f, 0.18f, 0.2f, 0.3f),                 // glacier domes
                 };
                 Canyons(s, 2.2f, 0.03f, 0.06f, 0.1f, 4f, 0.5f, 0.6f);                            // frozen chasms
                 s.OceanCoverage = new Vector2(0.2f, 0.35f);
@@ -408,14 +448,18 @@ namespace Voidward.EditorTools
                 s.Layers = new List<PlanetShapeDef.NoiseLayer>
                 {
                     Layer(PlanetNoiseKind.Simple, 0.09f, 0.8f, 5, 0.5f),                                           // continents
-                    Layer(PlanetNoiseKind.Ridged, 0.05f, 2.2f, 5, 0.5f, 0.3f, 2f, 1.6f, new Vector2(0.55f, 0.7f)), // coastal ranges
-                    Layer(PlanetNoiseKind.Ridged, 0.018f, 5f, 4, 0.5f, 0.15f, ridgeWeight: 1.3f),                  // ridged hills
-                    Layer(PlanetNoiseKind.Simple, 0.008f, 12f, 3),                                                 // knolls
-                    Layer(PlanetNoiseKind.Simple, 0.003f, 16f, 2),                                                 // detail
+                    Layer(PlanetNoiseKind.Simple, 0.002f, 16f, 2),                                                 // detail
                 };
+                // Swamp lowlands, rounded karst hills, a few ranges, cliff-edged tablelands.
+                Provinces(s, 14,
+                    Prov(PlanetProvinceKind.Plains, 3f, 0f, 0.003f, 5f, erosion: 0.2f),                            // swamp
+                    Prov(PlanetProvinceKind.Hills, 3f, 0.01f, 0.03f, 9f, 0.1f, erosion: 0.7f, region: 0.3f),        // karst hills
+                    Prov(PlanetProvinceKind.Mountains, 1.2f, 0.02f, 0.07f, 3.5f, 0.8f, erosion: 1.2f, region: 0.6f),
+                    Prov(PlanetProvinceKind.Plateau, 1f, 0.03f, 0.005f, 4f, 0.2f, 2, 0.9f, 0.6f, 1f),
+                    Prov(PlanetProvinceKind.Basin, 1f, -0.02f, 0.003f, 4f, erosion: 0.2f));
                 s.Features = new List<PlanetShapeDef.FeatureSet>
                 {
-                    Feature(PlanetFeatureKind.Spire, 8, 14, 0.015f, 0.03f, 1.2f, 2f, 0.15f, 0, 0.2f),  // karst towers
+                    Feature(PlanetFeatureKind.Spire, 6, 10, 0.025f, 0.04f, 1.3f, 2f, 0.15f, 0, 0.2f),  // karst towers (signature)
                 };
                 Canyons(s, 1.4f, 0.09f, 0.05f, 0.25f, 1.5f, 0.7f, 0.5f, rivers: true);                  // river valleys
                 s.OceanCoverage = new Vector2(0.3f, 0.45f);
@@ -441,17 +485,22 @@ namespace Voidward.EditorTools
                 s.CraterSize = new Vector2(0.02f, 0.18f);
                 s.Features = new List<PlanetShapeDef.FeatureSet>
                 {
-                    Feature(PlanetFeatureKind.Basin, 2, 3, 0.15f, 0.25f, 0.08f, 0.12f),
-                    Feature(PlanetFeatureKind.Spire, 5, 8, 0.025f, 0.05f, 1.4f, 2.2f, 1f, 0, 0.6f),    // crystal mountains
-                    Feature(PlanetFeatureKind.Mesa, 2, 4, 0.05f, 0.09f, 0.25f, 0.4f, 0.85f, 2, 0.4f),
+                    Feature(PlanetFeatureKind.Basin, 1, 2, 0.15f, 0.25f, 0.08f, 0.12f),
+                    Feature(PlanetFeatureKind.Spire, 3, 5, 0.04f, 0.07f, 1.4f, 2f, 1f, 0, 0.6f),       // crystal mountains (signature)
+                    Feature(PlanetFeatureKind.Mesa, 1, 2, 0.06f, 0.1f, 0.25f, 0.4f, 0.85f, 2, 0.4f),
                 };
                 s.Layers = new List<PlanetShapeDef.NoiseLayer>
                 {
-                    Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),
-                    Layer(PlanetNoiseKind.Ridged, 0.05f, 2.6f, 5, 0.5f, 0.35f, ridgeWeight: 1.8f),       // shard ridges
-                    Layer(PlanetNoiseKind.Ridged, 0.01f, 10f, 3, 0.45f, 0.2f, ridgeWeight: 1.4f),        // crystal hills
-                    Layer(PlanetNoiseKind.Simple, 0.003f, 18f, 3),
+                    Layer(PlanetNoiseKind.Simple, 0.04f, 1.1f, 4),
+                    Layer(PlanetNoiseKind.Simple, 0.002f, 18f, 2),
                 };
+                // Shard ranges, terraced crystal tablelands, glassy plains, lake basins.
+                Provinces(s, 14,
+                    Prov(PlanetProvinceKind.Plains, 2f, 0f, 0.004f, 5f, erosion: 0.2f),
+                    Prov(PlanetProvinceKind.Mountains, 2.5f, 0.02f, 0.08f, 4f, 1f, erosion: 1f, region: 0.6f),       // shard ranges
+                    Prov(PlanetProvinceKind.Plateau, 1.5f, 0.03f, 0.005f, 4f, 0f, 3, 0.95f, 0.5f, 1f),
+                    Prov(PlanetProvinceKind.Basin, 1.5f, -0.025f, 0.004f, 4f, erosion: 0.2f, region: 0.4f),
+                    Prov(PlanetProvinceKind.Hills, 1.5f, 0.008f, 0.02f, 7f, 0.6f, erosion: 0.7f, region: 0.3f));
                 Canyons(s, 1.2f, 0.035f, 0.04f, 0.2f, 3f, 0.4f, 0.4f);                                  // rifts
                 s.HasOcean = true;
                 s.OceanCoverage = new Vector2(0.1f, 0.16f); // fewer, merged lakes instead of puddle confetti
@@ -476,16 +525,20 @@ namespace Voidward.EditorTools
                 Erosion(s, 12f, 70f, 0.9f); // lava flank gullies
                 s.Layers = new List<PlanetShapeDef.NoiseLayer>
                 {
-                    Layer(PlanetNoiseKind.Simple, 0.05f, 1.1f, 4),                                                 // continents
-                    Layer(PlanetNoiseKind.Ridged, 0.08f, 2f, 6, 0.5f, 0.3f, 2.1f, 2.2f, new Vector2(0.48f, 0.62f)), // black mountains
-                    Layer(PlanetNoiseKind.Simple, 0.012f, 8f, 3, 0.5f),                                           // hills
-                    Layer(PlanetNoiseKind.Ridged, 0.006f, 14f, 3, 0.45f, 0.25f, ridgeWeight: 1.4f),               // lava ridges
-                    Layer(PlanetNoiseKind.Ridged, 0.0015f, 30f, 2, ridgeWeight: 1f),                               // lava crust
+                    Layer(PlanetNoiseKind.Simple, 0.04f, 1.1f, 4),                                                 // continents
+                    Layer(PlanetNoiseKind.Ridged, 0.0012f, 30f, 2, ridgeWeight: 1f),                               // lava crust
                 };
+                // Lava plains, black ranges, basalt tablelands, lava-lake basins.
+                Provinces(s, 14,
+                    Prov(PlanetProvinceKind.Plains, 3f, 0f, 0.004f, 5f, erosion: 0.2f),
+                    Prov(PlanetProvinceKind.Mountains, 2f, 0.02f, 0.08f, 3.5f, 0.9f, erosion: 1.2f, region: 0.6f),
+                    Prov(PlanetProvinceKind.Plateau, 1.5f, 0.03f, 0.004f, 4f, 0f, 2, 0.95f, 0.6f, 1f),           // basalt tableland
+                    Prov(PlanetProvinceKind.Basin, 1.5f, -0.02f, 0.003f, 4f, erosion: 0.2f, region: 0.3f),
+                    Prov(PlanetProvinceKind.Hills, 1.5f, 0.008f, 0.02f, 7f, 0.5f, erosion: 0.8f, region: 0.3f));
                 s.Features = new List<PlanetShapeDef.FeatureSet>
                 {
-                    Feature(PlanetFeatureKind.Volcano, 3, 5, 0.12f, 0.22f, 0.45f, 0.75f, 0.6f, 0, 0.6f, 0.18f),
-                    Feature(PlanetFeatureKind.Mesa, 3, 5, 0.04f, 0.08f, 0.2f, 0.35f, 0.95f, 2, 0.3f),       // basalt plateaus
+                    Feature(PlanetFeatureKind.Volcano, 2, 3, 0.2f, 0.3f, 0.5f, 0.7f, 0.6f, 0, 0.6f, 0.18f),  // hero volcanoes
+                    Feature(PlanetFeatureKind.Mesa, 1, 2, 0.06f, 0.1f, 0.2f, 0.35f, 0.95f, 2, 0.3f),         // basalt buttes
                 };
                 Canyons(s, 1.8f, 0.04f, 0.03f, 0.3f, 2.5f, 0.65f, 0.55f, rivers: true);                     // lava channels
                 s.OceanCoverage = new Vector2(0.12f, 0.22f);

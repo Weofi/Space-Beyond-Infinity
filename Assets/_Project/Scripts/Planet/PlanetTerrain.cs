@@ -91,6 +91,19 @@ namespace Voidward.Planet
         readonly Vector2 erosionSlope;
         readonly uint erosionSeed;
         readonly Vector3[] erosionOffsets;
+        // Provinces (#115): warped Voronoi cells, each with one ProvinceDef.
+        struct Province
+        {
+            public Vector3 Center;
+            public int Def;
+            public Vector3 Offset;
+        }
+        Province[] provinces = new Province[0];
+        PlanetShapeDef.ProvinceDef[] provinceDefs = new PlanetShapeDef.ProvinceDef[0];
+        Noise3D provinceNoise, provinceWarpNoise;
+        float provinceBlend, provinceWarp;
+        const int MaxProvinces = 32;
+
         // Slope field on the cube faces (6 x (res+1)^2 tangent gradients), sampled bilinearly by the erosion.
         Vector3[] slopeGrid;
         int slopeRes;
@@ -146,6 +159,8 @@ namespace Voidward.Planet
             for (int i = 0; i < erosionOffsets.Length; i++)
                 erosionOffsets[i] = new Vector3(Range(erng, -500f, 500f), Range(erng, -500f, 500f), Range(erng, -500f, 500f));
 
+            BuildProvinces(shape, seed);
+
             craters = BuildCraters(shape, rng);
             craterGrid = BuildGrid(craters.Length, k => (craters[k].Center, craters[k].MaxChord));
             landforms = BuildLandforms(shape, rng, v);
@@ -183,7 +198,11 @@ namespace Voidward.Planet
         {
             float f = Shape.RegionFrequency;
             float n = regionNoise.Eval(d.x * f + 3.1f, d.y * f, d.z * f) + 0.5f * regionNoise.Eval(d.x * f * 2.7f, d.y * f * 2.7f + 9.4f, d.z * f * 2.7f);
-            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.25f, 0.35f, n));
+            float noiseRegion = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.25f, 0.35f, n));
+            if (provinces.Length == 0) return noiseRegion;
+            // Colour zones follow the provinces (geology), the noise only breaks them up a little.
+            ProvinceField(d, float.MaxValue, false, out _, out float region);
+            return Mathf.Clamp01(Mathf.Lerp(region, noiseRegion, 0.25f));
         }
 
         /// <summary>Surface normal (local space) from finite differences over `step` meters.</summary>
@@ -252,8 +271,8 @@ namespace Voidward.Planet
         /// </summary>
         public float ElevationFrac(Vector3 d, float minWavelength)
         {
-            float e = BaseElevation(d, out float carve, minWavelength, false);
-            if (erosionDepth > 0f) e += Erosion(d, minWavelength);
+            float e = BaseElevation(d, out float carve, out float erosionMul, minWavelength, false);
+            if (erosionDepth > 0f && erosionMul > 0.01f) e += Erosion(d, minWavelength) * erosionMul;
             if (oceanDeepen > 1f && e < seaElevation) e = seaElevation - Deepen(seaElevation - e);
             if (riversActive && carve > 0f)
             {
@@ -269,8 +288,11 @@ namespace Voidward.Planet
         /// Noise layers, canyons, landforms and craters (everything erosion carves into). minWavelength skips noise
         /// octaves finer than that (m); coarse = the cheap proxy erosion steers by (no craters).
         /// </summary>
-        float BaseElevation(Vector3 d, out float carve, float minWavelength, bool coarse)
+        float BaseElevation(Vector3 d, out float carve, float minWavelength, bool coarse) => BaseElevation(d, out carve, out _, minWavelength, coarse);
+
+        float BaseElevation(Vector3 d, out float carve, out float erosionMul, float minWavelength, bool coarse)
         {
+            erosionMul = 1f;
             float maxFreq = minWavelength > 0f ? Radius / minWavelength : float.MaxValue;
             Vector3 p = d;
             if (warp > 0f)
@@ -292,6 +314,8 @@ namespace Voidward.Planet
                 sum += v * layers[i].Strength * mask;
             }
 
+            if (provinces.Length > 0) sum += ProvinceField(d, maxFreq, true, out erosionMul, out _);
+
             carve = 0f;
             if (canyonDepth > 0f)
             {
@@ -300,6 +324,124 @@ namespace Voidward.Planet
             }
 
             return (sum + LandformHeight(d) + (coarse ? 0f : CraterHeight(d))) * heightMul;
+        }
+
+        // ---------------------------------------------------------------- provinces (#115)
+
+        /// <summary>Province cells: jittered Fibonacci points, each assigned a definition by Share (own RNG).</summary>
+        void BuildProvinces(PlanetShapeDef shape, int seed)
+        {
+            var defs = new List<PlanetShapeDef.ProvinceDef>();
+            if (shape.Provinces != null) foreach (var p in shape.Provinces) if (p != null && p.Enabled && p.Share > 0f) defs.Add(p);
+            if (defs.Count == 0) return;
+            provinceDefs = defs.ToArray();
+            var prng = new System.Random(seed * 31337 + 5);
+            provinceNoise = new Noise3D(prng.Next());
+            provinceWarpNoise = new Noise3D(prng.Next());
+            provinceBlend = Mathf.Max(0.005f, shape.ProvinceBlend);
+            provinceWarp = shape.ProvinceWarp;
+            float total = 0f;
+            foreach (var p in provinceDefs) total += p.Share;
+
+            int count = Mathf.Clamp(shape.ProvinceCount, 4, MaxProvinces);
+            provinces = new Province[count];
+            float golden = Mathf.PI * (3f - Mathf.Sqrt(5f));
+            float spin = Range(prng, 0f, Mathf.PI * 2f);
+            for (int i = 0; i < count; i++)
+            {
+                float y = 1f - (i + 0.5f) / count * 2f;
+                float r = Mathf.Sqrt(1f - y * y);
+                float a = golden * i + spin;
+                Vector3 c = new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
+                // Jitter so the cells are not a regular pattern.
+                c = (c + new Vector3(Range(prng, -1f, 1f), Range(prng, -1f, 1f), Range(prng, -1f, 1f)) * (0.9f / Mathf.Sqrt(count))).normalized;
+                float pick = Range(prng, 0f, total);
+                int def = 0;
+                for (; def < provinceDefs.Length - 1; def++) { pick -= provinceDefs[def].Share; if (pick <= 0f) break; }
+                provinces[i] = new Province
+                {
+                    Center = c, Def = def,
+                    Offset = new Vector3(Range(prng, -300f, 300f), Range(prng, -300f, 300f), Range(prng, -300f, 300f)),
+                };
+            }
+        }
+
+        /// <summary>
+        /// Soft Voronoi over the (warped) province cells. withRelief: returns the blended province height; else only the
+        /// weights are needed (region / erosion). Cliff provinces sharpen their own elevation step so plateaus get walls.
+        /// </summary>
+        float ProvinceField(Vector3 d, float maxFreq, bool withRelief, out float erosionMul, out float region)
+        {
+            Vector3 q = d;
+            if (provinceWarp > 0f)
+            {
+                const float wf = 3.3f;
+                q.x += provinceWarpNoise.Eval(d.x * wf + 5.1f, d.y * wf, d.z * wf) * provinceWarp;
+                q.y += provinceWarpNoise.Eval(d.x * wf, d.y * wf + 17.3f, d.z * wf) * provinceWarp;
+                q.z += provinceWarpNoise.Eval(d.x * wf, d.y * wf, d.z * wf + 29.9f) * provinceWarp;
+                q += new Vector3(provinceWarpNoise.Eval(d.x * 9.7f, d.y * 9.7f, d.z * 9.7f + 3f), 0f, provinceWarpNoise.Eval(d.x * 9.7f + 8f, d.y * 9.7f, d.z * 9.7f)) * (provinceWarp * 0.25f);
+                q.Normalize();
+            }
+            int n = provinces.Length;
+            System.Span<float> w = stackalloc float[MaxProvinces];
+            float best = float.MaxValue;
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 c = provinces[i].Center;
+                float dx = q.x - c.x, dy = q.y - c.y, dz = q.z - c.z;
+                float dist = Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
+                w[i] = dist;
+                if (dist < best) best = dist;
+            }
+            float sum = 0f, cut = provinceBlend * 7f;
+            for (int i = 0; i < n; i++)
+            {
+                float x = w[i] - best;
+                w[i] = x > cut ? 0f : System.MathF.Exp(-x / provinceBlend);
+                sum += w[i];
+            }
+            float h = 0f, ero = 0f, reg = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                if (w[i] <= 0f) continue;
+                float wi = w[i] / sum;
+                var def = provinceDefs[provinces[i].Def];
+                ero += def.Erosion * wi;
+                reg += def.Region * wi;
+                if (!withRelief || wi < 0.002f) continue;
+                // Elevation step: cliffs sharpen the weight around its midpoint (and may terrace it).
+                float we = wi;
+                if (def.EdgeCliff > 0f)
+                {
+                    float half = 0.5f * (1f - def.EdgeCliff * 0.95f);
+                    we = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.5f - half, 0.5f + half, wi));
+                    if (def.Terraces > 0) we = Mathf.Clamp01(Terrace(we * def.Terraces) / def.Terraces);
+                }
+                h += def.Elevation * we + def.Relief * ProvinceRelief(def, q, provinces[i].Offset, maxFreq) * wi;
+            }
+            erosionMul = ero;
+            region = reg;
+            return h;
+        }
+
+        float ProvinceRelief(PlanetShapeDef.ProvinceDef def, Vector3 q, Vector3 off, float maxFreq)
+        {
+            float freq = def.Frequency, amp = 1f, sum = 0f, norm = 0f, weight = 1f;
+            for (int o = 0; o < 4; o++)
+            {
+                if (freq > maxFreq) { for (; o < 4; o++) { sum += 0.45f * amp; norm += amp; amp *= 0.5f; } break; }
+                float nv = provinceNoise.Eval(q.x * freq + off.x, q.y * freq + off.y, q.z * freq + off.z);
+                float smooth = (nv + 1f) * 0.5f;
+                float ridge = 1f - Mathf.Abs(nv);
+                ridge *= ridge * weight;
+                weight = Mathf.Clamp01(ridge * 1.6f);
+                sum += Mathf.Lerp(smooth, ridge, def.Sharpness) * amp;
+                norm += amp;
+                amp *= 0.5f; freq *= 2.1f;
+            }
+            float r = sum / norm;
+            if (def.Terraces > 0 && def.EdgeCliff <= 0f) r = Terrace(r * def.Terraces) / def.Terraces;
+            return r;
         }
 
         // ---------------------------------------------------------------- erosion (#115)
