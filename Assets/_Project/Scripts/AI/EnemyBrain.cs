@@ -21,13 +21,14 @@ namespace Voidward.AI
         public Transform Muzzle;
         [Tooltip("Hover height above the surface (flying critters) or 0 for walkers.")]
         public float HoverHeight;
-        [Tooltip("Visual root that gets a little bob / lean.")]
+        [Tooltip("Visual root (the model; EnemyAnimator moves it).")]
         public Transform Visual;
 
         public NetworkVariable<State> CurrentState = new NetworkVariable<State>(State.Patrol);
 
         EnemyDef def;
         HealthComponent health;
+        EnemyAnimator anim;
         float tier = 1f;
         Vector3 home;
         Vector3 patrolTarget;
@@ -58,6 +59,7 @@ namespace Voidward.AI
         void Awake()
         {
             health = GetComponent<HealthComponent>();
+            anim = GetComponent<EnemyAnimator>();
         }
 
         /// <summary>Server: configure stats before Spawn().</summary>
@@ -214,6 +216,7 @@ namespace Voidward.AI
 
         void DoAttack(Vector3 tp, float dist)
         {
+            AttackAnimClientRpc();
             float dmg = def.Damage * tier;
             Vector3 from = Muzzle != null ? Muzzle.position : transform.position + transform.up;
             Vector3 lead = tp + Random.insideUnitSphere * Mathf.Clamp(dist * 0.03f, 0.5f, 8f); // imperfect aim
@@ -249,6 +252,13 @@ namespace Voidward.AI
                         CombatNet.ServerFire(ProjectileKind.Missile, from + transform.up * 2f, transform.forward, dmg * 2.2f, Team.Pirates, 0, false, target.NetworkObject);
                     break;
             }
+        }
+
+        /// <summary>Attack animation (or the procedural lunge) on every peer (#98).</summary>
+        [ClientRpc]
+        void AttackAnimClientRpc()
+        {
+            if (anim != null) anim.PlayAttack();
         }
 
         [ClientRpc]

@@ -2787,23 +2787,31 @@ namespace Voidward.EditorTools
             return SaveMesh(mb, "Enemy_NestGuardian");
         }
 
+        /// <summary>
+        /// Enemy prefabs (#98): the asset model ("Model", Enemies/*.fbx via EnemyModelBuilder) when it exists, else the
+        /// legacy mesh ("Visual"). Colliders and muzzles fit the asset models; EnemyAnimator drives clips / procedural motion.
+        /// </summary>
         static GameObject BuildEnemy(EnemyKind k)
         {
             GameObject go;
-            Mesh mesh;
+            System.Func<Mesh> legacy;
+            string asset = null;
+            var style = EnemyAnimator.Style.Walker;
             Vector3 muzzle = new Vector3(0, 0, 2f);
             switch (k)
             {
-                case EnemyKind.PirateFighter:
+                case EnemyKind.PirateFighter:   // Schwarm-Jaeger (#51): I_Ship, 7.5 m, 11.6 m span
                     go = EnemyRoot(k, Team.Pirates, 45);
-                    mesh = PirateFighterMesh();
-                    Box(go, Vector3.zero, new Vector3(5f, 1.6f, 4.6f));
-                    muzzle = new Vector3(0, 0, 3f);
+                    legacy = PirateFighterMesh;
+                    asset = "Enemy_SwarmHunter";
+                    style = EnemyAnimator.Style.Ship;
+                    if (HasEnemyModel(asset)) { Box(go, Vector3.zero, new Vector3(9f, 2.4f, 7f)); muzzle = new Vector3(-0.75f, -0.2f, 3.8f); }
+                    else { Box(go, Vector3.zero, new Vector3(5f, 1.6f, 4.6f)); muzzle = new Vector3(0, 0, 3f); }
                     break;
-                case EnemyKind.DroneSwarm:
+                case EnemyKind.DroneSwarm:      // Waechter-Sentinel (#51), Tools/Blender/warden_sentinel.py: ceramic pod + spinning halo ring
                     go = EnemyRoot(k, Team.Pirates, 18);
-                    // Warden sentinel (#98, Tools/Blender/warden_sentinel.py): ceramic pod + spinning halo ring
-                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Sentinel.fbx", "Enemy_Sentinel"), DroneMesh);
+                    legacy = () => Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Sentinel.fbx", "Enemy_Sentinel"), DroneMesh);
+                    style = EnemyAnimator.Style.Ship;
                     go.AddComponent<SphereCollider>().radius = 1.3f;
                     muzzle = new Vector3(0, 0, 1.0f);
                     var halo = ImportedMesh(ModelDir + "/Aliens/Enemy_Sentinel_Ring.fbx", "Enemy_Sentinel_Ring");
@@ -2815,42 +2823,57 @@ namespace Voidward.EditorTools
                         spin.Axis = Vector3.forward; spin.Speed = 70f; spin.Wobble = 6f;
                     }
                     break;
-                case EnemyKind.PirateGunship:
+                case EnemyKind.PirateGunship:   // Schwarm-Brutschiff (#51): E_Ship_A, 18 m
                     go = EnemyRoot(k, Team.Pirates, 260);
-                    mesh = GunshipMesh();
-                    Box(go, new Vector3(0, 0, 0.5f), new Vector3(9.5f, 3.4f, 17f));
-                    muzzle = new Vector3(0, 2.5f, 4.6f);
+                    legacy = GunshipMesh;
+                    asset = "Enemy_SwarmBroodship";
+                    style = EnemyAnimator.Style.Ship;
+                    if (HasEnemyModel(asset)) { Box(go, Vector3.zero, new Vector3(11f, 4f, 17f)); muzzle = new Vector3(0, 0.6f, 9.2f); }
+                    else { Box(go, new Vector3(0, 0, 0.5f), new Vector3(9.5f, 3.4f, 17f)); muzzle = new Vector3(0, 2.5f, 4.6f); }
                     break;
-                case EnemyKind.Crawler:
+                case EnemyKind.Crawler:         // Insectoid Monster Rig, 2.2 m long
                     go = EnemyRoot(k, Team.Aliens, 35);
-                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Crawler.fbx", "Enemy_Crawler"), CrawlerMesh);
-                    Box(go, new Vector3(0, 0.6f, 0), new Vector3(1.4f, 1f, 1.8f));
-                    muzzle = new Vector3(0, 0.7f, 0.9f);
+                    legacy = () => Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Crawler.fbx", "Enemy_Crawler"), CrawlerMesh);
+                    asset = "Enemy_Crawler_Insect";
+                    Box(go, new Vector3(0, 0.7f, 0), new Vector3(1.3f, 1.4f, 2f));
+                    muzzle = new Vector3(0, 0.8f, 1f);
                     break;
-                case EnemyKind.Spitter:
+                case EnemyKind.Spitter:         // Alien Ninja Creature, 2.4 m tall, throws from the right hand
                     go = EnemyRoot(k, Team.Aliens, 30);
-                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Spitter.fbx", "Enemy_Spitter"), SpitterMesh);
-                    Box(go, new Vector3(0, 1.1f, 0), new Vector3(1.4f, 2.2f, 1.4f));
-                    muzzle = new Vector3(0, 1.6f, 0.9f);
+                    legacy = () => Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_Spitter.fbx", "Enemy_Spitter"), SpitterMesh);
+                    asset = "Enemy_Spitter_Stalker";
+                    Box(go, new Vector3(0, 1.2f, 0), new Vector3(1.2f, 2.4f, 1.2f));
+                    muzzle = new Vector3(0.3f, 1.7f, 0.7f);
                     break;
-                case EnemyKind.FlyingCritter:
+                case EnemyKind.FlyingCritter:   // Space cephalopod, 2.6 m, swims (procedural)
                     go = EnemyRoot(k, Team.Aliens, 22);
-                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_FlyingCritter.fbx", "Enemy_FlyingCritter"), CritterMesh);
-                    go.AddComponent<SphereCollider>().radius = 0.9f;
+                    legacy = () => Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_FlyingCritter.fbx", "Enemy_FlyingCritter"), CritterMesh);
+                    asset = "Enemy_Critter_Squid";
+                    style = EnemyAnimator.Style.Floater;
+                    go.AddComponent<SphereCollider>().radius = HasEnemyModel(asset) ? 1.2f : 0.9f;
                     go.GetComponent<EnemyBrain>().HoverHeight = 5f;
-                    muzzle = new Vector3(0, 0, 0.8f);
+                    muzzle = new Vector3(0, -0.2f, 1.1f);
                     break;
-                default: // NestGuardian
+                default: // NestGuardian: Four-Legged Frost Predator, 6 m with the tail
                     go = EnemyRoot(k, Team.Aliens, 220);
-                    mesh = Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_NestGuardian.fbx", "Enemy_NestGuardian"), GuardianMesh);
-                    Box(go, new Vector3(0, 2f, 0), new Vector3(3.4f, 4f, 2.6f));
-                    muzzle = new Vector3(0, 2f, 1.6f);
+                    legacy = () => Prefer(ImportedMesh(ModelDir + "/Aliens/Enemy_NestGuardian.fbx", "Enemy_NestGuardian"), GuardianMesh);
+                    asset = "Enemy_Guardian_Beast";
+                    if (HasEnemyModel(asset)) { Box(go, new Vector3(0, 1.1f, 0.6f), new Vector3(2.2f, 2.2f, 4.6f)); muzzle = new Vector3(0, 1.2f, 2.8f); }
+                    else { Box(go, new Vector3(0, 2f, 0), new Vector3(3.4f, 4f, 2.6f)); muzzle = new Vector3(0, 2f, 1.6f); }
                     break;
             }
             var brain = go.GetComponent<EnemyBrain>();
-            var vis = Visual(go.transform, "Visual", mesh, MatHull);
+            Animator anim = null;
+            var vis = asset != null ? EnemyModel(go.transform, asset, out anim) : null;
+            if (vis == null) vis = Visual(go.transform, "Visual", legacy(), MatHull);
             brain.Visual = vis.transform;
             brain.Muzzle = Child(go.transform, "Muzzle", muzzle).transform;
+            var ea = go.AddComponent<EnemyAnimator>();
+            ea.Kind = style;
+            ea.Anim = anim;
+            ea.Body = vis.transform;
+            ea.Lunge = k == EnemyKind.Crawler ? 0.6f : style == EnemyAnimator.Style.Ship ? 0.4f : 0.3f;
+            ea.Lean = style == EnemyAnimator.Style.Floater ? 18f : k == EnemyKind.PirateGunship ? 10f : 28f;
             return SavePrefab(go);
         }
 
@@ -2940,22 +2963,51 @@ namespace Voidward.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
             var boss = go.AddComponent<BossBrain>();
 
-            Visual(go.transform, "Hull", BossMesh(), MatHull);
-            Box(go, new Vector3(0, 0, 5f), new Vector3(26f, 14f, 90f));
-            Box(go, new Vector3(0, -2f, -10f), new Vector3(54f, 4f, 30f));
-            Box(go, new Vector3(0, 10f, -5f), new Vector3(8f, 6f, 50f));
+            // Warden (#98): the "alien droneship" asset (Tools/Blender/enemy_assets.py, 95 m, vw vertex contract: ivory
+            // ceramic, cyan light in the crevices), else the legacy shard monolith; colliders, pods and muzzles fit the hull in use.
+            var hullMesh = ImportedMesh(ModelDir + "/Enemies/Boss_Warden.fbx", "Boss_Warden_Droneship");
+            bool asset = hullMesh != null;
+            Visual(go.transform, "Hull", asset ? hullMesh : BossMesh(), MatHull);
+            if (asset)
+            {
+                Box(go, new Vector3(0, -1f, 0f), new Vector3(20f, 18f, 94f));
+                Box(go, new Vector3(0, -1f, 3f), new Vector3(44f, 6f, 24f));
+            }
+            else
+            {
+                Box(go, new Vector3(0, 0, 5f), new Vector3(26f, 14f, 90f));
+                Box(go, new Vector3(0, -2f, -10f), new Vector3(54f, 4f, 30f));
+                Box(go, new Vector3(0, 10f, -5f), new Vector3(8f, 6f, 50f));
+            }
+            // moving parts: a slow halo ring around the waist and one around each core pod (the sentinel's ring, scaled)
+            var haloMesh = ImportedMesh(ModelDir + "/Aliens/Enemy_Sentinel_Ring.fbx", "Enemy_Sentinel_Ring");
+            void Halo(Transform parent, string name, Vector3 pos, float scale, float speed, float wobble)
+            {
+                if (haloMesh == null) return;
+                var h = Visual(parent, name, haloMesh, MatHull);
+                h.transform.localPosition = pos;
+                h.transform.localScale = Vector3.one * scale;
+                var spin = h.AddComponent<SpinPart>();
+                spin.Axis = Vector3.forward; spin.Speed = speed; spin.Wobble = wobble;
+            }
+            if (asset) Halo(go.transform, "WaistHalo", new Vector3(0f, -1f, -14f), 19f, 9f, 4f);
 
             var podMesh = new MeshBuilder();
-            podMesh.AddRock(Matrix4x4.identity, 4.4f, 33, Color.white); // big enough to read (and hit) from the stand-off range
+            // big enough to read (and hit) from the stand-off range; the Warden's are smooth light cores, the legacy ones rocks
+            if (asset) podMesh.AddSphere(Matrix4x4.identity, 4.4f, 3, Color.white);
+            else podMesh.AddRock(Matrix4x4.identity, 4.4f, 33, Color.white);
             var podM = SaveMesh(podMesh, "Boss_Pod");
             var podMat = Mat("VW_BossPod", "VOIDWARD/Unlit");
-            podMat.SetColor("_BaseColor", new Color(2.6f, 2.2f, 3.8f)); // violet-white weak points (DESIGN.md)
-            Vector3[] podPos = { new Vector3(-21f, 2f, 0f), new Vector3(21f, 2f, 0f), new Vector3(0f, 14f, 18f) };
+            podMat.SetColor("_BaseColor", asset ? new Color(0.25f, 1.5f, 2.2f) : new Color(2.6f, 2.2f, 3.8f)); // weak points: Warden cyan-white
+            Vector3[] podPos = asset
+                ? new[] { new Vector3(-24f, 0f, 4f), new Vector3(24f, 0f, 4f), new Vector3(0f, 13f, 26f) }
+                : new[] { new Vector3(-21f, 2f, 0f), new Vector3(21f, 2f, 0f), new Vector3(0f, 14f, 18f) };
             var pods = new HealthComponent[3];
             for (int i = 0; i < 3; i++)
             {
                 var p = Child(go.transform, "CorePod" + i, podPos[i]);
                 Visual(p.transform, "Glow", podM, podMat);
+                if (asset) Halo(p.transform, "Halo", Vector3.zero, 5.2f, 40f + i * 15f, 12f);
                 p.AddComponent<SphereCollider>().radius = 5.2f;
                 var ph = p.AddComponent<HealthComponent>();
                 ph.MaxHealth = 380f; ph.IsWeakPointPart = true; ph.WeakPointMultiplier = 1.5f;
@@ -2966,11 +3018,14 @@ namespace Voidward.EditorTools
             }
             boss.Pods = pods;
             var muzzles = new List<Transform>();
-            Vector3[] mp = { new Vector3(-10f, 0, 50f), new Vector3(10f, 0, 50f), new Vector3(0, 12f, 20f), new Vector3(-24f, -2f, 6f), new Vector3(24f, -2f, 6f), new Vector3(0, -8f, 30f) };
+            Vector3[] mp = asset
+                ? new[] { new Vector3(-5f, 0, 47f), new Vector3(5f, 0, 47f), new Vector3(0, 13f, 31f), new Vector3(-25f, -2f, 8f), new Vector3(25f, -2f, 8f), new Vector3(0, -12f, 20f) }
+                : new[] { new Vector3(-10f, 0, 50f), new Vector3(10f, 0, 50f), new Vector3(0, 12f, 20f), new Vector3(-24f, -2f, 6f), new Vector3(24f, -2f, 6f), new Vector3(0, -8f, 30f) };
             for (int i = 0; i < mp.Length; i++) muzzles.Add(Child(go.transform, "Muzzle" + i, mp[i]).transform);
             boss.Muzzles = muzzles.ToArray();
             var shield = new MeshBuilder();
-            shield.AddRock(Matrix4x4.TRS(new Vector3(0, 2f, 5f), Quaternion.identity, new Vector3(1.1f, 0.6f, 1.6f)), 40f, 5, Color.white);
+            if (asset) shield.AddSphere(Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1.15f, 0.65f, 1.28f)), 40f, 4, Color.white);
+            else shield.AddRock(Matrix4x4.TRS(new Vector3(0, 2f, 5f), Quaternion.identity, new Vector3(1.1f, 0.6f, 1.6f)), 40f, 5, Color.white);
             var sh = Visual(go.transform, "Shield", SaveMesh(shield, "Boss_Shield"), MatGlass);
             sh.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             boss.ShieldVisual = sh.transform;

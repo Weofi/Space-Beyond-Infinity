@@ -180,6 +180,44 @@ namespace Voidward.EditorTools
             Debug.Log("[Voidward] Prefab preview shots written to " + Path.GetFullPath(HeroShotDir));
         }
 
+        /// <summary>
+        /// Rigged prefabs (#98): one shot per clip and normalized time (clip sampled on the prefab's Animator), camera in the
+        /// prefab's local space. Files: `prefab_clip_i.png` in Temp/HeroShots. Edit Mode only.
+        /// </summary>
+        public static void PreviewClips(string prefabName, string[] clips, float[] times, Vector3 camLocal, Vector3 targetLocal, float fov = 35f)
+        {
+            if (!OpenStudio()) return;
+            var go = StagePrefab(prefabName);
+            if (go == null) return;
+            studioSun.transform.rotation = Quaternion.Euler(35f, -40f, 0f);
+            var anim = go.GetComponentInChildren<Animator>();
+            var all = anim != null && anim.runtimeAnimatorController != null ? anim.runtimeAnimatorController.animationClips : new AnimationClip[0];
+            var skins = go.GetComponentsInChildren<SkinnedMeshRenderer>();
+            foreach (var s in skins) { s.forceMatrixRecalculationPerRender = true; s.updateWhenOffscreen = true; }
+            foreach (var name in clips)
+            {
+                var clip = System.Array.Find(all, c => c.name == name);
+                if (clip == null) { Debug.LogWarning("[Voidward] Preview: no clip " + name + " on " + prefabName); continue; }
+                for (int i = 0; i < times.Length; i++)
+                {
+                    clip.SampleAnimation(anim.gameObject, times[i] * clip.length);
+                    // the posed skeleton's extent in prefab space (feet bones should sit near y 0)
+                    var b = new Bounds();
+                    bool any = false;
+                    foreach (var s in skins)
+                        foreach (var bone in s.bones)
+                        {
+                            if (bone == null) continue;
+                            var p = go.transform.InverseTransformPoint(bone.position);
+                            if (!any) { b = new Bounds(p, Vector3.zero); any = true; } else b.Encapsulate(p);
+                        }
+                    Debug.Log($"[Voidward] Preview {prefabName} {name} t{times[i]:F2}: posed bones min {b.min:F2} max {b.max:F2}");
+                    StudioShot(prefabName + "_" + name + "_" + i, go.transform.TransformPoint(camLocal), go.transform.TransformPoint(targetLocal), fov);
+                }
+            }
+            Object.DestroyImmediate(go);
+        }
+
         /// <summary>One custom shot of a prefab; camera position and target are in the prefab's local space.</summary>
         public static void PreviewShot(string prefabName, Vector3 camLocal, Vector3 targetLocal, float fov, string outName, bool keepSun = false)
         {
