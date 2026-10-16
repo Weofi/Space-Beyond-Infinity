@@ -131,7 +131,7 @@ namespace Voidward.Data
         [Tooltip("Border blend width (chord on the unit sphere, 0.05 ~ 75 m at R 1500).")]
         public float ProvinceBlend = 0.05f;
         [Tooltip("Warp of the province borders (organic outlines).")]
-        [Range(0f, 0.4f)] public float ProvinceWarp = 0.14f;
+        [Range(0f, 0.5f)] public float ProvinceWarp = 0.24f;
 
         [Header("Landforms")]
         public List<FeatureSet> Features = new List<FeatureSet>();

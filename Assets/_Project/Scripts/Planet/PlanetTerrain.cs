@@ -375,11 +375,15 @@ namespace Voidward.Planet
             Vector3 q = d;
             if (provinceWarp > 0f)
             {
-                const float wf = 3.3f;
-                q.x += provinceWarpNoise.Eval(d.x * wf + 5.1f, d.y * wf, d.z * wf) * provinceWarp;
-                q.y += provinceWarpNoise.Eval(d.x * wf, d.y * wf + 17.3f, d.z * wf) * provinceWarp;
-                q.z += provinceWarpNoise.Eval(d.x * wf, d.y * wf, d.z * wf + 29.9f) * provinceWarp;
-                q += new Vector3(provinceWarpNoise.Eval(d.x * 9.7f, d.y * 9.7f, d.z * 9.7f + 3f), 0f, provinceWarpNoise.Eval(d.x * 9.7f + 8f, d.y * 9.7f, d.z * 9.7f)) * (provinceWarp * 0.25f);
+                // Two octaves of domain warp: Voronoi borders would otherwise run as straight great-circle walls.
+                for (int o = 0; o < 2; o++)
+                {
+                    float wf = o == 0 ? 2.6f : 7.3f, wa = o == 0 ? provinceWarp : provinceWarp * 0.4f;
+                    float ox = o * 41.7f;
+                    q.x += provinceWarpNoise.Eval(d.x * wf + 5.1f + ox, d.y * wf, d.z * wf) * wa;
+                    q.y += provinceWarpNoise.Eval(d.x * wf, d.y * wf + 17.3f + ox, d.z * wf) * wa;
+                    q.z += provinceWarpNoise.Eval(d.x * wf, d.y * wf, d.z * wf + 29.9f + ox) * wa;
+                }
                 q.Normalize();
             }
             int n = provinces.Length;
