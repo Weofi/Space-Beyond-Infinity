@@ -53,9 +53,11 @@ namespace Voidward.EditorTools
             foreach (var it in catalog.Items)
             {
                 if (it == null) continue;
-                var mb = ItemModel(it);
-                var mesh = SaveMeshAsset(mb.Build("Item_" + it.Id), "Items/Item_" + it.Id);
+                // asset items (#99) use the world model with its own materials, the rest the procedural hero model
+                var mesh = AssetItemMesh(it.Id, out var mats);
+                if (mesh == null) mesh = SaveMeshAsset(ItemModel(it).Build("Item_" + it.Id), "Items/Item_" + it.Id);
                 it.Model = mesh;
+                it.ModelMaterials = mats;
                 EditorUtility.SetDirty(it);
                 models.Add((it, mesh));
             }
@@ -97,7 +99,7 @@ namespace Voidward.EditorTools
             {
                 // drills and the rifle as gear items show the asset tools (#95)
                 int tool = item.Kind == ItemKind.Gear ? (item.Gear == GearKind.MiningTool ? 0 : item.Gear == GearKind.Rifle ? 2 : -1) : -1;
-                item.Icon = tool >= 0 ? RenderToolIcon(cam, stage, tool, mesh, item.Id) : RenderIcon(cam, stage, mesh, item.Id);
+                item.Icon = tool >= 0 ? RenderToolIcon(cam, stage, tool, mesh, item.Id) : RenderIcon(cam, stage, mesh, item.Id, item.ModelMaterials);
             }
             catalog.IconDrill = RenderToolIcon(cam, stage, 0, toolMeshes[0].mesh, toolMeshes[0].id);
             catalog.IconBlaster = RenderToolIcon(cam, stage, 1, toolMeshes[1].mesh, toolMeshes[1].id);
@@ -109,11 +111,24 @@ namespace Voidward.EditorTools
         }
 
         /// <summary>Three-quarter hero angle, auto-framed on the mesh bounds; 2x supersampled then box-filtered.</summary>
-        static Sprite RenderIcon(Camera cam, GameObject stage, Mesh mesh, string id)
+        static Sprite RenderIcon(Camera cam, GameObject stage, Mesh mesh, string id, Material[] materials = null)
         {
             stage.GetComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = stage.GetComponent<MeshRenderer>();
+            mr.sharedMaterials = materials != null && materials.Length > 0 ? materials : new[] { MatHull };
             stage.transform.rotation = Quaternion.Euler(0f, 215f, 0f);
-            return CaptureIcon(cam, stage.GetComponent<MeshRenderer>().bounds, id);
+            var icon = CaptureIcon(cam, mr.bounds, id);
+            mr.sharedMaterials = new[] { MatHull };
+            return icon;
+        }
+
+        /// <summary>World asset (#99) standing in for an item model: medkit, fuel (the energy cell). Null = procedural.</summary>
+        static Mesh AssetItemMesh(string id, out Material[] materials)
+        {
+            materials = null;
+            string asset = id == "medkit" ? "World_Medkit" : id == "fuel" ? "World_Battery" : null;
+            if (asset == null || !HasWorldModel(asset)) return null;
+            return WorldMesh(asset, out materials);
         }
 
         /// <summary>A tool icon from its asset model (#95), else from the procedural mesh on the stage.</summary>

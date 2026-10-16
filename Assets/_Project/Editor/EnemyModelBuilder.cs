@@ -37,9 +37,15 @@ namespace Voidward.EditorTools
         static bool HasEnemyModel(string asset) => AssetImporter.GetAtPath(EnemyModelDir + "/" + asset + ".fbx") is ModelImporter;
 
         /// <summary>URP Lit materials of an asset by its glTF material name (texture folder `Enemies/asset`).</summary>
-        static Dictionary<string, Material> EnemyMaterials(string asset)
+        static Dictionary<string, Material> EnemyMaterials(string asset) => GltfMaterials(EnemyModelDir + "/" + asset, asset);
+
+        /// <summary>
+        /// URP Lit materials from a texture folder holding one glTF-style set per material (`mat_baseColor`, `mat_normal`
+        /// (OpenGL), `mat_metallicRoughness`, `mat_emissive`, `mat_ao`), keyed by the material name; material assets are
+        /// named `prefix_mat`. Two-sided (the Sketchfab sources are full of single sheets).
+        /// </summary>
+        static Dictionary<string, Material> GltfMaterials(string dir, string asset)
         {
-            string dir = EnemyModelDir + "/" + asset;
             var mats = new Dictionary<string, Material>();
             if (!Directory.Exists(dir)) return mats;
             foreach (var file in Directory.GetFiles(dir, "*_baseColor.*").Where(f => !f.EndsWith(".meta")).OrderBy(f => f))
@@ -78,6 +84,9 @@ namespace Voidward.EditorTools
                     m.EnableKeyword("_EMISSION");
                     m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
                 }
+                string ao = t("_ao.jpg");
+                m.SetTexture("_OcclusionMap", ao != null ? ImportTexture(ao, false, maxSize: 2048) : null);
+                if (ao != null) m.EnableKeyword("_OCCLUSIONMAP"); else m.DisableKeyword("_OCCLUSIONMAP");
                 // the Sketchfab sources are double-sided (insect wings, tentacle tips and fins are single sheets)
                 m.SetFloat("_Cull", 0f);
                 m.enableInstancing = true;

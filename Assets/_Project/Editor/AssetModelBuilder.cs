@@ -173,6 +173,49 @@ namespace Voidward.EditorTools
             return m;
         }
 
+        // ---------------------------------------------------------------- crashed Dart (#99)
+
+        /// <summary>
+        /// Crashed Dart POI from Tools/Blender/crashed_dart.py: "" (hull), "_Canopy", "_Wing", "_Debris", posed on the ground
+        /// (origin = crash site, ground = y 0). Null if missing.
+        /// </summary>
+        static Mesh CrashedDartMesh(string part) => ModelMesh(ShipModelDir + "/Ship_Dart_Crashed" + part + ".fbx");
+
+        /// <summary>The Dart's PBR set burnt out: large soot patches, scorched everywhere a little, rougher, no engine glow.</summary>
+        static Material CrashedDartMaterial()
+        {
+            var m = PbrMaterial("Ship_Dart_Crashed", FabShipDir, "FabShip", 0f);
+            m.SetTexture("_BaseMap", Generated(FabShipDir + "/FabShip_Base_color_crashed.png", true, new[] { FabShipDir + "/FabShip_Base_color.jpg" }, (px, i) =>
+            {
+                int w = Mathf.RoundToInt(Mathf.Sqrt(px[0].Length));
+                float u = (i % w) / (float)w, v = (i / w) / (float)w;
+                float n = Mathf.PerlinNoise(u * 6f + 7.3f, v * 6f + 2.9f) * 0.65f + Mathf.PerlinNoise(u * 27f + 1.1f, v * 27f) * 0.35f;
+                float burn = Mathf.SmoothStep(0f, 1f, (n - 0.45f) * 4.5f);
+                Color c = px[0][i];
+                c *= Mathf.Lerp(0.7f, 0.1f, burn);
+                c = Color.Lerp(c, new Color(0.04f, 0.03f, 0.025f), burn * 0.7f);
+                c.a = 1f;
+                return (Color32)c;
+            }, 2048));
+            m.SetColor("_BaseColor", new Color(0.9f, 0.88f, 0.86f));
+            m.SetFloat("_Smoothness", 0.5f);
+            m.SetColor("_EmissionColor", Color.black);
+            m.DisableKeyword("_EMISSION");
+            m.SetFloat("_Cull", 0f);       // the torn wing root and the crumpled nose show the hull's inside
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>Cracked, sooted canopy glass of the crashed Dart: nearly opaque grey-black.</summary>
+        static Material CrashedDartGlassMaterial()
+        {
+            var m = Mat("Ship_Dart_Crashed_Glass", "VOIDWARD/Glass");
+            m.SetColor("_BaseColor", new Color(0.06f, 0.07f, 0.08f, 0.8f));
+            m.SetColor("_RimColor", new Color(0.35f, 0.38f, 0.4f, 1f));
+            m.SetFloat("_RimPower", 4f);
+            return m;
+        }
+
         // ---------------------------------------------------------------- Mule (#97)
 
         const string MuleDir = ShipModelDir + "/DropshipR35";
