@@ -87,8 +87,8 @@ namespace Voidward.Planet
             },
         };
 
-        /// <summary>Fills data.Decor / data.DecorColliders. Thread-safe.</summary>
-        public static void Generate(PlanetTerrain terrain, ChunkData data, bool small, bool large)
+        /// <summary>Fills data.Decor / data.DecorProps / data.DecorColliders. Thread-safe (`props` is read only).</summary>
+        public static void Generate(PlanetTerrain terrain, ChunkData data, bool small, bool large, PlanetPropLibrary props = null)
         {
             var shape = terrain.Shape;
             if (!Styles.TryGetValue(shape.Decor, out var rules) || shape.DecorDensity <= 0f) return;
@@ -148,10 +148,20 @@ namespace Voidward.Planet
                     Vector3 up = Vector3.Slerp(dir, normal, rule.Large ? 0.25f : 0.6f);
                     Quaternion rot = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, yaw, 0f);
                     float shade = 0.88f + (propSeed & 255) / 255f * 0.24f;
-                    int first = mb.VertexCount;
-                    float col = Emit(mb, rule.P, pos, rot, up, sz, propSeed, shade, C(0), C(1), C(2), C(3));
-                    // Contact shading: darker where the prop meets the ground, slightly sun-bleached at the top.
-                    mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
+                    float col;
+                    string family = props != null ? AssetFamily(rule.P, shape.Decor) : null;
+                    if (family != null && props.Has(family))
+                    {
+                        data.DecorProps ??= new PropBatch(props);
+                        col = EmitAsset(data.DecorProps, props, family, rule.P, pos, rot, up, sz, propSeed);
+                    }
+                    else
+                    {
+                        int first = mb.VertexCount;
+                        col = Emit(mb, rule.P, pos, rot, up, sz, propSeed, shade, C(0), C(1), C(2), C(3));
+                        // Contact shading: darker where the prop meets the ground, slightly sun-bleached at the top.
+                        mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
+                    }
                     if (rule.Collider > 0f && col > 0f)
                     {
                         colliders ??= new List<Vector4>();
@@ -165,6 +175,71 @@ namespace Voidward.Planet
         }
 
         static Matrix4x4 M(Vector3 pos, Quaternion rot, Vector3 scale) => Matrix4x4.TRS(pos, rot, scale);
+
+        /// <summary>The asset family that replaces a procedural prop (#100); null = the prop stays procedural.</summary>
+        static string AssetFamily(Prop prop, PlanetDecorStyle style) => prop switch
+        {
+            Prop.Rock or Prop.Pebbles or Prop.Boulder => style == PlanetDecorStyle.Jungle ? "MossRock" : "Rock",
+            Prop.IceShard or Prop.IceSpike => "Ice",
+            Prop.Crystal or Prop.CrystalSpire => "Crystal",
+            Prop.Pod => "Pod",
+            Prop.Tree => "AlienTree",
+            Prop.Mushroom => "Mushroom",
+            _ => null,
+        };
+
+        /// <summary>
+        /// Adds an asset prop (variant from the prop seed, so placement stays as before); returns its collider radius.
+        /// Rocks are radius-1 models around their centre (sunk a little into the ground), everything else stands on
+        /// its origin with height 1.
+        /// </summary>
+        static float EmitAsset(PropBatch batch, PlanetPropLibrary lib, string family, Prop prop, Vector3 pos, Quaternion rot, Vector3 up,
+            float s, int seed)
+        {
+            var r = new System.Random(seed);
+            float Rn(float a, float b) => a + (float)r.NextDouble() * (b - a);
+            Quaternion Tilt(float deg) => rot * Quaternion.Euler(Rn(-deg, deg), Rn(0f, 360f), Rn(-deg, deg));
+            Quaternion Any() => Quaternion.Euler(Rn(0f, 360f), Rn(0f, 360f), Rn(0f, 360f));
+            switch (prop)
+            {
+                case Prop.Rock:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.2f, rot * Any(), s);
+                    return 0f;
+                case Prop.Pebbles:
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float ps = s * Rn(0.5f, 1f);
+                        batch.Add(lib.Pick(family, r.Next()), pos + rot * new Vector3(Rn(-1f, 1f), 0f, Rn(-1f, 1f)) * s * 2f - up * ps * 0.2f, rot * Any(), ps);
+                    }
+                    return 0f;
+                case Prop.Boulder:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.15f, Tilt(20f), s);
+                    return s * 0.75f;
+                case Prop.IceShard:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.1f, Tilt(15f), s * 1.4f);
+                    return 0f;
+                case Prop.IceSpike:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.08f, Tilt(8f), s);
+                    return s * 0.3f;
+                case Prop.Crystal:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.1f, Tilt(18f), s * 1.2f);
+                    return 0f;
+                case Prop.CrystalSpire:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.08f, Tilt(8f), s);
+                    return s * 0.35f;
+                case Prop.Pod:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * 0.05f, Tilt(6f), s * 2f);
+                    return 0f;
+                case Prop.Tree:
+                    // the kit's tree is as wide as it is tall: a little smaller than the procedural one
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.03f, Tilt(4f), s * 0.8f);
+                    return s * 0.1f + 0.3f;
+                case Prop.Mushroom:
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.03f, Tilt(5f), s);
+                    return s * 0.08f + 0.3f;
+            }
+            return 0f;
+        }
 
         /// <summary>Adds one prop; returns its collider radius (0 = none).</summary>
         static float Emit(MeshBuilder mb, Prop prop, Vector3 pos, Quaternion rot, Vector3 up, float s, int seed, float shade,

@@ -57,6 +57,12 @@ namespace Voidward.EditorTools
                 var m = Mat(asset + "_" + name, "Universal Render Pipeline/Lit");
                 m.SetColor("_BaseColor", Color.white);
                 m.SetTexture("_BaseMap", ImportTexture(path, true, maxSize: 2048));
+                // a PNG base colour carries cut-out alpha (leaves, fronds: planet_assets.py keeps blended materials' alpha)
+                bool cutout = path.EndsWith(".png");
+                m.SetFloat("_AlphaClip", cutout ? 1f : 0f);
+                m.SetFloat("_Cutoff", 0.4f);
+                if (cutout) m.EnableKeyword("_ALPHATEST_ON"); else m.DisableKeyword("_ALPHATEST_ON");
+                m.renderQueue = cutout ? (int)UnityEngine.Rendering.RenderQueue.AlphaTest : -1;
                 string mr = t("_metallicRoughness.jpg");
                 if (mr != null)
                 {

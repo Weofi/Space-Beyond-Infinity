@@ -206,6 +206,7 @@ namespace Voidward.EditorTools
             catalog.ToonMaterial = MatToon;
             catalog.TerrainMaterial = MatTerrain;
             catalog.PlanetMaterial = MatPlanet;
+            catalog.PlanetProps = BuildPlanetProps();
             catalog.OceanMaterial = MatOcean;
             catalog.SkyboxMaterial = MatSkybox;
             catalog.CollapseMaterial = MatCollapse;

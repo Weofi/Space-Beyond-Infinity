@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using Voidward.Core;
 using Voidward.Data;
+using Voidward.Planet;
 using Voidward.Ship;
 
 namespace Voidward.World
@@ -36,6 +37,8 @@ namespace Voidward.World
         readonly HashSet<long> reported = new HashSet<long>();
         readonly List<GameObject> cloud = new List<GameObject>();
         Mesh[] rockMeshes, debrisMeshes;
+        // asset rocks (#100): the moon rock scans with their own materials; null = the procedural rocks (owned meshes)
+        Material[] rockMats;
         Mesh cometMesh, cometTail, wellCore, wellDisc, beaconMesh, puffMesh;
         GameObject beacon;
         ParticleSystem streaks;
@@ -59,7 +62,7 @@ namespace Voidward.World
             ClearAll();
             foreach (var m in new[] { cometMesh, cometTail, wellCore, wellDisc, beaconMesh, puffMesh, riftSphere, riftRing, tendrilMesh }) if (m) Destroy(m);
             if (rift) Destroy(rift);
-            if (rockMeshes != null) foreach (var m in rockMeshes) if (m) Destroy(m);
+            if (rockMeshes != null && rockMats == null) foreach (var m in rockMeshes) if (m) Destroy(m);
             if (debrisMeshes != null) foreach (var m in debrisMeshes) if (m) Destroy(m);
             WarpBubble.Pull = null;
         }
@@ -216,7 +219,9 @@ namespace Voidward.World
             {
                 // Pooled rocks get a new shape variant.
                 var meshes = o.Kind == WarpHazard.Debris ? debrisMeshes : rockMeshes;
-                go.GetComponent<MeshFilter>().sharedMesh = meshes[rng.Next(meshes.Length)];
+                int v = rng.Next(meshes.Length);
+                go.GetComponent<MeshFilter>().sharedMesh = meshes[v];
+                if (o.Kind != WarpHazard.Debris && rockMats != null) go.GetComponent<MeshRenderer>().sharedMaterial = rockMats[v];
             }
             go.SetActive(true);
             it.Go = go;
@@ -256,7 +261,10 @@ namespace Voidward.World
             {
                 case WarpHazard.Rock:
                 case WarpHazard.StrayRock:
-                    Renderer(go, rockMeshes[rng.Next(rockMeshes.Length)], rockMat, true);
+                {
+                    int v = rng.Next(rockMeshes.Length);
+                    Renderer(go, rockMeshes[v], rockMats != null ? rockMats[v] : rockMat, true);
+                }
                     Proxy(go, SurfaceKind.Rock);
                     break;
                 case WarpHazard.Debris:
@@ -323,8 +331,20 @@ namespace Voidward.World
             collapseMat = cat.CollapseMaterial;
             if (rockMeshes != null) return;
 
-            rockMeshes = new Mesh[6];
-            for (int i = 0; i < rockMeshes.Length; i++)
+            var lib = PlanetPropLibrary.Get(cat);
+            var assetRocks = lib.FamilyModels("Rock");
+            if (assetRocks.Length > 0)
+            {
+                rockMeshes = new Mesh[assetRocks.Length];
+                rockMats = new Material[assetRocks.Length];
+                for (int i = 0; i < assetRocks.Length; i++)
+                {
+                    rockMeshes[i] = lib.Models[assetRocks[i]].Mesh;
+                    rockMats[i] = lib.Models[assetRocks[i]].Materials[0];
+                }
+            }
+            else rockMeshes = new Mesh[6];
+            for (int i = 0; i < rockMeshes.Length && rockMats == null; i++)
             {
                 var mb = new MeshBuilder { Gloss = 0.05f, Panel = 1f };
                 float shade = 0.82f + 0.07f * i;

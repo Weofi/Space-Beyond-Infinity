@@ -19,6 +19,8 @@ namespace Voidward.Planet
         public float MinRadius, MaxRadius;
         /// <summary>Optional surface props for this chunk (positions relative to Origin).</summary>
         public MeshBuilder Decor;
+        /// <summary>Optional asset props (#100) for this chunk (positions relative to Origin).</summary>
+        public PropBatch DecorProps;
         /// <summary>Sphere colliders for large props: xyz = center relative to Origin, w = radius.</summary>
         public List<Vector4> DecorColliders;
     }

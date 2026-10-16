@@ -30,7 +30,9 @@ Run headless from the repo root:
          (glTF factors baked in; a blended/masked material keeps its alpha in <material>_baseColor.png)
   build (reproducible from the repo):
     blender -b --factory-startup -P Tools/Blender/planet_assets.py -- [--only Name]
-      -> Assets/_Project/Art/Models/Planet/<Name>.fbx
+      -> Assets/_Project/Art/Models/Planet/<Prop>.fbx (see BUILDS: Planet_Rock01..07, Planet_MossRock01..06,
+         Planet_Crystal01/02, Planet_Ice01..03, Planet_AlienTree, Planet_FistPlant, Planet_MinePlant, Planet_AlienPlant,
+         Planet_Mushroom01/02); materials keep the source names, the textures stay in the source's folder
 
 Contract (AGENTS.md): 1 unit = 1 m, forward = Blender -Y (Unity +Z), up +Z.
 """
@@ -41,8 +43,10 @@ import json
 import shutil
 import tempfile
 import zipfile
+import math
 import bpy
 import numpy as np
+from mathutils import Vector, Matrix
 
 ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -302,6 +306,148 @@ def ingest_sketchfab(name, stem, downloads):
     shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---------------------------------------------------------------- build (FBX export)
+#
+# Every prop is exported normalized so the game scales it by one number:
+#   rocks   origin = bounds centre, largest half-extent = 1 m (radius 1); decor sinks them, asteroids use them as is
+#   others  origin = bottom centre, height = 1 m
+# Budgets are per instance: decor chunks combine many of them, asteroid fields up to a few hundred.
+
+def import_source(name):
+    tmp = tempfile.mkdtemp(prefix="vw_src_")
+    with zipfile.ZipFile(os.path.join(SRC_DIR, name + ".zip")) as z:
+        z.extractall(tmp)
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=os.path.join(tmp, "scene.gltf"))
+    shutil.rmtree(tmp, ignore_errors=True)
+    for m in bpy.data.materials:
+        m.name = safe(m.name)            # material names = texture prefixes (ingest writes safe names)
+
+
+def meshes(match=None):
+    return [o for o in bpy.context.scene.objects if o.type == 'MESH' and len(o.data.polygons)
+            and (match is None or any(k in o.name for k in match))]
+
+
+def tris(obj):
+    return sum(len(p.vertices) - 2 for p in obj.data.polygons)
+
+
+def activate(obj):
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+
+
+def bounds(obj):
+    pts = np.array([v.co[:] for v in obj.data.vertices])
+    return Vector(pts.min(axis=0)), Vector(pts.max(axis=0))
+
+
+def bake(objs, name):
+    """Applies parent/object transforms, joins `objs` into one object and deletes everything else."""
+    for o in bpy.context.scene.objects:
+        o.animation_data_clear()
+    for o in objs:
+        mw = o.matrix_world.copy()
+        o.parent = None
+        o.matrix_world = mw
+        if o.data.users > 1:
+            o.data = o.data.copy()
+        activate(o)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    if len(objs) > 1:
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in objs:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = objs[0]
+        bpy.ops.object.join()
+    obj = objs[0]
+    obj.name = obj.data.name = name
+    for o in [o for o in bpy.context.scene.objects if o != obj]:
+        bpy.data.objects.remove(o, do_unlink=True)
+    return obj
+
+
+def decimate(obj, target):
+    ratio = min(1.0, target / max(1, tris(obj)))
+    if ratio < 1.0:
+        m = obj.modifiers.new("dec", 'DECIMATE')
+        m.ratio = ratio
+        m.use_collapse_triangulate = True
+        activate(obj)
+        bpy.ops.object.modifier_apply(modifier=m.name)
+
+
+def normalize(obj, rock):
+    lo, hi = bounds(obj)
+    ext = hi - lo
+    c = (lo + hi) * 0.5
+    if rock:
+        s = 2.0 / max(ext)
+    else:
+        s = 1.0 / ext.z
+        c.z = lo.z
+    obj.data.transform(Matrix.Scale(s, 4) @ Matrix.Translation(-c))
+    obj.data.update()
+
+
+def smooth(obj, angle):
+    activate(obj)
+    bpy.ops.object.shade_smooth_by_angle(angle=math.radians(angle))
+
+
+def export(obj, name):
+    activate(obj)
+    bpy.ops.object.material_slot_remove_unused()
+    bpy.ops.export_scene.fbx(
+        filepath=os.path.join(OUT, name + ".fbx"), use_selection=True, object_types={'MESH'},
+        apply_unit_scale=True, apply_scale_options='FBX_SCALE_ALL',
+        axis_forward='-Z', axis_up='Y', bake_space_transform=True,
+        use_mesh_modifiers=True, mesh_smooth_type='OFF', add_leaf_bones=False, path_mode='STRIP')
+    lo, hi = bounds(obj)
+    print("[planet] %s size (unity x/y/z) %.2f %.2f %.2f  y %.2f..%.2f  tris %d  mats %s" % (
+        name, hi.x - lo.x, hi.z - lo.z, hi.y - lo.y, lo.z, hi.z, tris(obj), [m.name for m in obj.data.materials if m]))
+
+
+def prop(src, out, match, target, rock, angle=60.0, drop=None):
+    """One exported prop from the objects of `src` whose name contains any of `match` (None = all)."""
+    import_source(src)
+    objs = [o for o in meshes(match) if not (drop and any(k in o.name for k in drop))]
+    obj = bake(objs, out)
+    decimate(obj, target)
+    normalize(obj, rock)
+    smooth(obj, angle)
+    export(obj, out)
+
+
+# name: (source, objects (name contains), triangle budget, rock?, smoothing angle, dropped objects)
+BUILDS = {}
+for i in range(1, 8):
+    # moon rock 01 ships LODs: start from LOD2 (2.5k)
+    BUILDS["Planet_Rock%02d" % i] = ("Planet_MoonRock%02d" % i, ["LOD2"] if i == 1 else None, 900, True, 60.0, None)
+for i in range(1, 7):
+    BUILDS["Planet_MossRock%02d" % i] = ("Planet_MossRocks01", ["rock%02d" % i], 900, True, 60.0, None)
+BUILDS.update({
+    "Planet_Crystal01": ("Planet_CrystalCluster01", None, 2500, False, 30.0, None),
+    "Planet_Crystal02": ("Planet_CrystalCluster02", None, 2500, False, 30.0, None),
+    "Planet_Ice01": ("Planet_IceCluster01", None, 1500, False, 30.0, None),
+    "Planet_Ice02": ("Planet_IceCluster02", None, 1500, False, 30.0, None),
+    "Planet_Ice03": ("Planet_IceCluster03", None, 1500, False, 30.0, None),
+    # the kit's tree: eight trunks under one canopy (20 m wide in the source), its branches
+    "Planet_AlienTree": ("Planet_AlienPlants", ["Trunk_", "Branch_", "Canopy_"], 3000, False, 45.0, None),
+    "Planet_FistPlant": ("Planet_AlienPlants", ["FruitLeaves_", "AlienFruit_", "AlienFist_"], 2500, False, 45.0, None),
+    "Planet_MinePlant": ("Planet_AlienPlants", ["MineBulb_", "MineStem_"], 1200, False, 45.0, None),
+    # Cydrakoniss without its ground disc (Cylinder001)
+    "Planet_AlienPlant": ("Planet_AlienPlant", None, 4500, False, 45.0, ["Cylinder001"]),
+    "Planet_Mushroom01": ("Planet_GlowMushrooms", ["TallMush1_"], 2000, False, 45.0, None),
+    "Planet_Mushroom02": ("Planet_GlowMushrooms", ["TallMush2_"], 2000, False, 45.0, None),
+})
+
+# the texture folder each built prop reads its materials from (the ingest folder of its source)
+TEXTURE_SET = {name: spec[0] for name, spec in BUILDS.items()}
+
+
 # ---------------------------------------------------------------- main
 
 if "--ingest-sketchfab" in ARGS:
@@ -319,4 +465,12 @@ elif "--ingest" in ARGS:
         if not only or name == only:
             ingest_model(name, ident, root)
 else:
-    print("[planet] build: FBX export follows with the decor/asteroid step of #100")
+    os.makedirs(OUT, exist_ok=True)
+    only = arg("--only")
+    for name, (src, match, target, rock, angle, drop) in BUILDS.items():
+        if only and name != only:
+            continue
+        if not os.path.exists(os.path.join(SRC_DIR, src + ".zip")):
+            print("[planet] skip (no source):", name)
+            continue
+        prop(src, name, match, target, rock, angle, drop)
