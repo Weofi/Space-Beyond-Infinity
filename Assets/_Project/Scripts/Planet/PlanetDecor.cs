@@ -131,7 +131,9 @@ namespace Voidward.Planet
             {
                 var rule = rules[ri];
                 if (rule.Large ? !large : !small) continue;
-                if (far && rule.SizeMax < 7f) continue; // only what reads from hundreds of meters
+                // Far stand-ins: only what reads from hundreds of meters, and no rocks (from far away the procedural
+                // rocks turn into dark specks that make the terrain look noisy; the terrain itself carries the rock).
+                if (far && (rule.SizeMax < 7f || IsRock(rule.P))) continue;
                 int count = Mathf.RoundToInt(rule.Density * hectares * shape.DecorDensity * (far ? farDensity : 1f) * (float)(0.8 + rng.NextDouble() * 0.4));
                 int clusterSeed = terrain.Seed * 31 + ri * 977;
                 for (int k = 0; k < count; k++)
@@ -186,7 +188,7 @@ namespace Voidward.Planet
                         int first = mb.VertexCount;
                         col = Emit(mb, rule.P, pos, rot, up, sz, propSeed, shade, C(0), C(1), C(2), C(3));
                         // Contact shading: darker where the prop meets the ground, slightly sun-bleached at the top.
-                        mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
+                        if (!far) mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
                     }
                     if (!far && rule.Collider > 0f && col > 0f)
                     {
@@ -201,6 +203,8 @@ namespace Voidward.Planet
         }
 
         static Matrix4x4 M(Vector3 pos, Quaternion rot, Vector3 scale) => Matrix4x4.TRS(pos, rot, scale);
+
+        static bool IsRock(Prop p) => p is Prop.Rock or Prop.Pebbles or Prop.Boulder or Prop.Outcrop or Prop.Hoodoo or Prop.Basalt or Prop.EmberRock;
 
         /// <summary>The asset family that replaces a procedural prop (#100); null = the prop stays procedural.</summary>
         static string AssetFamily(Prop prop, PlanetDecorStyle style) => prop switch

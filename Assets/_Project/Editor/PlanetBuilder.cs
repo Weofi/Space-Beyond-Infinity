@@ -34,7 +34,7 @@ namespace Voidward.EditorTools
             MatPlanet.SetFloat("_Wrap", 0.25f);
             MatPlanet.SetFloat("_AmbientBoost", 0.45f);
             MatPlanet.SetFloat("_MacroStrength", 0.22f);
-            MatPlanet.SetFloat("_CavityStrength", 2.5f);
+            MatPlanet.SetFloat("_CavityStrength", 1.6f);
             MatPlanet.SetFloat("_StrataStrength", 0.14f);
             // Sight distance (#115): the PBR layers stay until ~300 x their scale (was 150).
             MatPlanet.SetFloat("_LayerFade", 300f);
@@ -370,7 +370,7 @@ namespace Voidward.EditorTools
                 Feature(PlanetFeatureKind.Spire, 3, 5, 0.015f, 0.025f, 1.5f, 2.4f, 0.75f, 0, 0.4f), // hoodoo towers
                 Feature(PlanetFeatureKind.Basin, 1, 1, 0.14f, 0.2f, 0.08f, 0.12f),
             };
-            Canyons(s, 1.6f, 0.085f, 0.07f, 0.45f, 3f, 0.65f, 0.45f, 4);
+            Canyons(s, 1.6f, 0.07f, 0.06f, 0.45f, 2.5f, 0.5f, 0.45f, 2);
             s.CraterCount = 4;
             s.CraterSize = new Vector2(0.02f, 0.06f);
             s.CraterDepth = 0.15f;
@@ -380,7 +380,7 @@ namespace Voidward.EditorTools
             s.Region = Grad((0f, "#b8784c"), (0.4f, "#d6a878"), (1f, "#e4c49c"));
             s.RegionStrength = 0.4f;
             s.Underwater = Grad((0f, "#a85a36"), (1f, "#a85a36"));
-            s.Cliff = Grad((0f, "#7a3a26"), (0.35f, "#9a4d33"), (0.6f, "#b0603d"), (1f, "#c98558"));
+            s.Cliff = Grad((0f, "#9a4f33"), (0.35f, "#b0603d"), (0.6f, "#c27248"), (1f, "#d39a68"));
             s.CliffSlope = new Vector2(0.08f, 0.18f);
             s.HueJitter = 0.025f;
             s.DetailScale = 4f;
