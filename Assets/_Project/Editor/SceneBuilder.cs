@@ -273,7 +273,10 @@ namespace Voidward.EditorTools
                     }
                 });
                 Visual(dart.transform, "Gear", SaveMesh(gear, "MenuShipGear"));
-                var idle = CrewController();
+                // reuse the pawn's controller: CrewController() recreates the asset and would orphan the prefabs' reference
+                if (crewCtrl == null) crewCtrl = AssetDatabase.LoadAssetAtPath<UnityEditor.Animations.AnimatorController>(AnimDir + "/Crew_Locomotion.controller");
+                if (crewCtrl == null) crewCtrl = CrewController();
+                var idle = crewCtrl;
                 (float x, float z, float yaw)[] spots = { (2.2f, 12f, 195f), (4f, 13.6f, 165f), (5.7f, 12.4f, 30f) };
                 bool crewOk = true;
                 foreach (var (x, z, yaw) in spots)

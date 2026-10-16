@@ -151,7 +151,7 @@ namespace Voidward.EditorTools
                 var kit = WorldModel(root.transform, "World_Medkit", "Kit");
                 if (kit == null) { Object.DestroyImmediate(root); return null; }
                 kit.transform.localPosition = new Vector3(0.02f, -0.2f, 0.06f);
-                kit.transform.localRotation = Quaternion.Euler(0f, -28f, -8f);
+                kit.transform.localRotation = Quaternion.Euler(0f, 152f, -8f);   // label side towards the view
                 return root;
             }
             if (tool < 0 || tool >= ToolFbx.Length) return null;

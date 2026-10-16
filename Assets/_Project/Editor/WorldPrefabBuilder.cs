@@ -56,15 +56,30 @@ namespace Voidward.EditorTools
             Visual(go.transform, "Arm", SaveMesh(arm, "Station_Arm"), MatHull);
             Box(go, new Vector3(0f, StationDeckY - 1.1f, armFrom + armLen * 0.5f), new Vector3(5f, 2.2f, armLen));
 
-            // trader console at the back of the deck, screen towards the pad centre (+z)
-            var kioskPos = new Vector3(0f, StationDeckY, StationPadZ - 10f);
-            var kiosk = Hero(0.12f);
-            With(kiosk, Satin, 0.4f, 0.6f, () => kiosk.AddBox(T(0f, 1.5f, 0f), new Vector3(3f, 3f, 1.2f), Graphite));
-            With(kiosk, 0.75f, 0.85f, 0f, () => kiosk.AddBox(T(0f, 0.15f, 0.6f), new Vector3(3.1f, 0.2f, 0.1f), Gold));
-            Glow(kiosk, () => kiosk.AddBox(T(0f, 2.2f, 0.62f), new Vector3(2f, 0.9f, 0.04f), Cyan), 0.9f);
-            var kv = Visual(go.transform, "Kiosk", SaveMesh(kiosk, "Station_Kiosk"), MatHull);
-            kv.transform.localPosition = kioskPos;
-            Box(go, kioskPos + new Vector3(0f, 1.5f, 0f), new Vector3(3f, 3f, 1.2f));
+            // trader console at the back of the deck, screens towards the pad centre (+z): the Dart's Wasp cockpit console
+            // (#94 asset) scaled up to a 3.2 m terminal; the procedural kiosk without it
+            var kioskPos = new Vector3(0f, StationDeckY, StationPadZ - 7.5f);   // on the flat deck (the rim beyond 9 m is raised)
+            var consoleMesh = DartCockpitMesh("Console");
+            if (consoleMesh != null)
+            {
+                var term = Child(go.transform, "Kiosk", kioskPos, Quaternion.Euler(0f, 180f, 0f));
+                var b = consoleMesh.bounds;
+                float k = 3.2f / Mathf.Max(b.size.x, 0.01f);
+                var cv = Visual(term.transform, "Console", consoleMesh, WaspMaterial("center"));
+                cv.transform.localScale = Vector3.one * k;
+                cv.transform.localPosition = -new Vector3(b.center.x, b.min.y, b.center.z) * k;
+                Box(go, kioskPos + new Vector3(0f, b.size.y * k * 0.5f, 0f), new Vector3(b.size.x * k, b.size.y * k, b.size.z * k));
+            }
+            else
+            {
+                var kiosk = Hero(0.12f);
+                With(kiosk, Satin, 0.4f, 0.6f, () => kiosk.AddBox(T(0f, 1.5f, 0f), new Vector3(3f, 3f, 1.2f), Graphite));
+                With(kiosk, 0.75f, 0.85f, 0f, () => kiosk.AddBox(T(0f, 0.15f, 0.6f), new Vector3(3.1f, 0.2f, 0.1f), Gold));
+                Glow(kiosk, () => kiosk.AddBox(T(0f, 2.2f, 0.62f), new Vector3(2f, 0.9f, 0.04f), Cyan), 0.9f);
+                var kv = Visual(go.transform, "Kiosk", SaveMesh(kiosk, "Station_Kiosk"), MatHull);
+                kv.transform.localPosition = kioskPos;
+                Box(go, kioskPos + new Vector3(0f, 1.5f, 0f), new Vector3(3f, 3f, 1.2f));
+            }
             var console = Child(go.transform, "TraderConsole", kioskPos + new Vector3(0f, 1.5f, 0.5f));
             Box(console, Vector3.zero, new Vector3(4f, 4f, 3f), true);
             AddLight(go.transform, "ConsoleLight", kioskPos + new Vector3(0f, 3.5f, 3f), LampWhite, 30f, 14f);
