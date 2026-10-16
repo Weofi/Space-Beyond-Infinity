@@ -116,8 +116,8 @@ system to the next galaxy (one-way).
 ### Currently playable build
 
 **Loop:** wake up at the *Wormhole Exit* in M33 → explore the system (scan/ping, land, mine, loot, fight)
-→ back to the ship, upgrade/craft → open the **galaxy map (M)** → as pilot, warp to another system of the
-galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud: **fly home**, chased by the Rift
+→ back to the ship, upgrade/craft → check the **galaxy map (M)** → as pilot, fly out through a **jump zone** at
+the system edge to the next system, or through the **Galactic Rim** of the outermost system one-way to the next galaxy → … → from the Large Magellanic Cloud: **fly home**, chased by the Rift
 (~5 min with the Home Drive; caught = back into the loop, out in front = homecoming).
 
 * **Galaxies & systems:** 5 galaxies (M33, M31, NGC 6822, Leo I, LMC), each with 4-6 systems generated
@@ -132,8 +132,12 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
   compass, cockpit NAV, galaxy map) shows the real flight time home and drops with every better part; each
   backpack part shows its ETA change. Warden enclaves guard the best core of their galaxy; crates, wrecks,
   anomalies, crystal veins, alien nests and Nomad traders give Exotic Matter, nav/cooling/tank parts.
-* **Warping:** the pilot sets a course on the galaxy map, after a 5 s countdown the whole crew warps (to be
-  replaced by flying out of jump zones, #108). A warp to
+* **Warping (jump zones, #108):** there is no warp button. Every system has glowing jump zones at its edge (HUD
+  markers, listed on the galaxy map): one towards each neighbouring system, and in the galaxy's outermost system the
+  **Galactic Rim** (next galaxy, from the LMC: home) plus the **skip zone** beside it. The pilot flies out through a
+  zone - cruising, or in normal flight after holding the nose outward for 3 s - and the crew slides into the warp
+  without a cut, keeping its formation. A zone holds the ship back (HUD "JUMP ZONE HOLDS") while a crew member is
+  not aboard a ship, the Exotic Matter is missing, or enemies/gravity lock it. A warp to
   another system of the galaxy (#80) is a short flown **system warp** (1:30 with a Mk I drive, ~13 s with the Home
   Drive, no Exotic Matter) through thinner fields; it ends at the edge of the target system. Systems can be
   revisited (their crates stay looted). **Gravity and combat lock:** no warp (and no cruise) inside a planet's
@@ -200,7 +204,7 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
 | Interact / enter-exit seat | F | F (leave seat) |
 | Tools | 1 Drill · 2 Blaster · 3 Rifle · 4 Medkit | – |
 | Inventory / ship / crafting | Tab | Tab |
-| Galaxy map (warp course) | M | M |
+| Galaxy map (route, jump zones) | M | M |
 | Ping (enemy / loot / look) | T or MMB | T |
 | Helmet flashlight on/off | L | – (ship headlights turn on automatically) |
 | Pause | Esc | Esc |
