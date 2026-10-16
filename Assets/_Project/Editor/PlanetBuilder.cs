@@ -263,9 +263,11 @@ namespace Voidward.EditorTools
             s.HasOcean = true;
             s.OceanCoverage = new Vector2(0.12f, 0.25f);
             s.OceanFloorDepth = 2f;
-            s.ShallowWater = MathUtils.Hex("#4fc6c9");
-            s.DeepWater = MathUtils.Hex("#123e66");
-            s.WaterDepth = 10f;
+            // Inland lakes and rivers (#115): murky green-teal, dark quickly, calm banks.
+            s.ShallowWater = MathUtils.Hex("#5e9a8c");
+            s.DeepWater = MathUtils.Hex("#0e2b3c");
+            s.WaterDepth = 6f;
+            s.ShoreFoam = 0.3f;
             s.Underwater = Grad((0f, "#2e3c40"), (0.8f, "#5f6b5c"), (1f, "#a59a76"));
             s.Land = Grad((0f, "#b3a274"), (0.03f, "#6f8a4a"), (0.3f, "#556a3a"), (0.5f, "#74664f"), (0.66f, "#8c8884"), (0.8f, "#e6ebf2"), (1f, "#ffffff"));
             s.Region = Grad((0f, "#b3a274"), (0.05f, "#9aa556"), (0.35f, "#8a9a4a"), (0.6f, "#7a6d58"), (0.8f, "#e6ebf2"), (1f, "#ffffff"));
@@ -418,8 +420,9 @@ namespace Voidward.EditorTools
                 Canyons(s, 1.4f, 0.09f, 0.05f, 0.25f, 1.5f, 0.7f, 0.5f, rivers: true);                  // river valleys
                 s.OceanCoverage = new Vector2(0.3f, 0.45f);
                 s.OceanFloorDepth = 3f;
-                s.ShallowWater = MathUtils.Hex("#8fd16a");
-                s.DeepWater = MathUtils.Hex("#0f3b2c");
+                s.ShallowWater = MathUtils.Hex("#6f9a52");
+                s.DeepWater = MathUtils.Hex("#0b2a20");
+                s.ShoreFoam = 0.25f;
                 s.WaterEmission = new Color(0.015f, 0.05f, 0.01f);
                 s.Underwater = Grad((0f, "#1f3a33"), (1f, "#4f7a4a"));
                 s.Land = Grad((0f, "#2c5a48"), (0.25f, "#23784a"), (0.6f, "#3f9e45"), (0.85f, "#8fc94a"), (1f, "#c9e98a"));
@@ -451,10 +454,11 @@ namespace Voidward.EditorTools
                 };
                 Canyons(s, 1.2f, 0.035f, 0.04f, 0.2f, 3f, 0.4f, 0.4f);                                  // rifts
                 s.HasOcean = true;
-                s.OceanCoverage = new Vector2(0.06f, 0.12f);
-                s.OceanFloorDepth = 1f;
-                s.ShallowWater = MathUtils.Hex("#4cc4e6");
-                s.DeepWater = MathUtils.Hex("#1d3596");
+                s.OceanCoverage = new Vector2(0.1f, 0.16f); // fewer, merged lakes instead of puddle confetti
+                s.OceanFloorDepth = 2f;
+                s.ShallowWater = MathUtils.Hex("#3e8fb8");
+                s.DeepWater = MathUtils.Hex("#16286e");
+                s.ShoreFoam = 0.3f;
                 s.WaterEmission = new Color(0.02f, 0.08f, 0.14f);
                 s.WaterDepth = 3f;
                 s.Land = Grad((0f, "#232a5a"), (0.4f, "#3b4f9e"), (0.7f, "#5f63bc"), (1f, "#968fdc"));

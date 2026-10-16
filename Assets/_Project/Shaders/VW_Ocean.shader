@@ -22,6 +22,8 @@ Shader "VOIDWARD/Ocean"
         _HasSky ("Has Atmosphere", Float) = 1
         _Lava ("Lava", Float) = 0
         _CrustColor ("Lava Crust Color", Color) = (0.09,0.06,0.06,1)
+        _ShoreFoam ("Shore Foam (1 = surf, low = calm lakes)", Range(0,1)) = 1
+        _SSR ("Screen-Space Reflections", Range(0,1)) = 1
     }
     SubShader
     {
@@ -65,6 +67,8 @@ Shader "VOIDWARD/Ocean"
                 float _HasSky;
                 float _Lava;
                 float4 _CrustColor;
+                float _ShoreFoam;
+                float _SSR;
             CBUFFER_END
 
             struct Attributes
@@ -122,6 +126,48 @@ Shader "VOIDWARD/Ocean"
                 return SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex, p.zy).r * w.x
                      + SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex, p.xz).r * w.y
                      + SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex, p.xy).r * w.z;
+            }
+
+            // Screen-space reflection (#115): march the reflected ray in world space with growing steps, project each step
+            // and compare with the scene depth; on a hit return the opaque colour. Banks, trees and rocks then show up in
+            // the water. Returns rgb + confidence (0 = no hit: use the sky).
+            // Explicit LOD 0 samples: no derivatives inside the march loop.
+            float DepthLod(float2 uv) { return SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, sampler_CameraDepthTexture, UnityStereoTransformScreenSpaceTex(uv), 0).r; }
+            float3 ColorLod(float2 uv) { return SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(uv), 0).rgb; }
+
+            float4 ScreenReflect(float3 posWS, float3 r, float dist)
+            {
+                float stepLen = max(0.25, dist * 0.012);
+                float3 p = posWS + r * stepLen * 0.5;
+                [loop]
+                for (int i = 0; i < 28; i++)
+                {
+                    p += r * stepLen;
+                    float4 cs = TransformWorldToHClip(p);
+                    if (cs.w <= 0.0) break;
+                    float2 uv = ComputeNormalizedDeviceCoordinates(p, GetWorldToHClipMatrix());
+                    if (any(uv < 0.0) || any(uv > 1.0)) break;
+                    float sceneEye = LinearEyeDepth(DepthLod(uv), _ZBufferParams);
+                    float delta = cs.w - sceneEye; // > 0: the ray went behind something
+                    if (delta > 0.0 && delta < stepLen * 2.5 + 0.5)
+                    {
+                        // Refine between the last two steps.
+                        float3 a = p - r * stepLen, b = p;
+                        for (int k = 0; k < 5; k++)
+                        {
+                            float3 m = (a + b) * 0.5;
+                            float4 mcs = TransformWorldToHClip(m);
+                            float2 muv = ComputeNormalizedDeviceCoordinates(m, GetWorldToHClipMatrix());
+                            if (mcs.w > LinearEyeDepth(DepthLod(muv), _ZBufferParams)) b = m; else a = m;
+                        }
+                        float2 huv = ComputeNormalizedDeviceCoordinates(b, GetWorldToHClipMatrix());
+                        float2 edge = saturate(min(huv, 1.0 - huv) * 12.0);
+                        float conf = edge.x * edge.y * (1.0 - i / 28.0);
+                        return float4(ColorLod(huv), conf);
+                    }
+                    stepLen *= 1.3;
+                }
+                return 0;
             }
 
             // GGX distribution, clamped so a sharp glint blooms instead of exploding.
@@ -210,8 +256,14 @@ Shader "VOIDWARD/Ocean"
                     sky = lerp(_HorizonColor.rgb, _SkyColor.rgb, saturate(up * 1.8)) * lerp(0.04, 1.0, day) * sun.color;
                 }
                 else sky = GlossyEnvironmentReflection(r, 0.2, 1.0);
+                // Mirror the scene where the reflected ray hits it (close range only: from orbit it is all sky).
+                if (_SSR > 0.0 && dist < 900.0 && dot(r, upWS) > -0.05)
+                {
+                    float4 ssr = ScreenReflect(IN.positionWS + upWS * 0.05, r, dist);
+                    sky = lerp(sky, ssr.rgb, ssr.a * _SSR * saturate(1.0 - dist / 900.0));
+                }
                 float fres = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
-                col = lerp(col, sky, saturate(fres * (0.35 + 0.65 * _Gloss)));
+                col = lerp(col, sky, saturate(fres * (0.45 + 0.55 * _Gloss)));
 
                 // Sun glint: roughness grows with distance (sub-pixel waves), so orbit views get a broad sheen.
                 float rough = lerp(0.09, 0.34, saturate(dist / 2500.0)) * lerp(1.4, 0.8, _Gloss) + _WaveStrength * 0.03;
@@ -230,9 +282,9 @@ Shader "VOIDWARD/Ocean"
                     float band = frac(thick / (fw * 1.6) - _Time.y * 0.2 + noise * 0.4);
                     float bands = smoothstep(0.84, 0.9, band) * (1.0 - smoothstep(0.94, 1.0, band))
                                 * (1.0 - saturate(thick / (fw * 2.6))) * smoothstep(0.35, 0.6, noise + 0.15);
-                    float foam = saturate(contact + bands * 0.7) * shoreFade;
+                    float foam = saturate(contact * lerp(0.45, 1.0, _ShoreFoam) + bands * 0.7 * _ShoreFoam) * shoreFade;
                     float lip = (1.0 - saturate(thick / (fw * 4.0))) * shoreFade;
-                    col = lerp(col, _ShallowColor.rgb * lightCol * 1.15, lip * 0.25);
+                    col = lerp(col, _ShallowColor.rgb * lightCol * 1.15, lip * 0.25 * _ShoreFoam);
                     col = lerp(col, lightCol * 1.1 + 0.08, foam * 0.85);
                 }
 

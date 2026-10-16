@@ -160,6 +160,8 @@ namespace Voidward.Data
         [ColorUsage(false, true)] public Color WaterEmission = Color.black;
         [Range(0f, 1f)] public float WaterGloss = 0.9f;
         [Range(0f, 2f)] public float WaveStrength = 0.5f;
+        [Tooltip("Shore foam and surf: 1 = ocean breakers, ~0.3 = calm lakes and rivers.")]
+        [Range(0f, 1f)] public float ShoreFoam = 1f;
 
         [Header("Surface colors")]
         [Tooltip("Lowest seabed (0) to sea level (1).")]

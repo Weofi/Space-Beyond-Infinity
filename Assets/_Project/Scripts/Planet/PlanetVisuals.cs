@@ -139,6 +139,8 @@ namespace Voidward.Planet
         static readonly int HorizonColorId = Shader.PropertyToID("_HorizonColor");
         static readonly int HasSkyId = Shader.PropertyToID("_HasSky");
         static readonly int LavaId = Shader.PropertyToID("_Lava");
+        static readonly int ShoreFoamId = Shader.PropertyToID("_ShoreFoam");
+        static readonly int SeaRadiusId = Shader.PropertyToID("_SeaRadius");
 
         void OnEnable() => All.Add(this);
         void OnDisable() => All.Remove(this);
@@ -190,6 +192,8 @@ namespace Voidward.Planet
             terrainMat.SetVector(CliffSlopeId, planetShape.CliffSlope);
             terrainMat.SetFloat(RegionStrengthId, planetShape.RegionStrength);
             terrainMat.SetVector(PlanetCenterId, transform.position);
+            // Wet banks along the waterline (not along lava).
+            terrainMat.SetFloat(SeaRadiusId, Terrain.HasOcean && !planetShape.Lava ? Terrain.SeaRadius : -1f);
             ApplySurfaceLayers(terrainMat, planetShape);
             decorMat = catalog.TerrainMaterial != null ? catalog.TerrainMaterial : catalog.ToonMaterial;
             props = PlanetPropLibrary.Get(catalog);
@@ -257,6 +261,7 @@ namespace Voidward.Planet
             oceanMat.SetColor(HorizonColorId, Color.Lerp(s.HazeColor, Color.white, 0.25f));
             oceanMat.SetFloat(HasSkyId, s.HasAtmosphere ? 1f : 0f);
             oceanMat.SetFloat(LavaId, s.Lava ? 1f : 0f);
+            oceanMat.SetFloat(ShoreFoamId, s.ShoreFoam);
             // Before the atmosphere shell (which hazes the sea through the ground sphere).
             oceanMat.renderQueue = 2850;
             oceanMesh = PlanetMesh.BuildSphere(Terrain.SeaRadius, 96, "PlanetOcean");

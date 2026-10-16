@@ -52,6 +52,8 @@ Shader "VOIDWARD/Planet"
         _PeakStart ("Peak Start (land ramp)", Float) = 2
         _ShoreBand ("Shore Band (land ramp)", Float) = 0.03
         _LayerFade ("Layer Fade (x ground scale)", Float) = 150
+        _SeaRadius ("Sea Radius (m from centre, < 0 = no sea)", Float) = -1
+        _WetBand ("Wet Shore Band (m above sea)", Float) = 1.6
     }
     SubShader
     {
@@ -104,6 +106,8 @@ Shader "VOIDWARD/Planet"
             float _PeakStart;
             float _ShoreBand;
             float _LayerFade;
+            float _SeaRadius;
+            float _WetBand;
         CBUFFER_END
 
         float Hash3(float3 p)
@@ -348,6 +352,17 @@ Shader "VOIDWARD/Planet"
                     smooth = lerp(_Gloss, 1.0 - acc.aoRough.y, layerFade);
                 }
             #endif
+
+                // Wet shore (#115): a darker, glossier band just above the waterline (and the submerged ground) so lakes
+                // sit in their banks instead of being pasted on top.
+                if (_SeaRadius > 0.0)
+                {
+                    float above = length(rel) - _SeaRadius;
+                    float wet = 1.0 - smoothstep(0.0, _WetBand * (0.75 + detail * 0.5), above);
+                    wet *= 1.0 - cliff * 0.5;
+                    baseCol *= lerp(1.0, 0.6, wet);
+                    smooth = lerp(smooth, 0.72, wet * 0.8);
+                }
 
                 float2 screenUV = GetNormalizedScreenSpaceUV(IN.positionCS);
                 AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(screenUV);

@@ -1201,17 +1201,26 @@ namespace Voidward.Dev
                 Vector3 beach = T.HasOcean ? FindSpot(T, toSun, side, true) : dry;
                 Vector3 b = c + beach * T.GroundRadius(beach);
                 Vector3 seaward = look;
+                float sea = T.SeaRadius;
                 if (T.HasOcean)
                 {
-                    // Step outward in 8 directions and face the first one that reaches the water.
+                    // Face the direction with the most open water within 250 m (across the lake, not into a bank).
                     Vector3 t1 = Vector3.Cross(beach, side).normalized;
-                    for (int i = 0; i < 8; i++)
+                    int best = -1;
+                    for (int i = 0; i < 16; i++)
                     {
-                        Vector3 o = Quaternion.AngleAxis(i * 45f, beach) * t1;
-                        if (T.IsUnderwater((beach + o * (40f / R)).normalized)) { seaward = o; break; }
+                        Vector3 o = Quaternion.AngleAxis(i * 22.5f, beach) * t1;
+                        int wet = 0;
+                        for (int k = 1; k <= 10; k++) if (T.IsUnderwater((beach + o * (k * 25f / R)).normalized)) wet++;
+                        if (wet > best) { best = wet; seaward = o; }
                     }
+                    // Eye level on the bank, looking flat across the water at the far side.
+                    float eye = Mathf.Max(T.GroundRadius(beach) + 1.8f, sea + 2f);
+                    Vector3 cam = c + beach * eye - seaward * 4f;
+                    Vector3 target = c + (beach + seaward * (160f / R)).normalized * (sea + 6f);
+                    poses.Add(new DevPose(cam, target, 60f));
                 }
-                poses.Add(new DevPose(b + beach * 2.2f - seaward * 6f, b + beach * 1.0f + seaward * 80f, 60f));
+                else poses.Add(new DevPose(b + beach * 2.2f - seaward * 6f, b + beach * 1.0f + seaward * 80f, 60f));
             }
             return poses;
         }
