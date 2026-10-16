@@ -104,6 +104,7 @@ namespace Voidward.UI
         readonly HudMarker[] bossMarkers = new HudMarker[4];
         readonly List<HudMarker> pingMarkers = new List<HudMarker>();
         readonly List<HudMarker> siteMarkers = new List<HudMarker>();
+        readonly List<HudMarker> jumpMarkers = new List<HudMarker>();
         readonly List<Ping> pings = new List<Ping>();
 
         // toasts
@@ -542,12 +543,9 @@ namespace Voidward.UI
                     sectorName.text = sys != null ? sys.Name : "";
                 }
                 respawnText.text = HudKit.Num(rm.RespawnsLeft.Value.ToString()) + " <size=70%><color=#94A3B8>RESPAWNS</color></size>";
-                bool warping = rm.WarpCountdown.Value >= 0f;
-                string flightMsg = WarpMessage();
-                jumpPlate.gameObject.SetActive(warping || flightMsg != null);
-                if (warping) jumpText.text = "WARP IN " + HudKit.Num(Mathf.CeilToInt(rm.WarpCountdown.Value).ToString()) +
-                    $"\n<size=40%><color=#CBD5E1>{rm.WarpLabel(rm.WarpTarget.Value).ToUpperInvariant()}</color></size>";
-                else if (flightMsg != null) jumpText.text = flightMsg;
+                string flightMsg = WarpMessage() ?? JumpMessage(pawn);
+                jumpPlate.gameObject.SetActive(flightMsg != null);
+                if (flightMsg != null) jumpText.text = flightMsg;
                 UpdateObjective(pawn);
             }
             else jumpPlate.gameObject.SetActive(false);
@@ -840,6 +838,31 @@ namespace Voidward.UI
             return null;
         }
 
+        /// <summary>
+        /// Big centre message at a jump zone (#108): the entry spool-up, the align progress of the local pilot, or why
+        /// the zone holds the ship back. Null when there is nothing to say.
+        /// </summary>
+        static string JumpMessage(PlayerPawn pawn)
+        {
+            string Sub(string s) => $"\n<size=40%><color=#CBD5E1>{s}</color></size>";
+            var zones = JumpZones.Current;
+            if (JumpZones.Entering > 0f && JumpZones.EntryZone >= 0 && JumpZones.EntryZone < zones.Length)
+                return "<size=70%>WARP ENTRY</size>" + Sub(zones[JumpZones.EntryZone].Label.ToUpperInvariant());
+            var seat = pawn.CurrentShipSeat;
+            if (seat == null || seat.Role != StationRole.Pilot || seat.Ship == null || zones.Length == 0) return null;
+            int zi = JumpZones.At(seat.Ship.transform.position, out _);
+            if (zi < 0) return null;
+            var z = zones[zi];
+            var block = JumpZones.BlockOf(zi);
+            if (block != JumpBlock.Open)
+                return "<size=60%><color=#EF4444>JUMP ZONE HOLDS</color></size>" + Sub(JumpZones.BlockText(block, JumpZones.CrewMissing) + "  -  " + z.Label.ToUpperInvariant());
+            if (JumpZones.AlignZone == zi && JumpZones.Align01 < 1f)
+                return JumpZones.Align01 > 0f
+                    ? $"<size=60%>ALIGNING  {Mathf.RoundToInt(JumpZones.Align01 * 100f)}%</size>" + Sub("HOLD THE NOSE OUTWARD - " + z.Label.ToUpperInvariant())
+                    : "<size=60%>JUMP ZONE</size>" + Sub("NOSE OUTWARD OR CRUISE THROUGH - " + z.Label.ToUpperInvariant());
+            return "<size=60%>JUMP ZONE</size>" + Sub("FLY OUT TO WARP - " + z.Label.ToUpperInvariant());
+        }
+
         static CruiseMode CruiseOf(PlayerPawn pawn)
         {
             var seat = pawn.CurrentShipSeat;
@@ -860,7 +883,7 @@ namespace Voidward.UI
             var rm = RunManager.Instance;
             var sys = rm != null ? rm.CurrentSystem : null;
             string text, header = "EXPEDITION";
-            string map = $"<size=80%><color=#94A3B8>{Key("M")} galaxy map - warp on when the crew is ready</color></size>";
+            string map = $"<size=80%><color=#94A3B8>Warp: fly out through a jump zone at the system edge  {Key("M")} map</color></size>";
             var flight = WarpFlight.Instance;
             bool lead = flight != null && WarpBubble.Active && flight.LocalIsLeadPilot;
             if (flight != null && WarpBubble.Active)
@@ -943,6 +966,7 @@ namespace Voidward.UI
             shipMarker.Place(cam, markerLayer, own != null && !aboard ? own.transform.position + own.transform.up * 3f : (Vector3?)null, Icons.Ship, "YOUR SHIP", HudKit.Shield, true);
 
             UpdateBossMarkers(cam);
+            UpdateJumpMarkers(cam);
 
             pings.RemoveAll(p => Time.time > p.Until);
             while (pingMarkers.Count < pings.Count) pingMarkers.Add(new HudMarker(markerLayer));
@@ -954,6 +978,23 @@ namespace Voidward.UI
                 pingMarkers[i].Place(cam, markerLayer, p.Pos, p.Kind == PingKind.Enemy ? Icons.Danger : Icons.Pin, p.Label, c, true);
             }
             UpdateSiteMarkers(cam);
+        }
+
+        /// <summary>Jump zones at the system edge (#108): target and distance; red while the zone holds.</summary>
+        void UpdateJumpMarkers(Camera cam)
+        {
+            var zones = JumpZones.Current;
+            while (jumpMarkers.Count < zones.Length) jumpMarkers.Add(new HudMarker(markerLayer));
+            for (int i = 0; i < jumpMarkers.Count; i++)
+            {
+                if (i >= zones.Length || WarpBubble.Active) { jumpMarkers[i].Hide(); continue; }
+                var z = zones[i];
+                var block = JumpZones.BlockOf(i);
+                bool held = block != JumpBlock.Open;
+                string glyph = z.Kind == JumpKind.Hop ? Icons.Gate : Icons.Rocket;
+                string label = z.Label.ToUpperInvariant() + (held ? "  (" + JumpZones.BlockText(block, JumpZones.CrewMissing) + ")" : "");
+                jumpMarkers[i].Place(cam, markerLayer, z.Center, glyph, label, held ? Color.Lerp(z.Color, HudKit.Danger, 0.6f) : z.Color, z.Kind != JumpKind.Hop, 0.9f);
+            }
         }
 
         static ShipCore FindArk()

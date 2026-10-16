@@ -23,7 +23,7 @@ namespace Voidward.World
     /// speed where it is (fields: nav-safe, void: what the cooling sustains), speeding up towards the end. Stops (collisions, overheating, the Wardens' last guard interdicting) let
     /// it close in; when it catches the bubble the crew falls back into the time loop (RunManager.ServerRiftCaught).
     /// </summary>
-    public class WarpFlight : NetworkBehaviour
+    public partial class WarpFlight : NetworkBehaviour
     {
         public static WarpFlight Instance { get; private set; }
 
@@ -112,6 +112,8 @@ namespace Voidward.World
         // ---- lead pilot client ----
         float pilotCommand;
         bool wasPiloting;
+        int pilotSeed;
+        float pilotSyncUntil;
         float sendTimer;
 
         public static bool Flying => Instance != null && Instance.Active.Value && !Instance.DroppedOut.Value;
@@ -211,10 +213,13 @@ namespace Voidward.World
         void Update()
         {
             bool active = Active.Value && RunManager.Instance != null && RunManager.Instance.Phase.Value == GamePhase.Playing;
+            TickJumps(Time.deltaTime);
             if (!active)
             {
                 WarpBubble.Active = WarpBubble.Flying = false;
-                WarpBubble.Throttle = WarpBubble.Speed = WarpBubble.Intensity = WarpBubble.FovBoost = 0f;
+                WarpBubble.Throttle = WarpBubble.Speed = WarpBubble.Intensity = 0f;
+                // The entry spool-up into a warp out of a jump zone (#108) widens the view before the bubble closes.
+                WarpBubble.FovBoost = Mathf.Lerp(WarpBubble.FovBoost, JumpZones.Entering * JumpZones.Entering * 16f, 1f - Mathf.Exp(-4f * Time.deltaTime));
                 WarpBubble.Heat = WarpBubble.Progress01 = 0f;
                 WarpBubble.Overheated = false;
                 wasPiloting = false;
@@ -222,7 +227,7 @@ namespace Voidward.World
                 return;
             }
             float dt = Time.deltaTime;
-            if (IsServer) ServerTick(dt);
+            if (IsServer && !ServerTickExit()) ServerTick(dt);
 
             // Local route position: the server's, extrapolated between network ticks and eased (no visible snapping).
             localProgressPrev = localProgress;
@@ -267,7 +272,9 @@ namespace Voidward.World
         {
             bool piloting = LocalIsLeadPilot && Time.unscaledTime - WarpBubble.PilotInputTime < 0.3f;
             if (!piloting) { wasPiloting = false; ConsumeToggles(); return; }
-            if (!wasPiloting) { pilotCommand = Throttle.Value; wasPiloting = true; }
+            // A new flight (also the seamless one out of a jump zone, #108) starts at the server's throttle.
+            if (!wasPiloting || pilotSeed != Seed.Value) { pilotCommand = Throttle.Value; wasPiloting = true; pilotSeed = Seed.Value; pilotSyncUntil = Time.unscaledTime + 1f; }
+            if (Time.unscaledTime < pilotSyncUntil) pilotCommand = Mathf.Max(pilotCommand, Throttle.Value);
             if (Stalled.Value || Overheated.Value || DroppedOut.Value) pilotCommand = 0f;
             else
             {
@@ -287,24 +294,24 @@ namespace Voidward.World
         // ================================================================ server: begin / end
 
         /// <summary>Server: start the flown warp from galaxy `from` to route stop `to` (fuel was checked by RunManager).</summary>
-        public void ServerBegin(int from, int to, ShipCore lead)
+        public void ServerBegin(int from, int to, ShipCore lead, bool seamless = false)
         {
             if (!IsServer) return;
             float minutes = DriveMath.Minutes(DriveStatsNow, from, to);
             if (float.IsInfinity(minutes) || minutes <= 0f) minutes = 10f;
-            ServerStart(from, to, -1, minutes, WarpDrive.FuelTo(to), lead);
+            ServerStart(from, to, -1, minutes, WarpDrive.FuelTo(to), lead, seamless);
         }
 
         /// <summary>Server: start a hop to another system of galaxy `galaxy` (#80): short, free of Exotic Matter, thinner fields.</summary>
-        public void ServerBeginHop(int galaxy, int system, ShipCore lead)
+        public void ServerBeginHop(int galaxy, int system, ShipCore lead, bool seamless = false)
         {
             if (!IsServer) return;
             float minutes = DriveMath.HopMinutes(WarpDrive.Def, DriveStatsNow);
             if (float.IsInfinity(minutes) || minutes <= 0f) minutes = 1.5f;
-            ServerStart(galaxy, galaxy, system, minutes, 0, lead);
+            ServerStart(galaxy, galaxy, system, minutes, 0, lead, seamless);
         }
 
-        void ServerStart(int from, int to, int system, float minutes, int fuel, ShipCore lead)
+        void ServerStart(int from, int to, int system, float minutes, int fuel, ShipCore lead, bool seamless)
         {
             var stats = DriveStatsNow;
             var d = WarpDrive.Def;
@@ -344,9 +351,18 @@ namespace Voidward.World
             riftPos = 0f;
             riftWarned = waveDone = false;
             Lead.Value = PickLead(lead);
+            exiting = false;
+            if (seamless && ShipById(Lead.Value) != null)
+            {
+                // Out of a jump zone (#108): the crew keeps flying, the bubble holds a cruising throttle until the
+                // first obstacle warning or the lead pilot's own input.
+                ServerRebaseIntoBubble(ShipById(Lead.Value));
+                commanded = Throttle.Value = Mathf.Clamp(Mathf.Min(stats.NavFraction, stats.Sustain) * 0.8f, 0.25f, 0.7f);
+                Cruise.Value = true;
+            }
+            else ServerFormation();
             Active.Value = true;
             DroppedOut.Value = false;
-            ServerFormation();
             Debug.Log($"[Warp] begin {from} -> {to}{(system >= 0 ? " system " + system : "")}: {Length.Value / 1000f:0.0} km at {FullSpeed:0} m/s, planned {minutes:0.0} min, fuel {fuelNeed}" +
                       (finale ? $", rift from {RiftStart.Value / 1000f:0.0} km" : ""));
         }
@@ -355,6 +371,7 @@ namespace Voidward.World
         public void ServerAbort()
         {
             if (!IsServer) return;
+            exiting = false;
             DespawnSite();
             Active.Value = false;
             DroppedOut.Value = false;
@@ -473,7 +490,7 @@ namespace Voidward.World
             ServerPatrols(r, rm);
             ServerInterdiction(rm);
 
-            if (p >= r.Length - 0.5f) { ServerArrive(rm); return; }
+            if (p >= r.Length - 0.5f) { ServerBeginExit(); return; }
             ServerRift(rm, dt);
         }
 
@@ -669,9 +686,10 @@ namespace Voidward.World
             fuelBurned = fuelNeed;
             int system = TargetSystem.Value;
             Debug.Log(system >= 0 ? $"[Warp] arrived at system {system}" : $"[Warp] arrived at stop {to}");
+            var lead = ShipById(Lead.Value);
             ServerAbort();
-            if (system >= 0) rm.ServerArriveSystem(system);
-            else rm.ServerArrive(to);
+            if (system >= 0) rm.ServerArriveSystem(system, lead);
+            else rm.ServerArrive(to, lead);
         }
 
         // ================================================================ server: pilot, impacts, shots

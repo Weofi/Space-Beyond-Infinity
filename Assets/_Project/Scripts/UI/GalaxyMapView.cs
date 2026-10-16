@@ -10,11 +10,11 @@ using Voidward.World;
 namespace Voidward.UI
 {
     /// <summary>
-    /// Galaxy map (#46, key M): the route home through the Local Group, the systems of the current galaxy with
-    /// kind, threat and visit state, and the warp course. A pilot picks a system (short in-galaxy warp, also back
-    /// to visited ones) or the one-way warp to the next galaxy (or skips one, #78); from the last galaxy that is the
-    /// flight home. Galaxy warps show the Home ETA, flight time and Exotic Matter need (red = not reachable).
-    /// Until the flown warp of #79/#80 a warp is a short countdown, then the whole crew jumps.
+    /// Galaxy map (#46, key M): the route home through the Local Group, the systems of the current galaxy with kind,
+    /// threat and visit state, the hop lanes between them and the jump zones of the current system. Navigation only
+    /// (#108): nobody warps from here - the crew flies out through a jump zone at the system edge (hops to the
+    /// neighbouring systems; the Galactic Rim and the skip zone beyond the outermost system). Galaxy warps show the
+    /// Home ETA, flight time and Exotic Matter need (red = the zone will hold).
     /// </summary>
     public class GalaxyMapView
     {
@@ -25,7 +25,6 @@ namespace Voidward.UI
         RectTransform body;
         int selected = -1;
         int shownSystem = -1;
-        int confirmTarget;
         float timer;
 
         public bool IsOpen => panel.gameObject.activeSelf;
@@ -52,7 +51,6 @@ namespace Voidward.UI
             if (rm == null || rm.RunSeed.Value == 0) return;
             selected = rm.SystemIndex.Value;
             shownSystem = rm.GalaxyIndex.Value * 16 + rm.SystemIndex.Value;
-            confirmTarget = 0;
             panel.gameObject.SetActive(true);
             timer = 0f;
             Sfx.PlayUI("ui_click");
@@ -71,15 +69,7 @@ namespace Voidward.UI
             Rebuild(rm);
         }
 
-        static bool LocalIsPilot()
-        {
-            var pawn = PlayerPawn.Local;
-            if (pawn == null) return false;
-            var seat = pawn.CurrentShipSeat;
-            return seat != null && seat.Role == StationRole.Pilot;
-        }
-
-        void Select(int i) { selected = i; confirmTarget = 0; timer = 0f; Sfx.PlayUI("ui_click"); }
+        void Select(int i) { selected = i; timer = 0f; Sfx.PlayUI("ui_click"); }
 
         void Rebuild(RunManager rm)
         {
@@ -87,7 +77,7 @@ namespace Voidward.UI
             var def = plan.Def;
             // After a warp the map follows the crew.
             int here = rm.GalaxyIndex.Value * 16 + rm.SystemIndex.Value;
-            if (here != shownSystem) { shownSystem = here; selected = rm.SystemIndex.Value; confirmTarget = 0; }
+            if (here != shownSystem) { shownSystem = here; selected = rm.SystemIndex.Value; }
             int g = rm.GalaxyIndex.Value;
             header.text = $"{RunManager.GalaxyTitle(def)}   <size=70%><color=#94A3B8>{(def != null ? def.DistanceMly.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "?")} M ly from home  |  run {HudView.Clock(rm.RunTime)}</color></size>";
             var sb = new System.Text.StringBuilder("ROUTE   ");
@@ -116,14 +106,12 @@ namespace Voidward.UI
             var map = UIKit.Rect(mapWrap, "Area");
             UIKit.Place(map, new Vector2(0.5f, 0.5f), Vector2.zero, MapSize);
             Vector2 P(StarSystem s) => new Vector2((s.MapPos.x - 0.5f) * MapSize.x, (s.MapPos.y - 0.5f) * MapSize.y);
-            // Lanes from the arrival system outwards (nearest earlier system), purely for readability.
+            // Hop lanes (#108): every system has jump zones to its neighbours in the plan's order.
             for (int i = 1; i < plan.Systems.Length; i++)
-            {
-                int best = 0;
-                for (int j = 0; j < i; j++)
-                    if (Vector2.Distance(plan.Systems[j].MapPos, plan.Systems[i].MapPos) < Vector2.Distance(plan.Systems[best].MapPos, plan.Systems[i].MapPos)) best = j;
-                Line(map, P(plan.Systems[best]), P(plan.Systems[i]), new Color(0.3f, 0.45f, 0.7f, 0.35f));
-            }
+                Line(map, P(plan.Systems[i - 1]), P(plan.Systems[i]), new Color(0.3f, 0.6f, 0.85f, 0.45f));
+            // The Galactic Rim leaves from the outermost system towards the next galaxy.
+            var rimSys = plan.Systems[plan.Systems.Length - 1];
+            Line(map, P(rimSys), P(rimSys) + new Vector2(70f, 0f), new Color(1f, 0.68f, 0.3f, 0.7f));
             for (int i = 0; i < plan.Systems.Length; i++) Node(map, plan.Systems[i], P(plan.Systems[i]), rm, i);
 
             // ------------------------------------------------ details
@@ -140,39 +128,49 @@ namespace Voidward.UI
             Line(info, UIKit.Text(info, state, 22, TextAlignmentOptions.Left, UIKit.TextDim), 30);
             Line(info, UIKit.Text(info, GalaxyGenerator.KindHint(sys.Kind), 22, TextAlignmentOptions.TopLeft, UIKit.TextDim), 70);
 
-            bool pilot = LocalIsPilot();
-            bool warping = rm.WarpCountdown.Value >= 0f;
             var flight = WarpFlight.Instance;
-            bool flying = flight != null && flight.Active.Value;
-            if (flying)
-            {
+            if (flight != null && flight.Active.Value)
                 Line(info, UIKit.Text(info, $"In warp flight - {Mathf.RoundToInt(flight.Progress01 * 100f)}% of the way", 24, TextAlignmentOptions.Left, UIKit.Warn), 34);
-                warping = true;
-            }
-            else if (warping)
-            {
-                Line(info, UIKit.Text(info, $"Warp to <b>{rm.WarpLabel(rm.WarpTarget.Value)}</b> in {Mathf.CeilToInt(rm.WarpCountdown.Value)} s", 24, TextAlignmentOptions.Left, UIKit.Warn), 34);
-                UIKit.LayoutElement(UIKit.Button(info, "Cancel warp", () => rm.CancelWarpServerRpc(), 56, UIKit.Bad, 24).gameObject, -1, 56);
-            }
+            else if (current)
+                Line(info, UIKit.Text(info, JumpList(rm), 21, TextAlignmentOptions.TopLeft, UIKit.TextColor), 30f * Mathf.Max(2, JumpZones.Current.Length + 1));
             else
             {
+                int hops = Mathf.Abs(sys.Index - rm.SystemIndex.Value);
                 var hopDrive = WarpDrive.Instance;
-                if (!current && hopDrive != null)
-                    Line(info, UIKit.Text(info, $"System warp  <color=#F59E0B>{DriveMath.Eta(hopDrive.HopMinutes)}</color>  <color=#64748B>(no Exotic Matter, clear of gravity and combat)</color>", 22, TextAlignmentOptions.Left, UIKit.TextDim), 30);
-                var warp = UIKit.Button(info, current ? "You are here" : pilot ? "Warp here" : "Pilot seat needed", () => { rm.RequestWarpServerRpc(sys.Index); }, 52, UIKit.Primary, 26);
-                warp.interactable = !current && pilot;
-                UIKit.LayoutElement(warp.gameObject, -1, 52);
+                string eta = hopDrive != null ? DriveMath.Eta(hopDrive.HopMinutes * hops) : "--";
+                Line(info, UIKit.Text(info, $"{hops} hop{(hops == 1 ? "" : "s")} away  <color=#F59E0B>{eta}</color>\n<color=#64748B>Fly out through the jump zone towards {plan.Systems[rm.SystemIndex.Value + (sys.Index > rm.SystemIndex.Value ? 1 : -1)].Name} (no Exotic Matter)</color>", 21, TextAlignmentOptions.TopLeft, UIKit.TextDim), 60);
             }
 
             UIKit.LayoutElement(UIKit.Image(info, "Rule", new Color(1f, 1f, 1f, 0.12f), false).gameObject, -1, 2);
             bool last = g >= GalaxyDef.Count;
-            Line(info, UIKit.Text(info, last ? "The Milky Way fills the sky. Home is one warp away." : "One-way: this galaxy's systems stay behind.", 20, TextAlignmentOptions.TopLeft, UIKit.TextDim), 28);
-            GalaxyWarp(info, rm, RunManager.WarpNextGalaxy, last ? "Fly home" : "Warp to next galaxy", pilot, warping);
-            if (g + 2 <= GalaxyDef.Count) GalaxyWarp(info, rm, RunManager.WarpSkipGalaxy, "Skip a galaxy", pilot, warping);
+            var rim = plan.Systems[plan.Systems.Length - 1];
+            Line(info, UIKit.Text(info, (last ? "The Milky Way fills the sky. Home is one warp away - " : "One-way: this galaxy's systems stay behind. ")
+                + $"The Galactic Rim lies beyond <b>{rim.Name}</b>, the outermost system.", 20, TextAlignmentOptions.TopLeft, UIKit.TextDim), 56);
+            GalaxyWarp(info, rm, RunManager.WarpNextGalaxy, last ? "Flight home" : "Galactic Rim");
+            if (g + 2 <= GalaxyDef.Count) GalaxyWarp(info, rm, RunManager.WarpSkipGalaxy, "Skip zone");
         }
 
-        /// <summary>One galaxy warp option: destination, flight time and Exotic Matter need, then a two-click warp button.</summary>
-        void GalaxyWarp(RectTransform info, RunManager rm, int target, string label, bool pilot, bool warping)
+        /// <summary>The jump zones of the system the crew is in (#108): target, distance from the local player, state.</summary>
+        static string JumpList(RunManager rm)
+        {
+            var zones = JumpZones.Current;
+            if (zones.Length == 0) return "No jump zones here";
+            var pawn = PlayerPawn.Local;
+            Vector3 from = pawn != null ? pawn.transform.position : Vector3.zero;
+            var sb = new System.Text.StringBuilder("<b>JUMP ZONES</b>  <color=#64748B>fly out through one to warp</color>");
+            for (int i = 0; i < zones.Length; i++)
+            {
+                var z = zones[i];
+                var block = JumpZones.BlockOf(i);
+                string col = "#" + ColorUtility.ToHtmlStringRGB(z.Color);
+                string state = block == JumpBlock.Open ? "<color=#4ADE80>open</color>" : $"<color=#EF4444>{JumpZones.BlockText(block, JumpZones.CrewMissing).ToLowerInvariant()}</color>";
+                sb.Append($"\n<color={col}>{z.Label}</color>  {HudKit.Dist(Vector3.Distance(from, z.Center))}  {state}");
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>One galaxy warp: destination, flight time and Exotic Matter need (red = the zone will hold).</summary>
+        static void GalaxyWarp(RectTransform info, RunManager rm, int target, string label)
         {
             var drive = WarpDrive.Instance;
             int stop = rm.StopOf(target);
@@ -183,17 +181,7 @@ namespace Voidward.UI
             string fuel = !tankOk ? $"<color=#EF4444>needs {need} Exotic - tank too small ({drive.Capacity})</color>"
                 : !fuelOk ? $"<color=#EF4444>needs {need} Exotic - {Mathf.FloorToInt(drive.Exotic.Value)} loaded</color>"
                 : $"<color=#94A3B8>needs {need} Exotic</color>";
-            Line(info, UIKit.Text(info, $"<b>{rm.WarpLabel(target)}</b>   <color=#F59E0B>{eta}</color>\n<size=85%>{fuel}</size>", 21, TextAlignmentOptions.TopLeft, UIKit.TextColor), 52);
-            bool confirm = confirmTarget == target;
-            string text = !pilot ? "Pilot seat needed" : !tankOk || !fuelOk ? "Not enough Exotic Matter" : confirm ? "Confirm - warp now" : label;
-            var btn = UIKit.Button(info, text, () =>
-            {
-                if (confirmTarget != target) { confirmTarget = target; timer = 0f; return; }
-                confirmTarget = 0;
-                rm.RequestWarpServerRpc(target);
-            }, 52, confirm ? UIKit.Warn : target == RunManager.WarpSkipGalaxy ? UIKit.Accent : UIKit.Good, 24);
-            btn.interactable = pilot && !warping && (tankOk && fuelOk || CheatManager.GodMode);
-            UIKit.LayoutElement(btn.gameObject, -1, 52);
+            Line(info, UIKit.Text(info, $"<color=#94A3B8>{label}</color>  <b>{rm.WarpLabel(target)}</b>   <color=#F59E0B>{eta}</color>\n<size=85%>{fuel}</size>", 21, TextAlignmentOptions.TopLeft, UIKit.TextColor), 56);
         }
 
         static void Line(Transform parent, TextMeshProUGUI t, float h) => UIKit.LayoutElement(t.gameObject, -1, h);

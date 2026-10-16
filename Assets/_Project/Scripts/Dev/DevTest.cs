@@ -751,6 +751,48 @@ namespace Voidward.Dev
             Log($"face planet {planet} {g.name} r {g.SurfaceRadius:0} lock {g.CruiseRadius:0} at {clearance:0} m");
         }
 
+        // ------------------------------------------------------------------ jump zones (#108)
+
+        /// <summary>Jump zones of this system as this peer sees them: "entry - veil 0.00 crew-missing 0 align -1:0.00 | 0:Hop>1 Open @5.6km ...".</summary>
+        public static string JumpZoneInfo => Flight != null ? Flight.JumpInfo() : "no flight";
+
+        /// <summary>Server: the local pilot's ship `distance` m before zone `zone`'s plane, nose outward (no warp yet).</summary>
+        public static void FaceJumpZone(int zone, float distance = 600f)
+        {
+            if (!IsServer || Flight == null || !Flight.ServerDevFaceZone(zone, distance, out var ship)) { Log($"FaceJumpZone FAILED: zone {zone} | " + JumpZoneInfo); return; }
+            Log($"face jump zone {zone} at {distance:0} m ({ship.name}) | " + JumpZoneInfo);
+        }
+
+        /// <summary>
+        /// Server, local pilot: fly out through zone `zone` the real way - in front of it, then cruise (skips the
+        /// spool-up) or, with cruise false, normal flight nose outward (the align timer). Logs `[Dev] end jump
+        /// &lt;WarpInfo&gt;` once the warp flight runs, or FAILED with the zone state after `timeout` s.
+        /// </summary>
+        public static void FlyOutJumpZone(int zone, bool cruise = true, float timeout = 20f)
+        {
+            Log("begin jump");
+            if (!IsServer || Flight == null || !Flight.ServerDevFaceZone(zone, cruise ? 250f : -20f, out _)) { Log("end jump FAILED: no zone/ship | " + JumpZoneInfo); return; }
+            DevRunner.Get().Run(JumpCo(cruise, timeout));
+        }
+
+        static IEnumerator JumpCo(bool cruise, float timeout)
+        {
+            yield return null;
+            yield return new WaitForFixedUpdate();
+            var s = SeatShip;
+            if (cruise) { if (s == null || s.Flight == null || !s.Flight.DevCruise(true, true)) { Log("end jump FAILED: no cruise | " + CruiseInfo); yield break; } }
+            float t = 0f;
+            while (t < timeout && (Flight == null || !Flight.Active.Value))
+            {
+                // Normal flight: drift outward slowly so the nose stays aligned while the timer runs.
+                if (!cruise && s != null && s.Flight != null) s.Flight.SetPilotInput(new Vector3(0f, 0f, 0.4f), Vector3.zero, false, false);
+                t += Time.deltaTime;
+                yield return null;
+            }
+            if (Flight == null || !Flight.Active.Value) { Log("end jump FAILED: still in the system | " + JumpZoneInfo); yield break; }
+            Log($"end jump after {t:0.0} s | " + WarpInfo);
+        }
+
         // ------------------------------------------------------------------ actions
 
         /// <summary>Server: fire an authoritative projectile from 'from' at 'to' (dmg 0 = cosmetic test shot).</summary>

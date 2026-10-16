@@ -108,8 +108,11 @@ namespace Voidward.Ship
             var src = GravitySource.Dominant(rb.position);
             Altitude = src != null ? src.SurfaceDistance(rb.position) : 9999f;
 
+            if (arrivePending && !WarpBubble.Active) ApplyArrival(piloted, s);
+            else if (arrivePending && Time.time > arriveUntil) arrivePending = false;
             if (!piloted || core.Derelict.Value || WarpBubble.Active) EndCruise(null, false);
-            else if (CruiseStep(s, dt)) return;
+            else if (CruiseStep(s, dt)) { JumpZoneHold(dt); return; }
+            JumpZoneHold(dt);
 
             if (piloted && !core.Derelict.Value)
             {
@@ -334,6 +337,67 @@ namespace Voidward.Ship
             block == "GRAVITY FIELD" ? "inside a gravity field - fly clear of the planet" :
             block == "COMBAT" ? "enemies engaging nearby" :
             block == "INTERDICTED" ? "drive interdicted, wait a moment" : "in warp";
+
+        // ------------------------------------------------------------ jump zones (#108)
+
+        bool arrivePending;
+        float arriveUntil;
+        float holdNoticeAt = -99f;
+
+        /// <summary>
+        /// Server -> the ship's transform authority: the warp is over (#108), the ship comes out of the bubble and glides
+        /// into the system - a piloted ship in cruise. Applied once the local warp state has ended (the bubble's
+        /// variables may arrive after this message).
+        /// </summary>
+        [Rpc(SendTo.Owner)]
+        public void ArriveFromWarpRpc()
+        {
+            arrivePending = true;
+            arriveUntil = Time.time + 3f;
+        }
+
+        void ApplyArrival(bool piloted, ShipStats s)
+        {
+            arrivePending = false;
+            if (piloted && !core.Derelict.Value)
+            {
+                rb.linearVelocity = transform.forward * Mathf.Max(s.MaxSpeed, CruiseTopSpeed * 0.6f);
+                SetCruise(CruiseMode.Cruising);
+            }
+            else rb.linearVelocity = transform.forward * s.MaxSpeed * 0.5f;
+        }
+
+        /// <summary>
+        /// A blocked jump zone (crew not aboard, Exotic Matter, combat/gravity lock) holds the ship back softly at its
+        /// boundary instead of letting it fly out: a cruise is dumped, the outward speed bleeds off, a push back inside.
+        /// </summary>
+        void JumpZoneHold(float dt)
+        {
+            var zones = JumpZones.Current;
+            if (zones.Length == 0 || WarpBubble.Active) return;
+            Vector3 p = rb.position;
+            for (int i = 0; i < zones.Length; i++)
+            {
+                if (JumpZones.BlockOf(i) == JumpBlock.Open) continue;
+                var z = zones[i];
+                float along = z.Along(p, out float lat);
+                if (lat > z.Radius || along < -120f || along > JumpZones.Depth * 3f) continue;
+                string why = JumpZones.BlockText(JumpZones.BlockOf(i), JumpZones.CrewMissing);
+                if (cruise != CruiseMode.Off) EndCruise("JUMP ZONE HOLDS - " + why, true);
+                Vector3 v = rb.linearVelocity;
+                float outward = Vector3.Dot(v, z.Normal);
+                if (outward > 0f) v -= z.Normal * outward * (1f - Mathf.Exp(-5f * dt));
+                v -= z.Normal * Mathf.Clamp(along + 120f, 0f, 240f) * 0.6f * dt;
+                rb.linearVelocity = v;
+                if (along > -40f && inputAge < 0.25f && Time.time - holdNoticeAt > 4f)
+                {
+                    holdNoticeAt = Time.time;
+                    Sfx.PlayUI("ui_back");
+                    Vfx.Shake(0.15f);
+                }
+                return;
+            }
+        }
 
         // ------------------------------------------------------------ warp bubble (#79)
 
