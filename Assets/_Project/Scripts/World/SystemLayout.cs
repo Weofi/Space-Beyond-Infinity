@@ -113,6 +113,97 @@ namespace Voidward.World
             return L;
         }
 
+        // ---------------------------------------------------------------- jump zones (#108)
+
+        /// <summary>The jump zones at the system edge (empty until AddJumpZones).</summary>
+        public JumpZone[] Jumps = new JumpZone[0];
+
+        /// <summary>
+        /// The jump zones of system `system` of `plan` (#108): a hop zone towards each neighbouring system of the galaxy
+        /// (the plan's order, aimed like the galaxy map), and in the galaxy's outermost system the Galactic Rim towards
+        /// the next galaxy on the sky (from the LMC: the Milky Way, the flight home) plus the skip zone beside it, further
+        /// out. Zones sit on an ellipsoid around the corridor, well outside the planets' gravity fields.
+        /// </summary>
+        public void AddJumpZones(GalaxyPlan plan, int system)
+        {
+            var list = new System.Collections.Generic.List<JumpZone>();
+            if (plan == null || plan.Systems == null || plan.Systems.Length == 0) { Jumps = list.ToArray(); return; }
+            var rng = new System.Random(Seed ^ 0x5A17);
+            int n = plan.Systems.Length;
+            var here = plan.Systems[Mathf.Clamp(system, 0, n - 1)];
+            for (int k = -1; k <= 1; k += 2)
+            {
+                int j = system + k;
+                if (j < 0 || j >= n) continue;
+                Vector2 m = plan.Systems[j].MapPos - here.MapPos;
+                var dir = new Vector3(m.x, 0f, m.y);
+                dir = dir.sqrMagnitude > 1e-6f ? dir.normalized : new Vector3(k, 0f, 0f);
+                dir.x = k > 0 ? Mathf.Max(dir.x, 0.6f) : Mathf.Min(dir.x, -0.6f);
+                dir.y = MathUtils.Range(rng, -0.12f, 0.12f);
+                list.Add(Zone(j, JumpKind.Hop, dir.normalized, 0f, plan.Systems[j].Name));
+            }
+            if (system == n - 1)
+            {
+                int g = plan.Index;
+                bool last = g >= GalaxyDef.Count;
+                var next = ContentCatalog.GetGalaxy(g + 1);
+                list.Add(last
+                    ? Zone(RunManager.WarpNextGalaxy, JumpKind.Home, SystemVisuals.MilkyWayDir, 0f, "HOME - THE MILKY WAY")
+                    : Zone(RunManager.WarpNextGalaxy, JumpKind.Rim, SystemVisuals.DestinationDir, 0f, "GALACTIC RIM - " + (next != null ? next.DisplayName : "next galaxy")));
+                if (g + 2 <= GalaxyDef.Count)
+                {
+                    var skip = ContentCatalog.GetGalaxy(g + 2);
+                    Vector3 sd = (Quaternion.AngleAxis(-38f, Vector3.up) * SystemVisuals.DestinationDir).normalized;
+                    var sz = Zone(RunManager.WarpSkipGalaxy, JumpKind.Skip, sd, 1400f, "SKIP - " + (skip != null ? skip.DisplayName : "a galaxy"));
+                    // further out than the rim it sits beside
+                    float rim = list[list.Count - 1].Center.magnitude + 1400f;
+                    if (sz.Center.magnitude < rim) sz.Center = sd * rim;
+                    list.Add(sz);
+                }
+            }
+            Jumps = list.ToArray();
+        }
+
+        JumpZone Zone(int target, JumpKind kind, Vector3 dir, float extra, string label)
+        {
+            // Point on an ellipsoid around the corridor: past its ends along X, wide to the sides, flatter vertically.
+            float a = Length * 0.5f + 900f, b = 2600f, c = 5200f;
+            float t = 1f / Mathf.Sqrt(dir.x * dir.x / (a * a) + dir.y * dir.y / (b * b) + dir.z * dir.z / (c * c)) + extra;
+            // Out along the normal until the zone and the arrival point inside it are well clear of every gravity field
+            // (the zone must be a place to cruise through, and the crew arrives there cruising).
+            for (int k = 0; k < 24 && !ClearOfPlanets(dir * t, dir); k++) t += 500f;
+            return new JumpZone { Target = target, Kind = kind, Center = dir * t, Normal = dir, Radius = JumpZones.Radius, Label = label };
+        }
+
+        bool ClearOfPlanets(Vector3 center, Vector3 normal)
+        {
+            Vector3 arrive = center - normal * (JumpZones.Depth + 350f);
+            foreach (var p in Planets)
+            {
+                // gravity/cruise lock reaches ~1 km past the atmosphere: keep 2 km more plus the disc
+                float keep = p.Radius * 1.35f + 3000f + JumpZones.Radius;
+                if (Vector3.Distance(center, p.Pos) < keep || Vector3.Distance(arrive, p.Pos) < keep) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Where a warp into this system ends (#108): a hop from `fromSystem` comes out of the zone that leads back
+        /// there (inside it, nose inward); a galaxy warp (fromSystem &lt; 0) at the arrival point at the corridor's start.
+        /// </summary>
+        public void Arrival(int fromSystem, out Vector3 pos, out Vector3 inward)
+        {
+            foreach (var z in Jumps)
+                if (z.Kind == JumpKind.Hop && z.Target == fromSystem && fromSystem >= 0)
+                {
+                    inward = -z.Normal;
+                    pos = z.Center + inward * (JumpZones.Depth + 350f);
+                    return;
+                }
+            pos = StartPoint;
+            inward = Vector3.right;
+        }
+
         static float Sign(System.Random r) => r.NextDouble() < 0.5 ? -1f : 1f;
     }
 }

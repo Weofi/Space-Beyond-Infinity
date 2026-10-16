@@ -88,7 +88,10 @@ namespace Voidward.World
             if (r == null || !WarpBubble.Active)
             {
                 if (shownSeed != int.MinValue) { ClearAll(); shownSeed = int.MinValue; WarpBubble.Pull = null; }
-                if (streaks) streaks.gameObject.SetActive(false);
+                // Entry spool-up out of a jump zone (#108): the speed lines build up along the lead's flight path.
+                float e = JumpZones.Entering;
+                if (e > 0f) { if (glowMat == null) EnsureAssets(); UpdateStreaks(0f, JumpZones.EntryDir.normalized, Mathf.Lerp(400f, 1400f, e), Mathf.Sqrt(e), 120f, 1.4f, 3f); }
+                else if (streaks) streaks.gameObject.SetActive(false);
                 return;
             }
             if (shownSeed != f.Seed.Value) { ClearAll(); shownSeed = f.Seed.Value; EnsureAssets(); }
@@ -113,7 +116,7 @@ namespace Voidward.World
             DetectImpacts(f, r);
             UpdateBeacon(f, p);
             UpdateCloud(f, r);
-            UpdateStreaks(f.RiftCloseness);
+            UpdateStreaks(f.RiftCloseness, WarpBubble.Axis, WarpBubble.Speed, WarpBubble.Intensity);
             UpdateRift(f);
         }
 
@@ -579,7 +582,7 @@ namespace Voidward.World
 
         float streakScale = 1f;
 
-        void UpdateStreaks(float rift)
+        void UpdateStreaks(float rift, Vector3 dir, float speed, float intensity, float spread = 260f, float reach = 1f, float width = 1f)
         {
             var cam = Camera.main;
             if (cam == null) return;
@@ -611,9 +614,8 @@ namespace Voidward.World
                 streaks.Play();
             }
             streaks.gameObject.SetActive(true);
-            float speed = WarpBubble.Speed;
             if (speed < 5f) return;
-            float intensity = WarpBubble.Intensity;
+            var basis = Quaternion.LookRotation(dir);
             streakBudget += (120f + 520f * intensity) * Time.deltaTime;
             int n = Mathf.Min(40, Mathf.FloorToInt(streakBudget));
             streakBudget -= n;
@@ -621,11 +623,11 @@ namespace Voidward.World
             var ep = new ParticleSystem.EmitParams();
             for (int i = 0; i < n; i++)
             {
-                Vector2 lat = Random.insideUnitCircle * 260f;
+                Vector2 lat = Random.insideUnitCircle * spread;
                 if (lat.sqrMagnitude < 400f) lat = lat.normalized * 20f;
-                ep.position = new Vector3(cp.x + Random.Range(250f, 900f), cp.y + lat.x, cp.z + lat.y);
-                ep.velocity = -WarpBubble.Axis * speed * Random.Range(0.85f, 1.2f);
-                ep.startSize = Random.Range(0.35f, 0.9f) * streakScale;
+                ep.position = cp + basis * new Vector3(lat.x, lat.y, Random.Range(250f, 900f) * reach);
+                ep.velocity = -dir * speed * Random.Range(0.85f, 1.2f);
+                ep.startSize = Random.Range(0.35f, 0.9f) * streakScale * width;
                 ep.startLifetime = 1.6f;
                 ep.startColor = Color.Lerp(Color.Lerp(new Color(0.6f, 0.85f, 1f, 0.5f), new Color(0.85f, 0.7f, 1f, 0.7f), Random.value), new Color(0.75f, 0.3f, 1f, 0.8f), rift * 0.8f) * (0.5f + 0.6f * intensity);
                 streaks.Emit(ep, 1);

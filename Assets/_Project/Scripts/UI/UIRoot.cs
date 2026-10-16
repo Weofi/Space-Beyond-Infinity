@@ -32,7 +32,7 @@ namespace Voidward.UI
         IntroSequence intro;
         LoopView loop;
         GamePhase lastPhase = GamePhase.MainMenu;
-        Image flash;
+        Image flash, veil;
         float flashTime, flashDuration;
         Color flashColor;
 
@@ -79,6 +79,10 @@ namespace Voidward.UI
             galaxyMap = new GalaxyMapView(Root);
             engineer = new EngineerView(Root);
 
+            // The warp bubble's veil (#108): hides the rebase when the crew flies into / out of a warp.
+            veil = UIKit.Image(Root, "WarpVeil", new Color(1, 1, 1, 0), false);
+            UIKit.Stretch(veil.rectTransform);
+            veil.raycastTarget = false;
             flash = UIKit.Image(Root, "Flash", new Color(1, 1, 1, 0), false);
             UIKit.Stretch(flash.rectTransform);
             flash.raycastTarget = false;
@@ -237,6 +241,13 @@ namespace Voidward.UI
             galaxyMap.Update();
             engineer.Update();
 
+            float v = JumpZones.Veil;
+            if (v > 0.001f || veil.color.a > 0f)
+            {
+                var vc = JumpZones.VeilColor;
+                vc.a = v * 0.97f;
+                veil.color = vc;
+            }
             if (flashTime > 0f)
             {
                 flashTime -= Time.unscaledDeltaTime;

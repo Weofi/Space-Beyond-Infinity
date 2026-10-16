@@ -29,7 +29,6 @@ namespace Voidward.World
         public const int WarpNextGalaxy = -1;
         /// <summary>WarpTarget value for skipping a galaxy (#78): straight to the one after the next, for more Exotic Matter.</summary>
         public const int WarpSkipGalaxy = -2;
-        public const float WarpDelay = 5f;
 
         public NetworkVariable<GamePhase> Phase = new NetworkVariable<GamePhase>(GamePhase.Lobby);
         public NetworkVariable<int> RunSeed = new NetworkVariable<int>(0);
@@ -40,8 +39,6 @@ namespace Voidward.World
         public NetworkVariable<float> RunClockBase = new NetworkVariable<float>(0f);
         public NetworkVariable<double> RunClockStart = new NetworkVariable<double>(0);
         public NetworkVariable<int> RespawnsLeft = new NetworkVariable<int>(StartingRespawns);
-        public NetworkVariable<float> WarpCountdown = new NetworkVariable<float>(-1f);
-        public NetworkVariable<int> WarpTarget = new NetworkVariable<int>(0);
         public NetworkVariable<bool> BossActive = new NetworkVariable<bool>(false);
         /// <summary>The loop of the time loop this run is (1-based, the host's count, #86).</summary>
         public NetworkVariable<int> Loop = new NetworkVariable<int>(1);
@@ -61,8 +58,6 @@ namespace Voidward.World
         float autoStartTimer = 3f;
         int clearedEnclaves;
         ShipCore ark;
-        /// <summary>Ship of the pilot who set the galaxy warp course: it leads the warp bubble (#79).</summary>
-        ShipCore warpLead;
 
         // ---- client state ----
         SystemVisuals visuals;
@@ -258,7 +253,6 @@ namespace Voidward.World
 
             TickPlayers(dt);
             TickHazards(dt);
-            TickWarp(dt);
             if (WarpFlight.Instance == null || !WarpFlight.Instance.Active.Value) director.Tick(dt);
             CheckRunOver();
         }
@@ -346,11 +340,10 @@ namespace Voidward.World
             stats = new RunSummary();
             log.Clear();
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
-            warpLead = null;
+            if (WarpFlight.Instance != null) WarpFlight.Instance.ServerResetJumps();
             distanceDone = 0f;
             clearedEnclaves = 0;
             RespawnsLeft.Value = respawns;
-            WarpCountdown.Value = -1f;
             ark = null;
             ClearShips();
             RunSeed.Value = seed;
@@ -388,7 +381,7 @@ namespace Voidward.World
             foreach (var p in PlayerPawn.All) if (p != null) { p.SetActiveServer(false); p.Inventory.ClearAll(); p.Inventory.Credits.Value = 0; }
             RunSeed.Value = 0;
             BossActive.Value = false;
-            WarpCountdown.Value = -1f;
+            if (WarpFlight.Instance != null) WarpFlight.Instance.ServerResetJumps();
         }
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
@@ -454,7 +447,6 @@ namespace Voidward.World
             stats.RunTimeSeconds = RunTime;
             stats.StardustEarned = stats.ComputeStardust();
             RunClockBase.Value = RunTime;
-            WarpCountdown.Value = -1f;
             Phase.Value = victory ? GamePhase.DemoComplete : GamePhase.GameOver;
             RunSave.Delete(); // one slot, no reloading after death (and nothing left to resume after the homecoming)
             foreach (var p in PlayerPawn.All) if (p != null) { var s = ShipSeat.SeatOf(p.OwnerClientId); if (s) s.Vacate(); }
@@ -498,65 +490,57 @@ namespace Voidward.World
 
         // ---------------------------------------------------------------- warp (galaxy warps flown since #79, system warps since #80)
 
-        /// <summary>
-        /// A pilot sets the warp course: another system of this galaxy, or (WarpNextGalaxy / WarpSkipGalaxy) the one-way
-        /// warp to the next galaxy or the one after it - from the last galaxy the next stop is home. A galaxy warp needs
-        /// the Exotic Matter for the route in the crew's warp drive (#78). Gravity and combat lock (#80): the pilot's ship
-        /// must be clear of planets' gravity fields and of engaged enemies. Starts a short countdown, then everyone flies
-        /// the warp of WarpFlight led by this pilot's ship: a short hop to a system (#80) or the galaxy warp (#79).
-        /// </summary>
-        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-        public void RequestWarpServerRpc(int target, RpcParams rp = default)
-        {
-            ulong c = rp.Receive.SenderClientId;
-            if (Phase.Value != GamePhase.Playing || WarpCountdown.Value >= 0f) return;
-            if (WarpFlight.Instance != null && WarpFlight.Instance.Active.Value) { ToastRpc("Already in warp", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
-            var seat = ShipSeat.SeatOf(c);
-            if (seat == null || seat.Role != StationRole.Pilot) { ToastRpc("Only a pilot can set the warp course", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
-            warpLead = seat.Ship;
-            if (!ValidWarpTarget(target)) return;
-            if (!FuelOk(target, out string why) || !WarpLockOk(seat.Ship, out why)) { ToastRpc(why, RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
-            WarpTarget.Value = target;
-            WarpCountdown.Value = WarpDelay;
-            AnnounceClientRpc($"{NameOf(c)} set course: {WarpLabel(target)}\nWarp in {WarpDelay:0} s - everyone aboard!", "jump_charge");
-        }
-
-        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-        public void CancelWarpServerRpc(RpcParams rp = default)
-        {
-            if (WarpCountdown.Value < 0f) return;
-            WarpCountdown.Value = -1f;
-            AnnounceClientRpc("Warp cancelled by " + NameOf(rp.Receive.SenderClientId), "ui_back");
-        }
+        // Since #108 nobody presses a warp button: the crew flies out through a jump zone at the system edge
+        // (WarpFlight detects it and calls ServerJump). ServerWarp stays for cheats and DevTest.
 
         /// <summary>Route stop a galaxy warp target leads to (DriveMath.Home after the last galaxy), -1 for a system warp.</summary>
         public int StopOf(int target) =>
             target == WarpNextGalaxy ? GalaxyIndex.Value + 1 : target == WarpSkipGalaxy ? GalaxyIndex.Value + 2 : -1;
 
-        /// <summary>Enough Exotic Matter in the warp drive for this target (system warps are free until #80).</summary>
+        /// <summary>Enough Exotic Matter in the warp drive for this target (system hops are free).</summary>
         bool FuelOk(int target, out string why)
         {
             why = "";
-            int stop = StopOf(target);
+            var block = FuelBlock(target);
+            if (block == JumpBlock.Open) return true;
+            int stop = StopOf(target), need = WarpDrive.FuelTo(stop);
             var drive = WarpDrive.Instance;
-            if (stop < 0 || drive == null || CheatManager.GodMode) return true;
-            int need = WarpDrive.FuelTo(stop);
-            if (drive.Capacity < need) { why = $"Exotic tank too small: this warp needs {need}, the tank holds {drive.Capacity}"; return false; }
-            if (!drive.HasFuelFor(stop)) { why = $"Not enough Exotic Matter: need {need}, tank {Mathf.FloorToInt(drive.Exotic.Value)}\nLoad it in the Warp Drive tab"; return false; }
-            return true;
+            why = block == JumpBlock.Tank
+                ? $"Exotic tank too small: this warp needs {need}, the tank holds {drive.Capacity}"
+                : $"Not enough Exotic Matter: need {need}, tank {Mathf.FloorToInt(drive.Exotic.Value)}\nLoad it in the Warp Drive tab";
+            return false;
         }
 
-        /// <summary>Gravity and combat lock of a warp (#80), checked for the lead ship when the course is set and when the countdown ends.</summary>
-        bool WarpLockOk(ShipCore lead, out string why)
+        JumpBlock FuelBlock(int target)
         {
-            why = "";
-            if (lead == null || CheatManager.GodMode) return true;
-            Vector3 p = lead.transform.position;
-            if (GravitySource.CruiseClearance(p, out _) <= 0f) { why = "Warp locked: inside a planet's gravity field - fly clear of it first"; return false; }
+            int stop = StopOf(target);
+            var drive = WarpDrive.Instance;
+            if (stop < 0 || drive == null || CheatManager.GodMode) return JumpBlock.Open;
+            if (drive.Capacity < WarpDrive.FuelTo(stop)) return JumpBlock.Tank;
+            return drive.HasFuelFor(stop) ? JumpBlock.Open : JumpBlock.Fuel;
+        }
+
+        /// <summary>
+        /// Server (#108): what holds a jump zone shut for a warp to `target` - not enough Exotic Matter for a galaxy
+        /// warp, or the gravity/combat lock (#80) around the zone or one of the ships inside it (god mode skips both).
+        /// The crew rule is checked by WarpFlight.
+        /// </summary>
+        public JumpBlock JumpBlockFor(int target, Vector3 zoneCenter, List<Vector3> shipsInZone)
+        {
+            if (!ValidWarpTarget(target)) return JumpBlock.Tank;
+            var fuel = FuelBlock(target);
+            if (fuel != JumpBlock.Open || CheatManager.GodMode) return fuel;
+            if (GravitySource.CruiseClearance(zoneCenter, out _) <= 0f) return JumpBlock.Gravity;
+            foreach (var p in shipsInZone) if (GravitySource.CruiseClearance(p, out _) <= 0f) return JumpBlock.Gravity;
+            float r2 = ShipFlight.CombatLockRange * ShipFlight.CombatLockRange;
             foreach (var e in EnemyFactory.Alive)
-                if (e != null && e.IsSpawned && ((IThreatSource)e).Engagement > 0.5f && (e.transform.position - p).sqrMagnitude < ShipFlight.CombatLockRange * ShipFlight.CombatLockRange)
-                { why = "Warp locked: enemies engaging nearby"; return false; }
-            return true;
+            {
+                if (e == null || !e.IsSpawned || ((IThreatSource)e).Engagement <= 0.5f) continue;
+                Vector3 ep = e.transform.position;
+                if ((ep - zoneCenter).sqrMagnitude < r2) return JumpBlock.Combat;
+                foreach (var p in shipsInZone) if ((ep - p).sqrMagnitude < r2) return JumpBlock.Combat;
+            }
+            return JumpBlock.Open;
         }
 
         bool ValidWarpTarget(int target)
@@ -580,22 +564,27 @@ namespace Voidward.World
             return p != null && target >= 0 && target < p.Systems.Length ? p.Systems[target].Name : "?";
         }
 
-        void TickWarp(float dt)
+        /// <summary>
+        /// Server (#108): the lead ship flew out through the jump zone to `target` and the entry spool-up is over: the
+        /// crew is in the warp without a cut (WarpFlight rebases every ship around the lead under the bubble's veil).
+        /// False when the warp is not possible any more (fuel was taken out meanwhile).
+        /// </summary>
+        public bool ServerJump(int target, ShipCore lead)
         {
-            if (WarpCountdown.Value < 0f) return;
-            WarpCountdown.Value -= dt;
-            if (WarpCountdown.Value > 0f) return;
-            var lead = warpLead != null && warpLead.IsSpawned ? warpLead : null;
-            if (!WarpLockOk(lead, out string why)) { WarpCountdown.Value = -1f; AnnounceClientRpc("Warp aborted - " + why.Replace("Warp locked: ", ""), "ui_back"); return; }
-            ServerWarp(WarpTarget.Value);
+            if (!IsServer || Phase.Value != GamePhase.Playing || WarpFlight.Instance == null || WarpFlight.Instance.Active.Value) return false;
+            if (!ValidWarpTarget(target)) return false;
+            int stop = StopOf(target);
+            if (stop >= 0 && (!FuelOk(target, out string why) || WarpDrive.Instance == null)) { AnnounceClientRpc("Warp aborted - " + why, "ui_back"); return false; }
+            BeginWarpFlight(stop, stop >= 0 ? -1 : target, lead, true);
+            return true;
         }
 
-        /// <summary>Server: warp the whole crew now (also cheats and DevTest).</summary>
+        /// <summary>Server: warp the whole crew now (cheats and DevTest; the crew itself flies out through a jump zone, #108).</summary>
         public void ServerWarp(int target)
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
-            WarpCountdown.Value = -1f;
             if (!ValidWarpTarget(target)) return;
+            if (WarpFlight.Instance != null) WarpFlight.Instance.ServerResetJumps();
             int stop = StopOf(target);
             if (stop >= 0)
             {
@@ -613,49 +602,55 @@ namespace Voidward.World
                     ServerArrive(stop);
                     return;
                 }
-                BeginWarpFlight(stop, -1);
+                BeginWarpFlight(stop, -1, null, false);
             }
             else if (WarpFlight.Instance == null || WarpFlight.Instance.Active.Value) WarpTo(GalaxyIndex.Value, target);
-            else BeginWarpFlight(-1, target);
+            else BeginWarpFlight(-1, target, null, false);
         }
 
-        /// <summary>Server: leave the system for the flown galaxy warp to `stop` (#79, the fuel burns along the route) or the hop to `system` (#80).</summary>
-        void BeginWarpFlight(int stop, int system)
+        /// <summary>
+        /// Server: leave the system for the flown galaxy warp to `stop` (#79, the fuel burns along the route) or the hop
+        /// to `system` (#80). Seamless (#108): out of a jump zone, the crew keeps its formation around the lead.
+        /// </summary>
+        void BeginWarpFlight(int stop, int system, ShipCore lead, bool seamless)
         {
             distanceDone += Mathf.Max(0f, maxXThisSystem - director.Layout.StartX);
             if (ark != null && ark.IsSpawned && ark.Derelict.Value) { ark.NetworkObject.Despawn(true); ark = null; }
             director.Clear();
             DestroyedAsteroids.Clear();
             asteroidDamage.Clear();
-            var lead = warpLead != null && warpLead.IsSpawned ? warpLead : null;
-            warpLead = null;
+            if (lead != null && !lead.IsSpawned) lead = null;
             string label = system >= 0 ? WarpLabel(system) : WarpLabel(stop == GalaxyIndex.Value + 1 ? WarpNextGalaxy : WarpSkipGalaxy);
-            if (system >= 0) WarpFlight.Instance.ServerBeginHop(GalaxyIndex.Value, system, lead);
-            else WarpFlight.Instance.ServerBegin(GalaxyIndex.Value, stop, lead);
+            if (system >= 0) WarpFlight.Instance.ServerBeginHop(GalaxyIndex.Value, system, lead, seamless);
+            else WarpFlight.Instance.ServerBegin(GalaxyIndex.Value, stop, lead, seamless);
             if (stop > GalaxyDef.Count) ServerLog(Story != null ? Story.LogFlightHome : "");
             GameState.Objective = "Warp flight";
-            WarpFlightStartedClientRpc(label, system >= 0);
+            WarpFlightStartedClientRpc(label, system >= 0, seamless);
         }
 
         [ClientRpc]
-        void WarpFlightStartedClientRpc(string destination, bool hop)
+        void WarpFlightStartedClientRpc(string destination, bool hop, bool seamless)
         {
-            Vfx.JumpFlash(Camera.main != null ? Camera.main.transform.position : Vector3.zero);
+            // Out of a jump zone the bubble's veil is the transition (#108); the dev warps keep the flash.
+            if (!seamless) Vfx.JumpFlash(Camera.main != null ? Camera.main.transform.position : Vector3.zero);
             Sfx.PlayUI("jump_gate");
-            Vfx.Shake(0.6f);
+            Vfx.Shake(seamless ? 0.35f : 0.6f);
             EventBus.RaiseNotification(hop
                 ? $"WARP - {destination}\nLead pilot: W/S throttle, steer through the fields, [C] cruise control"
                 : $"WARP - {destination}\nLead pilot: W/S throttle, steer through the gaps, [C] cruise control, [G] drop out at signals");
         }
 
-        /// <summary>Server: the flown warp reached its stop (WarpFlight): enter the galaxy, or the homecoming after the last one.</summary>
-        public void ServerArrive(int stop)
+        /// <summary>
+        /// Server: the flown warp reached its stop (WarpFlight): enter the galaxy, or the homecoming after the last one.
+        /// With the lead ship (#108) the crew comes out of the bubble in formation, cruising into the system.
+        /// </summary>
+        public void ServerArrive(int stop, ShipCore lead = null)
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
             // The crew outran the Rift (#81) and leaves the warp in the Solar System. Placeholder until the Earth/Moon
             // approach and landing of #74: the homecoming result.
             if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew outran the Rift and made it back to Sol!", Story != null ? Story.LogHomecoming : ""); return; }
-            WarpTo(stop, 0);
+            WarpTo(stop, 0, lead, -1);
         }
 
         /// <summary>Server: the Rift caught the bubble on the flight home (#81): the crew falls back into the time loop (#86).</summary>
@@ -666,23 +661,22 @@ namespace Voidward.World
             EndRun(false, st != null ? st.ResetRiftCaught : "Caught by the Rift", st != null ? st.LogRiftCaught : "");
         }
 
-        /// <summary>Server: a hop (#80) reached its system: the crew arrives at the system's edge.</summary>
-        public void ServerArriveSystem(int system)
+        /// <summary>Server: a hop (#80) reached its system: the crew comes out of the jump zone that leads back (#108).</summary>
+        public void ServerArriveSystem(int system, ShipCore lead = null)
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
-            WarpTo(GalaxyIndex.Value, system);
+            WarpTo(GalaxyIndex.Value, system, lead, SystemIndex.Value);
         }
 
         /// <summary>Server, dev/test: warp the crew straight to any galaxy and system.</summary>
         public void ServerGoto(int galaxy, int system)
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
-            WarpCountdown.Value = -1f;
-            if (WarpFlight.Instance != null && WarpFlight.Instance.Active.Value) WarpFlight.Instance.ServerAbort();
+            if (WarpFlight.Instance != null) { WarpFlight.Instance.ServerAbort(); WarpFlight.Instance.ServerResetJumps(); }
             WarpTo(Mathf.Clamp(galaxy, 1, GalaxyDef.Count), Mathf.Max(0, system));
         }
 
-        void WarpTo(int galaxy, int system)
+        void WarpTo(int galaxy, int system, ShipCore lead = null, int fromSystem = -1)
         {
             bool newGalaxy = galaxy != GalaxyIndex.Value;
             distanceDone += Mathf.Max(0f, maxXThisSystem - director.Layout.StartX);
@@ -696,11 +690,40 @@ namespace Voidward.World
                 RespawnsLeft.Value += Mathf.Max(0, galaxy - GalaxyIndex.Value);
             }
             EnterSystem(galaxy, system, !newGalaxy && IsVisited(system));
-            RegroupAtArrival();
+            bool seamless = lead != null && lead.IsSpawned;
+            if (seamless) RegroupOutOfWarp(lead, newGalaxy ? -1 : fromSystem);
+            else RegroupAtArrival();
             var def = director.Def;
             WarpedClientRpc(newGalaxy, newGalaxy ? GalaxyTitle(def) : director.System.Name,
-                newGalaxy ? (def != null ? def.Intro : "") : GalaxyGenerator.KindLabel(director.System.Kind));
+                newGalaxy ? (def != null ? def.Intro : "") : GalaxyGenerator.KindLabel(director.System.Kind), seamless);
             if (newGalaxy) { ServerLog(Story != null ? Story.LogGalaxy : "", def); ServerWriteSave(); }
+        }
+
+        /// <summary>
+        /// Out of the bubble (#108): the formation around the lead ship is carried over rigidly to the arrival point
+        /// (the jump zone leading back, or the galaxy's arrival point), noses inward, and every ship glides in - the
+        /// piloted ones in cruise. Pawns on foot ride along at the same offset.
+        /// </summary>
+        void RegroupOutOfWarp(ShipCore lead, int fromSystem)
+        {
+            director.Layout.Arrival(fromSystem, out Vector3 anchor, out Vector3 inward);
+            Vector3 origin = lead.transform.position;
+            Quaternion turn = Quaternion.FromToRotation(WarpBubble.Axis, inward);
+            foreach (var s in ShipCore.All.ToArray())
+            {
+                if (s == null || !s.IsSpawned) continue;
+                Vector3 p = anchor + turn * (s.transform.position - origin);
+                s.GetComponent<NetTeleport>().ServerTeleport(p, turn * s.transform.rotation);
+                s.RestoreServer(false, false);
+                if (s.Flight != null) s.Flight.ArriveFromWarpRpc();
+            }
+            foreach (var pawn in PlayerPawn.All)
+            {
+                if (pawn == null || !pawn.Active.Value || pawn.IsDown.Value || ShipSeat.SeatOf(pawn.OwnerClientId) != null) continue;
+                if (GravityVolume.At(pawn.transform.position) != null) continue; // carried by the interior it stands in
+                pawn.GetComponent<NetTeleport>().ServerTeleport(anchor + turn * (pawn.transform.position - origin), turn * pawn.transform.rotation);
+            }
+            Debug.Log($"[Warp] out of the bubble at {anchor} heading {inward} (from system {fromSystem})");
         }
 
         /// <summary>Ships into formation at the arrival point; pawns on foot follow their ship or the formation.</summary>
@@ -732,11 +755,11 @@ namespace Voidward.World
         }
 
         [ClientRpc]
-        void WarpedClientRpc(bool newGalaxy, string title, string subtitle)
+        void WarpedClientRpc(bool newGalaxy, string title, string subtitle, bool seamless)
         {
-            Vfx.JumpFlash(Camera.main != null ? Camera.main.transform.position : Vector3.zero);
+            if (!seamless) Vfx.JumpFlash(Camera.main != null ? Camera.main.transform.position : Vector3.zero);
             Sfx.PlayUI("jump_gate");
-            Vfx.Shake(newGalaxy ? 0.8f : 0.5f);
+            Vfx.Shake(seamless ? 0.3f : newGalaxy ? 0.8f : 0.5f);
             EventBus.RaiseWarpCompleted(GalaxyIndex.Value);
             EventBus.RaiseNotification($"{title}\n{subtitle}");
         }

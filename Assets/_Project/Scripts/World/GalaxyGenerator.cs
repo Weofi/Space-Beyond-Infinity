@@ -112,7 +112,9 @@ namespace Voidward.World
         {
             var plan = Generate(runSeed, galaxy);
             var s = plan.Systems[Mathf.Clamp(system, 0, plan.Systems.Length - 1)];
-            return SystemLayout.Build(s.Seed, plan.Def, s.Kind, s.HasStation);
+            var layout = SystemLayout.Build(s.Seed, plan.Def, s.Kind, s.HasStation);
+            layout.AddJumpZones(plan, s.Index);
+            return layout;
         }
 
         public static string KindLabel(SystemKind k)

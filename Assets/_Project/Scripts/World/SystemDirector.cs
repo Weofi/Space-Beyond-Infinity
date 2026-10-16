@@ -55,6 +55,7 @@ namespace Voidward.World
             Plan = plan;
             System = plan.Systems[Mathf.Clamp(systemIndex, 0, plan.Systems.Length - 1)];
             Layout = SystemLayout.Build(System.Seed, plan.Def, System.Kind, System.HasStation);
+            Layout.AddJumpZones(plan, System.Index);
             enclaveCleared = enclaveDefeated;
             BossSpawned = enclaveDefeated;
             var cat = ContentCatalog.Instance;

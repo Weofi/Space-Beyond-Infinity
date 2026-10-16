@@ -74,6 +74,7 @@ namespace Voidward.World
             for (int i = 0; i < layout.Fields.Length; i++) BuildField(layout.Fields[i], i, layout, mat);
             ApplyPalette(def != null ? def.Palette : null, layout.Seed, galaxy);
             BuildJourneySky(cat, galaxy, def);
+            BuildJumpZones(layout, cat);
             // Music moods: calm start, rising tension, climax in the last two galaxies.
             Sfx.Music(new[] { 1, 1, 2, 2, 3, 3 }[Mathf.Clamp(galaxy, 0, 5)]);
         }
@@ -86,6 +87,7 @@ namespace Voidward.World
             meshes.Clear();
             rocks.Clear();
             builtSeed = int.MinValue;
+            JumpZones.Clear();
         }
 
         /// <summary>One asteroid: render data for its batched chunk plus its collider proxy.</summary>
@@ -362,6 +364,96 @@ namespace Voidward.World
             foreach (var l in FindObjectsByType<Light>())
                 if (l.type == LightType.Directional) return l;
             return null;
+        }
+
+        // ---------------------------------------------------------------- jump zones (#108)
+
+        /// <summary>
+        /// The jump zones at the system edge (#108): a slowly turning ring of beacon lights around a faint veil of light,
+        /// in the zone's colour (hop cyan, Galactic Rim amber, skip violet, home gold). Built from the soft additive dots
+        /// of the sky galaxies; JumpZones.Current tells flight, HUD and server-free code where they are.
+        /// </summary>
+        void BuildJumpZones(SystemLayout layout, ContentCatalog cat)
+        {
+            JumpZones.Current = layout.Jumps;
+            var mat = cat != null ? cat.ParticleMaterial : null;
+            if (mat == null) return;
+            for (int i = 0; i < layout.Jumps.Length; i++)
+            {
+                var z = layout.Jumps[i];
+                var go = new GameObject("JumpZone_" + i + "_" + z.Kind);
+                go.transform.SetPositionAndRotation(z.Center, Quaternion.LookRotation(z.Normal));
+                spawned.Add(go);
+                var rng = new System.Random(layout.Seed + i * 977);
+                Color c = z.Color;
+                // ring of beacons (turns) + inner veil (still)
+                var ring = new GameObject("Ring");
+                ring.transform.SetParent(go.transform, false);
+                ring.AddComponent<SpinPart>().Speed = 5f;
+                Dots(ring, mat, rng, z.Radius, c, true);
+                Dots(go, mat, rng, z.Radius, c, false);
+            }
+        }
+
+        void Dots(GameObject host, Material mat, System.Random rng, float radius, Color c, bool ring)
+        {
+            var verts = new List<Vector3>();
+            var cols = new List<Color>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
+            void Dot(Vector3 at, float size, Color col)
+            {
+                int b0 = verts.Count;
+                // two crossed quads so the dot reads from the side as well as head-on
+                verts.Add(at + new Vector3(-size, -size, 0f)); verts.Add(at + new Vector3(size, -size, 0f));
+                verts.Add(at + new Vector3(size, size, 0f)); verts.Add(at + new Vector3(-size, size, 0f));
+                verts.Add(at + new Vector3(0f, -size, -size)); verts.Add(at + new Vector3(0f, -size, size));
+                verts.Add(at + new Vector3(0f, size, size)); verts.Add(at + new Vector3(0f, size, -size));
+                for (int q = 0; q < 2; q++)
+                {
+                    uvs.Add(new Vector2(0, 0)); uvs.Add(new Vector2(1, 0)); uvs.Add(new Vector2(1, 1)); uvs.Add(new Vector2(0, 1));
+                    int o = b0 + q * 4;
+                    tris.Add(o); tris.Add(o + 2); tris.Add(o + 1); tris.Add(o); tris.Add(o + 3); tris.Add(o + 2);
+                    tris.Add(o); tris.Add(o + 1); tris.Add(o + 2); tris.Add(o); tris.Add(o + 2); tris.Add(o + 3);
+                }
+                for (int k = 0; k < 8; k++) cols.Add(col);
+            }
+            if (ring)
+            {
+                const int n = 180;
+                for (int i = 0; i < n; i++)
+                {
+                    float a = i * Mathf.PI * 2f / n;
+                    bool beacon = i % 30 == 0;
+                    Vector3 at = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * radius;
+                    Color col = c * (beacon ? 2.2f : 1.1f);
+                    col.a = beacon ? 0.95f : 0.55f;
+                    Dot(at, beacon ? 46f : 16f + 8f * (float)rng.NextDouble(), col);
+                }
+            }
+            else
+            {
+                // fine motes of light across the disc (no big glow quad: seen edge-on it reads as a line)
+                for (int i = 0; i < 420; i++)
+                {
+                    float r = radius * Mathf.Sqrt((float)rng.NextDouble()) * 0.97f;
+                    float a = (float)rng.NextDouble() * Mathf.PI * 2f;
+                    Color col = Color.Lerp(c, Color.white, 0.3f); col.a = 0.1f + 0.16f * (float)rng.NextDouble();
+                    Dot(new Vector3(Mathf.Cos(a) * r, Mathf.Sin(a) * r, ((float)rng.NextDouble() - 0.5f) * 60f), 3f + 5f * (float)rng.NextDouble(), col);
+                }
+            }
+            var mesh = new Mesh { name = host.name + "_Dots" };
+            mesh.indexFormat = IndexFormat.UInt32;
+            mesh.SetVertices(verts); mesh.SetColors(cols); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
+            mesh.bounds = new Bounds(Vector3.zero, Vector3.one * radius * 2.4f);
+            meshes.Add(mesh);
+            var holder = ring ? host : new GameObject("Veil");
+            if (!ring) holder.transform.SetParent(host.transform, false);
+            holder.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = holder.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = mat;
+            mr.shadowCastingMode = ShadowCastingMode.Off;
+            mr.receiveShadows = false;
         }
 
         // ---------------------------------------------------------------- journey on the sky
