@@ -24,6 +24,8 @@ namespace Voidward.Planet
         [SerializeField] float radius = 200f;
 
         public static readonly List<PlanetVisuals> All = new List<PlanetVisuals>();
+        /// <summary>Dev switch (#115): generate far decor on coarse LOD chunks (affects chunks built afterwards).</summary>
+        public static bool FarDecor = true;
 
         public PlanetTerrain Terrain { get; private set; }
         public PlanetShapeDef Shape => shape;
@@ -500,8 +502,8 @@ namespace Voidward.Planet
             var data = PlanetMesh.BuildChunk(terrain, n.Face, n.Level, n.X, n.Y, chunkN, false);
             if (n.Level == smallDecorLevel || n.Level == largeDecorLevel)
                 PlanetDecor.Generate(terrain, data, n.Level == smallDecorLevel, n.Level == largeDecorLevel, props);
-            else if (n.Level == largeDecorLevel - 1) PlanetDecor.GenerateFar(terrain, data, 0.6f);
-            else if (n.Level == largeDecorLevel - 2) PlanetDecor.GenerateFar(terrain, data, 0.3f);
+            else if (FarDecor && n.Level == largeDecorLevel - 1) PlanetDecor.GenerateFar(terrain, data, 0.6f);
+            else if (FarDecor && n.Level == largeDecorLevel - 2) PlanetDecor.GenerateFar(terrain, data, 0.3f);
             return data;
         }
 

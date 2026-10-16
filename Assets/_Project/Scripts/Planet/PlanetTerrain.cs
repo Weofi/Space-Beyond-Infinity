@@ -97,6 +97,8 @@ namespace Voidward.Planet
             public Vector3 Center;
             public int Def;
             public Vector3 Offset;
+            /// <summary>Per-cell elevation scale: neighbouring cells of the same kind sit at different heights.</summary>
+            public float Lift;
         }
         Province[] provinces = new Province[0];
         PlanetShapeDef.ProvinceDef[] provinceDefs = new PlanetShapeDef.ProvinceDef[0];
@@ -362,6 +364,7 @@ namespace Voidward.Planet
                 {
                     Center = c, Def = def,
                     Offset = new Vector3(Range(prng, -300f, 300f), Range(prng, -300f, 300f), Range(prng, -300f, 300f)),
+                    Lift = Range(prng, 0.55f, 1.45f),
                 };
             }
         }
@@ -405,6 +408,9 @@ namespace Voidward.Planet
                 sum += w[i];
             }
             float h = 0f, ero = 0f, reg = 0f;
+            // Cliff strength varies along the edges: some stretches are walls, others ramps (no endless fences).
+            float cliffMod = withRelief ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.35f, 0.3f,
+                provinceNoise.Eval(q.x * 6.3f + 71f, q.y * 6.3f, q.z * 6.3f) + 0.5f * provinceNoise.Eval(q.x * 14f, q.y * 14f + 33f, q.z * 14f))) : 0f;
             for (int i = 0; i < n; i++)
             {
                 if (w[i] <= 0f) continue;
@@ -415,13 +421,14 @@ namespace Voidward.Planet
                 if (!withRelief || wi < 0.002f) continue;
                 // Elevation step: cliffs sharpen the weight around its midpoint (and may terrace it).
                 float we = wi;
-                if (def.EdgeCliff > 0f)
+                float cliff = def.EdgeCliff * cliffMod;
+                if (cliff > 0.01f)
                 {
-                    float half = 0.5f * (1f - def.EdgeCliff * 0.95f);
+                    float half = 0.5f * (1f - cliff * 0.95f);
                     we = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.5f - half, 0.5f + half, wi));
                     if (def.Terraces > 0) we = Mathf.Clamp01(Terrace(we * def.Terraces) / def.Terraces);
                 }
-                h += def.Elevation * we + def.Relief * ProvinceRelief(def, q, provinces[i].Offset, maxFreq) * wi;
+                h += def.Elevation * provinces[i].Lift * we + def.Relief * ProvinceRelief(def, q, provinces[i].Offset, maxFreq) * wi;
             }
             erosionMul = ero;
             region = reg;
