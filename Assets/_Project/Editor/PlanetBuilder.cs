@@ -271,7 +271,7 @@ namespace Voidward.EditorTools
             Provinces(s, 14,
                 Prov(PlanetProvinceKind.Plains, 3f, 0f, 0.004f, 5f, erosion: 0.2f),
                 Prov(PlanetProvinceKind.Hills, 3f, 0.008f, 0.018f, 6f, 0.25f, erosion: 0.8f, region: 0.2f),
-                Prov(PlanetProvinceKind.Mountains, 2f, 0.02f, 0.09f, 3.5f, 0.9f, erosion: 1.3f, region: 0.5f),
+                Prov(PlanetProvinceKind.Mountains, 1.3f, 0.018f, 0.07f, 3.5f, 0.9f, erosion: 1.3f, region: 0.5f),
                 Prov(PlanetProvinceKind.Plateau, 1.2f, 0.035f, 0.006f, 4f, 0.2f, 2, 0.85f, 0.6f, 1f),
                 Prov(PlanetProvinceKind.Basin, 1.5f, -0.025f, 0.004f, 4f, erosion: 0.2f));
             s.Features = new List<PlanetShapeDef.FeatureSet>
@@ -361,7 +361,7 @@ namespace Voidward.EditorTools
             Provinces(s, 14,
                 Prov(PlanetProvinceKind.Plains, 3f, 0f, 0.003f, 5f, erosion: 0.1f),                             // dune sea
                 Prov(PlanetProvinceKind.Hills, 2f, 0.01f, 0.02f, 8f, 0.7f, erosion: 1.4f, region: 0.5f),         // badlands
-                Prov(PlanetProvinceKind.Plateau, 2f, 0.04f, 0.004f, 4f, 0f, 3, 0.95f, 0.8f, 1f),                 // mesa country
+                Prov(PlanetProvinceKind.Plateau, 2f, 0.035f, 0.004f, 4f, 0f, 2, 0.8f, 0.8f, 1f),                 // mesa country
                 Prov(PlanetProvinceKind.Basin, 1f, -0.015f, 0.001f, 3f, erosion: 0f, region: 0.2f),              // salt flat
                 Prov(PlanetProvinceKind.Mountains, 0.8f, 0.02f, 0.06f, 4f, 0.85f, erosion: 1.2f, region: 0.6f));
             s.Features = new List<PlanetShapeDef.FeatureSet>
@@ -497,8 +497,8 @@ namespace Voidward.EditorTools
                 // Shard ranges, terraced crystal tablelands, glassy plains, lake basins.
                 Provinces(s, 14,
                     Prov(PlanetProvinceKind.Plains, 2f, 0f, 0.004f, 5f, erosion: 0.2f),
-                    Prov(PlanetProvinceKind.Mountains, 2.5f, 0.02f, 0.08f, 4f, 1f, erosion: 1f, region: 0.6f),       // shard ranges
-                    Prov(PlanetProvinceKind.Plateau, 1.5f, 0.03f, 0.005f, 4f, 0f, 3, 0.95f, 0.5f, 1f),
+                    Prov(PlanetProvinceKind.Mountains, 3f, 0.025f, 0.12f, 4f, 1f, erosion: 1f, region: 0.6f),        // shard ranges
+                    Prov(PlanetProvinceKind.Plateau, 1.5f, 0.04f, 0.005f, 4f, 0f, 2, 0.9f, 0.5f, 1f),
                     Prov(PlanetProvinceKind.Basin, 1.5f, -0.025f, 0.004f, 4f, erosion: 0.2f, region: 0.4f),
                     Prov(PlanetProvinceKind.Hills, 1.5f, 0.008f, 0.02f, 7f, 0.6f, erosion: 0.7f, region: 0.3f));
                 Canyons(s, 1.2f, 0.035f, 0.04f, 0.2f, 3f, 0.4f, 0.4f);                                  // rifts
