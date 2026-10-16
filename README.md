@@ -2,8 +2,9 @@
 
 > *Find the way home. Together.*
 
-A first-person co-op space roguelite for 1–4 players. A routine **moon mission** falls into a
-**wormhole** and the crew wakes up in the **Triangulum Galaxy (M33)** — 2.73 million light-years from
+A first-person co-op space roguelite for 1–4 players. A routine **moon mission** is already on its way
+back to Earth - the families watch the return live on the news - when an **anomaly** (a wormhole) swallows
+the ship, and the crew wakes up in the **Triangulum Galaxy (M33)** — 2.73 million light-years from
 home. Explore alien planets, mine, loot and fight for drive parts, exotic matter and alien tech,
 upgrade the ship and above all its **warp drive**, and fly galaxy by galaxy through the Local Group
 back to the Milky Way. The **Home ETA** always shows how long the flight home would take with the
@@ -16,7 +17,7 @@ Two endings only: **Homecoming** or **death** (= the loop resets). Target run le
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
 > galaxy map, suspend save), the crew warp drive with Home ETA (#78) and the flown warp between galaxies (#79) are
 > playable, as are system cruise and the flown in-galaxy warp (#80), the flight home chased by the Rift (#81) and the time loop (#86); still to come are
-> the prologue, Sol approach and landing (#74) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
+> the story intro (#109), the prologue, Sol approach and landing on Earth (#74), seamless warps by flying out of jump zones (#108) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
 the Input System, Cinemachine 3 and TextMeshPro. All art, audio and music are procedural
@@ -89,12 +90,15 @@ ship stays in the world. If the host quits, clients return to the main menu with
 
 ### Target design (gameplan #72)
 
-**Loop per galaxy:** arrive by warp flight → galaxy map with 4–6 systems → short warp to a system,
+**Loop per galaxy:** arrive by warp flight → galaxy map with 4–6 systems → fly out of a jump zone at
+the system's edge for a short hop to a neighbouring system,
 scan from orbit → **expedition**: land, explore, mine, find drive parts, exotic matter and blueprints,
 fight fauna and aliens while the system's **alert level** rises → back on board: fit parts, craft,
-upgrade → the Home ETA drops → keep searching or warp on to the next galaxy (one-way).
+upgrade → the Home ETA drops → keep searching or fly out through the **Galactic Rim** of the outermost
+system to the next galaxy (one-way).
 
-* **Travel is gameplay:** no portals, no cutscenes. Warp flights are flown by the pilot with a warp
+* **Travel is gameplay:** no portals, no cutscenes, no warp button. Every warp starts seamlessly by flying
+  out of a jump zone (#108). Warp flights are flown by the pilot with a warp
   throttle, through long empty stretches and obstacles (asteroids, debris, anomalies). A better drive
   is really faster; landing and combat handle the same at every tier (#73).
 * **Drive tiers:** Mk I (mission ship) → Mk II (M33) → Mk III (M31) → Mk IV (NGC 6822) → Mk V (Leo I)
@@ -105,6 +109,8 @@ upgrade → the Home ETA drops → keep searching or warp on to the next galaxy 
 * **Death:** a downed player is revived by the crew or wakes in a cryo pod on board. Crew wipe or the
   home ship destroyed → the time loop resets the run to M33. Meta progression = the **Logbook of the
   Loop** (memory fragments, codex, unlocks).
+* **Story:** the intro shows a family at home watching the news of SELENE-4's return, then the return flight
+  and the anomaly (#109, #87); the homecoming lands on Earth and closes on the same family and news show (#88).
 * **The Rift** (formerly the Collapse) only appears in the finale: the flight home is an escape from it.
 
 ### Currently playable build
@@ -126,7 +132,8 @@ galaxy or one-way to the next galaxy → … → from the Large Magellanic Cloud
   compass, cockpit NAV, galaxy map) shows the real flight time home and drops with every better part; each
   backpack part shows its ETA change. Warden enclaves guard the best core of their galaxy; crates, wrecks,
   anomalies, crystal veins, alien nests and Nomad traders give Exotic Matter, nav/cooling/tank parts.
-* **Warping:** the pilot sets a course on the galaxy map, after a 5 s countdown the whole crew warps. A warp to
+* **Warping:** the pilot sets a course on the galaxy map, after a 5 s countdown the whole crew warps (to be
+  replaced by flying out of jump zones, #108). A warp to
   another system of the galaxy (#80) is a short flown **system warp** (1:30 with a Mk I drive, ~13 s with the Home
   Drive, no Exotic Matter) through thinner fields; it ends at the edge of the target system. Systems can be
   revisited (their crates stay looted). **Gravity and combat lock:** no warp (and no cruise) inside a planet's

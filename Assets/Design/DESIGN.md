@@ -1,8 +1,8 @@
 # Game Design: VOIDWARD
 
-VOIDWARD is a 1-4 player co-op space roguelite vertical slice. A routine moon mission falls into a wormhole; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. Death sends the crew back to the wormhole exit in a time loop, memories intact. This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
+VOIDWARD is a 1-4 player co-op space roguelite vertical slice. A routine moon mission is already on its way back to Earth - the families watch the return live on the news - when an anomaly (a wormhole) swallows the ship; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. Death sends the crew back to the wormhole exit in a time loop, memories intact. This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
 
-**Source of truth for gameplay decisions:** GitHub issue #72 (gameplan), with #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue, loop, homecoming), #49 (home ship). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates, Stardust), it is marked *(legacy)* and will be replaced by the issue that migrates it.
+**Source of truth for gameplay decisions:** GitHub issue #72 (gameplan), with #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue, loop, homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates, Stardust), it is marked *(legacy)* and will be replaced by the issue that migrates it.
 
 Key dependencies between domains:
 - UI accent colors and HUD styling derive directly from galaxy color palettes defined in Asset Design.
@@ -18,7 +18,7 @@ Key dependencies between domains:
 ### Pillars
 1. **The way home is always visible:** the Home ETA shows how long the flight home takes with the current drive. Every new part lowers it measurably.
 2. **Explore for tech:** planets are expeditions. What the crew needs is down there, and it is guarded.
-3. **Travel is gameplay:** no portals, no travel cutscenes. Reaching the next galaxy is a physical warp flight with long empty stretches and obstacles (asteroids, debris, anomalies). The pilot controls the pace (warp throttle); a better drive is really faster, but high speed has to be mastered. Landing and combat handle the same at every tier (#73).
+3. **Travel is gameplay:** no portals, no travel cutscenes, no warp button: every warp starts seamlessly when the crew flies out of a jump zone (#108). Reaching the next galaxy is a physical warp flight with long empty stretches and obstacles (asteroids, debris, anomalies). The pilot controls the pace (warp throttle); a better drive is really faster, but high speed has to be mastered. Landing and combat handle the same at every tier (#73).
 4. **Roguelite:** death = back to the start of the loop; knowledge and unlocks stay.
 5. **Co-op crew:** roles on the home ship (pilot, engineer, gunner); land, carry and fight together.
 
@@ -48,16 +48,20 @@ Balance as implemented in #78 (`WarpDriveDef` + `GalaxyDef.LegLength/LegFuel`, b
 
 ### Core loop per galaxy
 1. **Arrival** by warp flight at the galaxy's edge -> galaxy map with 4-6 systems.
-2. **Approach a system** (short in-galaxy warp), scan from orbit: resources, wrecks, ruins, threat.
+2. **Approach a system:** fly out of the jump zone at the system's edge towards a neighbouring system -> short in-galaxy hop (#108); scan from orbit: resources, wrecks, ruins, threat.
 3. **Expedition:** land, explore, mine, find drive parts, exotic matter, tech and blueprints, fight fauna/aliens. The **alert level** rises the longer and louder the crew stays.
 4. **Back on board:** fit parts, craft, choose upgrades -> the ETA drops.
-5. **Decision:** keep searching (better core, more fuel, assault the Warden enclave) or warp to the next galaxy (or skip one with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
+5. **Decision:** keep searching (better core, more fuel, assault the Warden enclave) or warp to the next galaxy by flying out through the **Galactic Rim** of the galaxy's outermost system (or skip one through the skip zone next to it, with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
+
+### Jump zones (#108)
+Every warp starts without a button, countdown or cutscene: the lead pilot flies out of a jump zone and the flight turns into the warp bubble seamlessly. Each system has a jump zone at its edge per neighbouring system (pointing towards it, no Exotic Matter). Only the outermost system has the **Galactic Rim** (towards the next galaxy) and the skip zone (further out, towards the galaxy after next); the LMC's rim is the flight home. In cruise the border triggers at once; in normal flight only after a few seconds of lining up. A zone only triggers with every living player aboard; missing fuel, gravity/combat lock or interdiction hold the ship softly at the border with a clear HUD message. Arrivals are seamless too (cruise in at the target system's edge).
 
 System types: planetary system, asteroid/wreck field, anomaly, Warden enclave (guardian boss + best warp core, #42), nomad meeting point (trade, optional), empty space with an event.
 
 ### Endings, death and the loop
-- **Homecoming:** flight home done, Sol reached, Earth/Moon approached and landed, all flown by the crew. Score = run time.
+- **Homecoming:** flight home done, Sol reached, Earth approached and landed at the mission's landing site, all flown by the crew; closing shot: the same family and news show as the intro, "The crew of SELENE-4 is back" (#88). Score = run time.
 - **Death:** crew wipe or home ship destroyed -> the time loop resets the run. A downed player is revived by the crew; otherwise they wake in a cryo pod on board (costs a scarce resource) and their carried loot stays where they fell. Solo: 1 cryo charge as a safety net.
+- **Story intro (#109, #87, first loop only, skippable):** a family at home watches the evening news: "Today the crew of the moon mission SELENE-4 returns to Earth." The camera moves into the live picture on the TV and lands in the cockpit on the return flight (Earth in the window, radio with Mission Control, short playable flight tutorial). An anomaly opens and pulls the ship in; short cut back: the TV shows "SIGNAL LOST". Waking in M33: "Distance to Earth: 2.73 million light-years", the Home ETA appears for the first time.
 - The wormhole is a natural phenomenon, not a villain. Each loop reshuffles the galaxies (new seed). Lore: crew logbook, radio echoes from earlier loops, alien ruins, codex entries.
 - **The Rift** (former Collapse): the wormhole pulls at the crew. No permanent chaser per system; it is the climax of the finale (flight home = escape from the Rift) and a rare hazard.
 
@@ -114,12 +118,12 @@ Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; 
 - **Main Menu (core):** Title banner, Host Game, Join Game (Direct IP / Steam Session Code), Settings, Quit. Clean centered stack with a live backdrop of a sector nebula and rotating low-poly asteroid.
 - **Lobby (core):** Player roster card (1-4 slots with avatar color, callsign, ready state, selected starting role: Pilot, Gunner, Engineer), route preview (M33 -> Sol), loop counter, Launch button (unlocked when all players ready). Continue Run when a suspend save exists (host).
 - **Logbook (core, formerly Hangar):** Inter-loop meta-progression hub (#47). Memory fragment balance, codex, unlocks, start options, perks.
-- **Galaxy Map (core):** Systems of the current galaxy with type, threat and scan info, Home ETA, exotic matter and range; select the next in-galaxy warp or the warp to the next galaxy (#46).
+- **Galaxy Map (core):** Systems of the current galaxy with type, threat and scan info, Home ETA, exotic matter and range; shows the jump zones and the Galactic Rim for navigation (warps start by flying out of a zone, #108).
 - **HUD (core):** Persistent contextual gameplay overlay supporting both on-foot and ship flight contexts.
 - **Pause Menu (core):** Modal overlay pausing single-player or providing an in-game options sheet in co-op. Resume, Settings, Abandon Run (with confirmation dialogue).
 - **Settings (core):** Tabbed overlay (Audio, Video, Controls). Sliders for Master/Music/SFX; toggles for Fullscreen, V-Sync, Bloom; slider for FOV (70-100); mouse sensitivity slider with Invert Y toggle; full input rebind table.
 - **Loop Reset (core, formerly Game Over):** Debrief when the crew dies. Cause banner ("Crew lost", "Nostos destroyed"), run statistics (galaxies reached, best drive, run time, enemies, loot), memory fragments gained, transition back to the wormhole exit.
-- **Homecoming (core, formerly Demo Complete):** Shown after landing at home. Run time (score), summary stats, bonus memory fragments, wormhole tier unlock.
+- **Homecoming (core, formerly Demo Complete):** Shown after landing on Earth, after the closing news scene. Run time (score), summary stats, bonus memory fragments, wormhole tier unlock.
 
 ### HUD Layout Specifications (1080p Reference)
 
