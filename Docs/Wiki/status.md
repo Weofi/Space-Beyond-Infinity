@@ -12,8 +12,8 @@ Art (2026-10-17): the look is mixed - PBR/scan assets from #91-#100 (Dart, cockp
 
 ## Next priorities
 
-**The order of work is the "Ablaufplan" in roadmap #53 (pinned)**: work the issues strictly in its numbered order (each one only builds on earlier ones); take the first unchecked issue there. Its checklist and dependency graph are the only source of truth: tick an issue there when it is merged, and don't keep a second copy of the order here. #72 stays open as the design reference. A playtest (solo + MP) follows each phase. New ideas = new issue, slotted into #53 with a number.
-Older feedback still applies: menu, graphics and gameplay need major improvement; clarify concrete goals/references with the user before large changes. Graphics: convert everything to the low-poly style #120 (phase 0 of #53, see "Art & assets").
+**The order of work is roadmap #53 (pinned, the only `documentation` issue)**: it holds nothing but the numbered issue order; work the issues strictly in that order (each one only builds on earlier ones) and take the first unchecked issue there. It is the only source of truth for the order: tick an issue there when it is merged, and don't keep a second copy of the order here. Design lives in `Assets/Design/DESIGN.md` (#72 is closed). A playtest (solo + MP) follows each phase. New ideas = new issue, slotted into #53 with a number.
+Older feedback still applies: menu, graphics and gameplay need major improvement; clarify concrete goals/references with the user before large changes. Focus is gameplay; story and the low-poly conversion #120 come last in #53 (visuals may still change meanwhile). New things are built in the low-poly style right away, existing assets are only converted when a task changes them (see "Art & assets").
 
 ---
 
