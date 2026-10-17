@@ -166,17 +166,20 @@ the system edge to the next system, or through the **Galactic Rim** of the outer
 * **Warden enclave:** fly to the far end of the enclave system to wake its Warden: destroy its three
   glowing core pods (weak points) to drop its shield, then the hull. It drops a hoard of top-tier crates.
 * **Oxygen** drains outside ships and outside breathable atmospheres (Ice and Crystal worlds are
-  breathable). Ships, the Ark interior and station pads refill it.
-* **Team respawns**: 4 per run (+1 per new galaxy). Respawn happens at your ship (or any ship).
-  Lose your ship and you get a replacement Dart after 20 s. If the whole crew is lost, the loop resets.
+  breathable). Ships, the Nostos interior and station pads refill it.
+* **Cryo charges**: 4 per run (+1 per new galaxy). A fallen crew member wakes in their cryo pod aboard the
+  Nostos. Lose your Dart and a replacement waits at a free docking clamp after 20 s. If the whole crew is
+  lost or the Nostos is destroyed, the loop resets.
 * **The time loop**: death (crew lost or caught by the Rift) slows time, the Rift closes the picture and
   the loop's **logbook** opens (cause, galaxy, warp core, Home ETA vs. your best, the crew's log entries).
   The host starts the **New Loop** right there; later loops open with a short deja-vu and radio echoes from
   earlier loops instead of the intro.
-* **The Ark** — a derelict capital ship near the wormhole exit. Bring 8 Scrap and restore its
-  power. It has Pilot, 2 Turret (flak/laser) and Engineer stations, a fabricator, a big hold,
-  big shields and a walkable interior with its own gravity. Players can walk around inside it while
-  it flies. (Becomes the home ship in the new design, #49.)
+* **The Nostos** — the crew's home ship (#49). The run starts with every player in their Dart docked at
+  one of its four wing clamps (hold W to launch, ease into a free clamp to dock again, leave the seat to step
+  inside). Only the Nostos opens jump zones: its pilot leads every warp, and the Darts dock for the flight.
+  Inside: bridge (Pilot), engine room (warp core + drive terminal, Engineer, aft turret), cargo hall
+  (airlock, fabricator, cargo, hatches to the clamps), cryo bay; forward flak turret. It lands only on flat
+  ground, slowly. Destroyed = the loop resets.
 * **Trader stations** (wormhole exit and nomad systems): buy modules/gear/cells/fuel, sell resources,
   repair & refuel (60 cr).
 * **Events**: meteor showers, distress signals (salvage + hostiles), solar flares (shields
@@ -217,7 +220,7 @@ warp to the next galaxy, wake a Warden nearby, trigger an event, refill ship. FP
 
 ## 4. Content overview
 
-* **Ships:** Dart (agile starter), Mule (hauler, unlock), **Ark** (co-op capital ship, 4 stations).
+* **Ships:** Dart (agile starter), Mule (hauler, unlock), **Nostos** (home ship, 4 stations, docks 4 Darts).
 * **Planet biomes:** Ice, Desert, Toxic Jungle, Crystal, Volcanic — procedural miniature worlds
   (radius 1.0–1.9 km) with their own geology (terraced canyon networks, buttes and hoodoos;
   jagged peaks, glacier domes and frozen chasms; river valleys and karst towers; crystal spire
@@ -229,7 +232,7 @@ warp to the next galaxy, wake a Warden nearby, trigger an event, refill ship. FP
 * **Enemies (7 + boss):** Pirate Fighter, Swarm Drone, Pirate Gunship (Andromeda+), Crawler,
   Spitter, Skyskate (flying critter), Nest Guardian, **The Warden** (3-phase boss with weak points).
   The pirate ships are being rebuilt as alien enemies (#51).
-* **Modules (23):** Engine Mk I–III (+Ark drive), Laser Mk I–III, Missile Pod Mk I–II,
+* **Modules (23):** Engine Mk I–III (+Capital drive), Laser Mk I–III, Missile Pod Mk I–II,
   Flak Mk I–II, Shield Mk I–III, Hull Mk I–III, Cargo Mk I–II, Scanner Mk I–II, Fuel Tank Mk I–II.
 * **Gear (9):** Suit Mk II/III, Oxygen Tank Mk II/III, Jetpack Mk II/III, Drill Mk II/III, Pulse Rifle.
 * **Resources:** Ore, Crystal, Scrap, Fuel, Exotic Matter, Salvage (run currency). 17 crafting recipes.
@@ -284,7 +287,7 @@ Assembly definitions keep the graph acyclic (Core ← Data ← Combat/Inventory/
   re-based on each warp (`NetTeleport`, routed to whoever owns the transform), so coordinates stay
   within ~8 km (including the kilometre-scale planets) and precise in multiplayer.
 * Seats do not re-parent network objects: pawns poll the seat registry and follow the seat
-  locally; players walking inside the moving Ark are carried by a moving-platform step.
+  locally; players walking inside the moving Nostos are carried by a moving-platform step.
 
 **Performance:** planets are six quadtrees of terrain chunks built on worker threads (finer near
 the camera, horizon-culled, skirts hide LOD seams); colliders are streamed only around pawns and
@@ -300,7 +303,7 @@ VFX/projectile visuals/audio sources are pooled, and only the active system's co
 * Terrain deformation is not implemented; LOD chunks switch without geomorphing (skirts hide gaps).
 * No real client-side prediction/reconciliation — owner authority is used instead (cheat-prone
   but responsive; fine for co-op).
-* Players riding inside the moving Ark may see slight jitter of *other* players.
+* Players riding inside the moving Nostos may see slight jitter of *other* players.
 * Docking is "land on the pad/next to the ship"; there is no magnetic docking clamp.
 * Large co-op ship is only found as a derelict (not buildable).
 * All visuals/audio are procedural placeholders in the intended style; no Asset Store packages.

@@ -31,7 +31,6 @@ namespace Voidward.World
         public Vector3 StartPoint;
         public Vector3 StationPos;
         public Vector3 BossPos;
-        public Vector3 ArkPos;
         public PlanetSpot[] Planets;
         public Field[] Fields;
         public Vector3[] Wrecks;
@@ -46,7 +45,6 @@ namespace Voidward.World
             L.StartPoint = new Vector3(L.StartX + 80f, 0f, 0f);
             L.BossPos = new Vector3(L.EndX - 300f, 40f, 0f);
             L.StationPos = new Vector3(MathUtils.Range(rng, -L.Length * 0.15f, L.Length * 0.15f), MathUtils.Range(rng, -120f, 120f), MathUtils.Range(rng, 350f, 600f) * Sign(rng));
-            L.ArkPos = new Vector3(L.StartX + 1500f, 40f, -320f);
 
             int nPlanets, nFields, nWrecks;
             switch (kind)

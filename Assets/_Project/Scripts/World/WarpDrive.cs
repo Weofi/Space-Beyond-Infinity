@@ -8,18 +8,20 @@ using Voidward.Ship;
 namespace Voidward.World
 {
     /// <summary>
-    /// The crew's shared warp drive (#78; lives on the GameDirector next to the RunManager until the home ship of #49
-    /// carries it). Server-owned state: the tier of each component (core, nav computer, cooling, Exotic tank) and the
-    /// Exotic Matter in the tank. Anyone at a ship can swap a component from their backpack (the old one comes back)
-    /// or load Exotic Matter. Clients derive the build stats, the Home ETA and the fuel need locally (DriveMath).
+    /// The warp drive of the home ship Nostos (#78, #49). Its state lives on the GameDirector next to the RunManager
+    /// (it outlasts ship respawns and is part of the suspend save), but the drive is the Nostos's: it leads every warp,
+    /// and parts are swapped and Exotic Matter loaded aboard it (in its engine room, seated in it, or right beside it;
+    /// at any ship while no home ship exists). Server-owned state: the tier of each component (core, nav computer,
+    /// cooling, Exotic tank) and the Exotic Matter in the tank. Clients derive the build stats, the Home ETA and the
+    /// fuel need locally (DriveMath).
     /// </summary>
     public class WarpDrive : NetworkBehaviour
     {
         public static WarpDrive Instance { get; private set; }
 
         public const string ExoticId = "exotic";
-        /// <summary>How close to a ship (or seated in one) a player must be to work on the drive.</summary>
-        public const float ServiceRange = 30f;
+        /// <summary>How close to the home ship (or seated in it) a player must be to work on the drive.</summary>
+        public const float ServiceRange = 40f;
 
         /// <summary>Tier per DriveSlot (index = (int)DriveSlot).</summary>
         public NetworkList<int> Tiers;
@@ -128,6 +130,10 @@ namespace Voidward.World
         static bool AtShip(ulong client, NetInventory inv)
         {
             var seat = ShipSeat.SeatOf(client);
+            var home = ShipCore.Home;
+            if (home != null)
+                return (seat != null && (seat.Ship == home || (seat.Ship != null && seat.Ship.DockedTo.Value == home.NetworkObjectId)))
+                       || Vector3.Distance(inv.transform.position, home.transform.position) < ServiceRange;
             if (seat != null && seat.Ship != null) return true;
             return ShipCore.Nearest(inv.transform.position, ServiceRange) != null;
         }
@@ -138,7 +144,7 @@ namespace Voidward.World
             ulong c = rp.Receive.SenderClientId;
             var inv = NetInventory.ForClient(c);
             if (inv == null || invSlot < 0 || invSlot >= inv.Slots.Count) return;
-            if (!AtShip(c, inv)) { FeedbackRpc("Get to a ship to work on the warp drive", "ui_back", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
+            if (!AtShip(c, inv)) { FeedbackRpc("Get to the Nostos to work on the warp drive", "ui_back", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
             if (WarpFlight.Instance != null && WarpFlight.Instance.Active.Value) { FeedbackRpc("Drive parts can't be swapped during a warp", "ui_back", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
             var item = inv.Slots[invSlot].Def;
             if (item == null || item.Kind != ItemKind.DriveComponent || item.Drive == null) return;
@@ -167,7 +173,7 @@ namespace Voidward.World
             ulong c = rp.Receive.SenderClientId;
             var inv = NetInventory.ForClient(c);
             if (inv == null) return;
-            if (!AtShip(c, inv)) { FeedbackRpc("Get to a ship to load the warp drive", "ui_back", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
+            if (!AtShip(c, inv)) { FeedbackRpc("Get to the Nostos to load the warp drive", "ui_back", RpcTarget.Single(c, RpcTargetUse.Temp)); return; }
             int room = Mathf.FloorToInt(Capacity - Exotic.Value + 0.001f);
             int n = Mathf.Min(room, inv.Count(ExoticId));
             if (n <= 0 || !inv.Remove(ExoticId, n))

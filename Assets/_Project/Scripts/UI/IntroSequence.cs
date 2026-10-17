@@ -19,7 +19,7 @@ namespace Voidward.UI
 {
     /// <summary>
     /// Client-local intro cinematic at the start of a run: a title card, then eased camera moves over
-    /// the key POIs (own ship, the destination galaxy, Ark, planet, nest, station) with fades, letterbox,
+    /// the key POIs (own ship, the destination galaxy, the Nostos, planet, nest, station) with fades, letterbox,
     /// radio-style captions and POI highlights. Each caption waits for the player (#24): click or any key
     /// reveals the full text, the next press moves on. Esc or hold Space skips. The last shot ends behind
     /// the local cockpit and Cinemachine blends into the player camera. Driven by UIRoot.
@@ -177,7 +177,7 @@ namespace Voidward.UI
 
             builders.Add(ArrivalShot);
             builders.Add(LostShot);
-            builders.Add(ArkShot);
+            builders.Add(HomeShipShot);
             builders.Add(PlanetShot);
             builders.Add(NestShot);
             builders.Add(StationShot);
@@ -494,19 +494,18 @@ namespace Voidward.UI
             };
         }
 
-        Shot ArkShot()
+        Shot HomeShipShot()
         {
-            ShipCore ark = null;
-            foreach (var sc in ShipCore.All) if (sc != null && sc.Derelict.Value) { ark = sc; break; }
-            if (ark == null) return null;
-            Vector3 c = ark.transform.position;
+            var home = ShipCore.Home;
+            if (home == null) return null;
+            Vector3 c = home.transform.position;
             Vector3 toAnchor = Vector3.ProjectOnPlane(anchor - c, Vector3.up).normalized;
             if (toAnchor.sqrMagnitude < 0.01f) toAnchor = Vector3.left;
             return new Shot
             {
-                Title = "Derelict Ark",
-                Body = "A derelict capital ship drifts nearby. Bring 8 Scrap to restore its power - the whole crew can man its helm, turrets and engines.",
-                Label = "DERELICT ARK", Highlight = c,
+                Title = home.ShipName.Value.ToString(),
+                Body = "Your home ship. It carries the warp drive, the cryo pods and your Darts. Lose it and the loop starts over - crew its helm, turrets and engine room together.",
+                Label = home.ShipName.Value.ToString().ToUpperInvariant(), Highlight = c,
                 Duration = 5f,
                 FromPos = c + Quaternion.AngleAxis(-25f, Vector3.up) * toAnchor * 115f + Vector3.up * 38f,
                 ToPos = c + Quaternion.AngleAxis(15f, Vector3.up) * toAnchor * 70f + Vector3.up * 16f,

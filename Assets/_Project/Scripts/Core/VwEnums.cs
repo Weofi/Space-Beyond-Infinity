@@ -31,8 +31,8 @@ namespace Voidward.Core
     /// <summary>Faction used by combat. Same-team damage is ignored.</summary>
     public enum Team { Players, Pirates, Aliens, Neutral }
 
-    /// <summary>Ship archetypes. Dart = agile starter, Mule = cargo starter, Ark = large co-op ship.</summary>
-    public enum ShipClass { Dart, Mule, Ark }
+    /// <summary>Ship archetypes. Dart = agile starter, Mule = cargo starter, HomeShip = the Nostos, the crew's home ship (#49).</summary>
+    public enum ShipClass { Dart, Mule, HomeShip }
 
     /// <summary>System cruise of a ship (#80): off, spooling up (key held), cruising.</summary>
     public enum CruiseMode : byte { Off, Spooling, Cruising }

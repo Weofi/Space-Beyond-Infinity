@@ -326,7 +326,7 @@ namespace Voidward.UI
             lobbyPlayers = UIKit.Text(listBg, "", 30);
             UIKit.Stretch(lobbyPlayers.rectTransform, 24, 24, 16, 16);
 
-            var tip = UIKit.Text(w, "Route home: <b>M33 > M31 > NGC 6822 > Leo I > LMC > Milky Way</b>\nEvery player flies their own ship. Find the derelict <b>Ark</b> to crew a big ship together.", 22, TextAlignmentOptions.Center, UIKit.Accent2);
+            var tip = UIKit.Text(w, "Route home: <b>M33 > M31 > NGC 6822 > Leo I > LMC > Milky Way</b>\nThe crew flies the <b>Nostos</b> home together; every player has a Dart docked at it.", 22, TextAlignmentOptions.Center, UIKit.Accent2);
             UIKit.LayoutElement(tip.gameObject, -1, 60);
 
             var row = UIKit.Row(w, 64);

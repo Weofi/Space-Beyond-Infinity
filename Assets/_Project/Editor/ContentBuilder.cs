@@ -323,7 +323,7 @@ namespace Voidward.EditorTools
             M("module_focus_mk2", "Focus Lens Mk II", ModuleSlot.WeaponMod, 2, 280, mod, "Huge hit envelope. Drones hate this.", m => { m.HitboxMult = 3f; });
             M("module_capacitor_mk1", "Capacitor Mk I", ModuleSlot.WeaponMod, 1, 140, mod, "Faster weapon cycling.", m => { m.FireRateMult = 1.3f; });
             M("module_capacitor_mk2", "Capacitor Mk II", ModuleSlot.WeaponMod, 2, 300, mod, "Overclocked weapon cycling.", m => { m.FireRateMult = 1.6f; });
-            M("module_engine_ark", "Ark Drive", ModuleSlot.Engine, 2, 300, eng, "Heavy drive for capital ships.", m => { m.ThrustMult = 1.1f; });
+            M("module_engine_ark", "Capital Drive", ModuleSlot.Engine, 2, 300, eng, "Heavy drive for capital ships.", m => { m.ThrustMult = 1.1f; });
             return list;
         }
 
@@ -436,7 +436,7 @@ namespace Voidward.EditorTools
             };
             d.Echoes = new[]
             {
-                E(1, 2, "ECHO // VEGA", "If you hear this: the derelict Ark is worth claiming. Don't leave M33 without it."),
+                E(1, 2, "ECHO // VEGA", "If you hear this: keep the Nostos whole. Lose her and the loop starts over."),
                 E(1, 3, "ECHO // LYRA", "Exotic Matter first, sightseeing later. The tank decides how far we get."),
                 E(2, 2, "ECHO // ALTAIR", "Andromeda's Wardens keep a Mk III core. Clear the enclave before you warp on."),
                 E(2, 4, "ECHO // VEGA", "Swarms everywhere here. Stay in the ship until the guns are better."),
@@ -450,12 +450,14 @@ namespace Voidward.EditorTools
             d.LogWarden = "Wardens of {galaxy} defeated.";
             d.LogDrive = "Installed {part}. Home ETA {eta}.";
             d.LogShipLost = "Lost the {ship}.";
+            d.LogHomeLost = "The {ship} broke apart in {galaxy}. Nothing left to fly home in.";
             d.LogFlightHome = "Left {galaxy} for home. The Rift is waking.";
             d.LogCrewLost = "The whole crew was lost in {galaxy}.";
             d.LogRiftCaught = "The Rift caught us on the flight home.";
             d.LogHomecoming = "Home. Sol is outside the window.";
             d.ResetCrewLost = "Crew lost";
             d.ResetRiftCaught = "Caught by the Rift";
+            d.ResetHomeLost = "Nostos destroyed";
             EditorUtility.SetDirty(d);
             return d;
         }
@@ -628,18 +630,43 @@ namespace Voidward.EditorTools
                 s.FuelBurnPerSecond = burn; s.Thrust = thrust; s.BoostMultiplier = boost; s.TurnSpeedDeg = turn; s.RollSpeedDeg = roll; s.MaxSpeed = maxSpeed;
                 s.LinearDamping = lin; s.AngularDamping = ang; s.Stations = stations; s.CargoWidth = cw; s.CargoHeight = ch; s.HasInterior = interior;
                 s.StartingModuleItemIds = start;
+                s.HeavyLanding = false;
+                s.Hardpoints = new ShipHardpoint[0];
                 return s;
             }
-            return new[]
+            ShipHardpoint H(string name, ModuleSlot slot, float x, float y, float z, Vector3 normal) =>
+                new ShipHardpoint { Name = name, Slot = slot, Position = new Vector3(x, y, z), Normal = normal };
+            var ships = new[]
             {
                 S(ShipClass.Dart, "Dart", 110, 50, 6, 150, 0.5f, 34, 2.0f, 110, 140, 95, 0.35f, 3f, new[] { StationRole.Pilot }, 4, 2, false,
                   new[] { "module_engine_mk1", "module_laser_mk1" }),
                 S(ShipClass.Mule, "Mule", 180, 80, 7, 230, 0.6f, 26, 1.8f, 80, 110, 80, 0.4f, 3f, new[] { StationRole.Pilot }, 6, 3, false,
                   new[] { "module_engine_mk1", "module_laser_mk1", "module_flak_mk1", "module_cargo_mk1" }),
-                S(ShipClass.Ark, "Ark", 600, 250, 14, 420, 0.7f, 16, 1.6f, 38, 45, 70, 0.4f, 3.5f,
-                  new[] { StationRole.Pilot, StationRole.Turret, StationRole.Turret, StationRole.Engineer }, 8, 4, true,
+                S(ShipClass.HomeShip, "Nostos", 900, 320, 16, 480, 0.7f, 14, 1.5f, 30, 36, 65, 0.45f, 3.5f,
+                  new[] { StationRole.Pilot, StationRole.Turret, StationRole.Turret, StationRole.Engineer }, 8, 5, true,
                   new[] { "module_engine_ark", "module_laser_mk2", "module_missile_mk1", "module_shield_mk2", "module_hull_mk2" }),
             };
+            // The home ship (#49): sets down slowly and only on flat ground; hardpoints (ship-local, PrefabBuilder
+            // NostosBuilder coordinates) for the swappable parts of #50
+            var home = ships[2];
+            home.HeavyLanding = true;
+            home.MaxLandingSlope = 14f;
+            home.MaxDescentSpeed = 6f;
+            home.Hardpoints = new[]
+            {
+                H("Main engine L", ModuleSlot.Engine, -5.3f, -0.3f, -26f, Vector3.back),
+                H("Main engine R", ModuleSlot.Engine, 5.3f, -0.3f, -26f, Vector3.back),
+                H("Gun pod L", ModuleSlot.WeaponA, -5.3f, -2.2f, 21.6f, Vector3.forward),
+                H("Gun pod R", ModuleSlot.WeaponB, 5.3f, -2.2f, 21.6f, Vector3.forward),
+                H("Shield emitter", ModuleSlot.Shield, 0f, 2.6f, -2f, Vector3.up),
+                H("Armour belt", ModuleSlot.Hull, 0f, -4.4f, 0f, Vector3.down),
+                H("Cargo racks", ModuleSlot.Cargo, 0f, 2.3f, -6f, Vector3.up),
+                H("Sensor mast", ModuleSlot.Scanner, 0f, 3.8f, 16f, Vector3.up),
+                H("Tank bay", ModuleSlot.FuelTank, 0f, -3.9f, -12f, Vector3.down),
+                H("Fire control", ModuleSlot.Targeting, 0f, 2.6f, 20f, Vector3.up),
+            };
+            foreach (var sd in ships) EditorUtility.SetDirty(sd);
+            return ships;
         }
     }
 }

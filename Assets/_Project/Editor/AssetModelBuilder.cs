@@ -236,23 +236,23 @@ namespace Voidward.EditorTools
         /// <summary>R35 "Grey" livery (black / gunmetal plating, orange spine and pods): URP Lit, OpenGL normal map.</summary>
         static Material MuleR35Material() => PbrMaterial("Ship_Mule_R35", MuleDir, "R35", 1.6f, 1f, "_Normal.jpg", false);
 
-        // ---------------------------------------------------------------- Ark (#97)
+        // ---------------------------------------------------------------- Nostos hull (#97 Ark, #49)
 
         const string ArkDir = ShipModelDir + "/CargoShip";
 
-        /// <summary>Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci (Tools/Blender/cargo_ark.py): 36 m, nose +Z, window and belly hatch cut out.</summary>
-        static Mesh ArkCargoMesh() => ModelMesh(ShipModelDir + "/Ship_Ark_Cargo.fbx");
+        /// <summary>Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci (Tools/Blender/nostos.py): 54 m, nose +Z, window and airlock cut out.</summary>
+        static Mesh NostosHullMesh() => ModelMesh(ShipModelDir + "/Ship_Nostos.fbx");
 
         /// <summary>The bridge window cut out of the cab front (original UVs).</summary>
-        static Mesh ArkCargoGlassMesh() => ModelMesh(ShipModelDir + "/Ship_Ark_Cargo_Glass.fbx");
+        static Mesh NostosGlassMesh() => ModelMesh(ShipModelDir + "/Ship_Nostos_Glass.fbx");
 
         /// <summary>
         /// Gunmetal hull with tan trim (URP Lit, DirectX normals). The source glow is violet: its brightness becomes a mask,
         /// tinted cyan by the emission colour (Dart palette: cyan/orange emissives).
         /// </summary>
-        static Material ArkCargoMaterial()
+        static Material NostosHullMaterial()
         {
-            var m = PbrMaterial("Ship_Ark_Cargo", ArkDir, "CargoShip", 1f);
+            var m = PbrMaterial("Ship_Nostos", ArkDir, "CargoShip", 1f);
             m.SetTexture("_EmissionMap", Generated(ArkDir + "/CargoShip_Emissive_vw.png", true, new[] { ArkDir + "/CargoShip_Emissive.jpg" }, (px, i) =>
             {
                 var e = px[0][i];
@@ -265,12 +265,12 @@ namespace Voidward.EditorTools
         }
 
         /// <summary>
-        /// The Derelict Ark (#97): the same hull, dark and scorched (burn patches from noise over the albedo), rougher,
+        /// The derelict look of the hull (#97): the same hull, dark and scorched (burn patches from noise over the albedo), rougher,
         /// no emission. ShipDerelictLook swaps it in while ShipCore.Derelict is set.
         /// </summary>
-        static Material ArkDerelictMaterial()
+        static Material NostosDerelictMaterial()
         {
-            var m = PbrMaterial("Ship_Ark_Cargo_Derelict", ArkDir, "CargoShip", 0f);
+            var m = PbrMaterial("Ship_Nostos_Derelict", ArkDir, "CargoShip", 0f);
             m.SetTexture("_BaseMap", Generated(ArkDir + "/CargoShip_Base_color_derelict.png", true, new[] { ArkDir + "/CargoShip_Base_color.jpg" }, (px, i) =>
             {
                 int w = Mathf.RoundToInt(Mathf.Sqrt(px[0].Length));
@@ -396,7 +396,7 @@ namespace Voidward.EditorTools
             return m;
         }
 
-        /// <summary>The interior material of a dead ship (#97, Derelict Ark): light strips and panels almost dark, dimmer surfaces.</summary>
+        /// <summary>The interior material of a dead ship (#97): light strips and panels almost dark, dimmer surfaces.</summary>
         static Material InteriorDerelictMaterial()
         {
             var m = Mat("VW_HullInterior_Derelict", "VOIDWARD/ToonFlat");

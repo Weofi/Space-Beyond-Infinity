@@ -42,6 +42,7 @@ namespace Voidward.Data
         public string LogWarden = "Wardens of {galaxy} defeated.";
         public string LogDrive = "Installed {part}. Home ETA {eta}.";
         public string LogShipLost = "Lost the {ship}.";
+        public string LogHomeLost = "The {ship} broke apart in {galaxy}. Nothing left to fly home in.";
         public string LogFlightHome = "Left {galaxy} for home. The Rift is waking.";
         public string LogCrewLost = "The whole crew was lost in {galaxy}.";
         public string LogRiftCaught = "The Rift caught us on the flight home.";
@@ -50,6 +51,7 @@ namespace Voidward.Data
         [Header("Loop reset")]
         public string ResetCrewLost = "Crew lost";
         public string ResetRiftCaught = "Caught by the Rift";
+        public string ResetHomeLost = "Nostos destroyed";
 
         /// <summary>The deja-vu radio of a loop (null in loop 1).</summary>
         public RadioLine DejaVuFor(int loop)
