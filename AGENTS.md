@@ -134,13 +134,6 @@ Journey structure (#46) playable and tested: lobby -> M33 ... LMC (5 galaxies x 
 
 Known limitations: mostly placeholder procedural art (the Dart, its cockpit, the Mule, the Ark, the crew suit, the hand tools, the enemies + Warden and the station, wrecks, POIs, crates, pickups, menu props, planet terrain materials, planet decor, landmarks and asteroids are real assets so far, #91/#94/#95/#97/#98/#99/#100; still procedural: vents, ember rocks, arches, monoliths, bones, obsidian spires; the Warden hull shows decimation facets up close) and audio, no terrain deformation, LOD without geomorphing, no swimming (pawns walk on the seabed), owner authority without prediction, Ark can only be claimed (not built).
 
-## Next priorities (user, 2026-10-16)
-Roadmap: #53 (pinned) = a **sequential plan**: work the issues strictly in its numbered order (each one only builds on earlier ones); its checklist and the dependency graph are the source of truth, keep them updated when an issue is done. Done: graphics upgrade #93 (#94-#100), #46, #73 (#78-#81), #108, #86. #72 stays open as the design reference.
-1. Story frame + home ship: #112 Credits/Stardust -> Salvage/Memory fragments -> #49 home ship Nostos -> #87 prologue -> #109 story intro -> #88 homecoming -> #89 lore.
-2. Build-up loop: #50 modular parts -> #55 mining & crafting -> #113 small ships -> #44 run builds -> #54 chests.
-3. Combat & creatures: #40 camera & cockpit -> #41 movesets -> #39 fauna -> #51 alien ecosystems (pirates out) -> #42 Warden bosses.
-4. Systems & expeditions: #45 -> #57 -> #52 -> #56.
-5. Living world: #38 flora.
-6. Meta: #47 logbook -> #59 skill tree -> #58 equipment & cosmetics -> #48 leaderboard.
-A playtest (solo + MP) follows each phase. New ideas = new issue, slotted into #53 with a number.
+## Next priorities
+**The order of work is the "Ablaufplan" in roadmap #53 (pinned)**: work the issues strictly in its numbered order (each one only builds on earlier ones); take the first unchecked issue there. Its checklist and dependency graph are the only source of truth: tick an issue there when it is merged, and don't keep a second copy of the order here. #72 stays open as the design reference. A playtest (solo + MP) follows each phase. New ideas = new issue, slotted into #53 with a number.
 Older feedback still applies: menu, graphics and gameplay need major improvement; clarify concrete goals/references with the user before large changes. Graphics: replace procedural art with fitting free assets step by step (see "Art & assets").
