@@ -9,4 +9,4 @@ They are discussion material, not evidence of an implemented art change or a new
 - `04_stilvarianten.jpg`: overview of the style variants.
 - `A_flat_*`, `B_smooth_*`, `C_textured_*`: paired Dart and landscape references for comparing the three variants.
 
-The project's implemented art direction remains documented in `AGENTS.md` and `Assets/Design/DESIGN.md` until a new direction is agreed and implemented.
+Decision (2026-10-17): variant A (flat-shaded + palette) is the new art direction (#120, rules in `Assets/Design/DESIGN.md` "Visual Identity"). The A/B/C renders are quick automatic conversions of the existing Dart and a test landscape, not finished assets.

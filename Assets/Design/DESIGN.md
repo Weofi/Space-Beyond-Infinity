@@ -262,30 +262,47 @@ Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; 
 
 ### Visual Identity & Modeling Conventions
 
-Direction since #91: **asset-based, detailed PBR sci-fi**. The procedural "stylized low-poly" look is retired as the target; it only stays as a fallback where no asset exists yet.
+Direction since 2026-10-17 (#120, rules #121): **low poly, flat-shaded with a shared colour palette** ("variant A"). It replaces the detailed PBR direction of #91. Comparison of the variants and the audit of the old assets: `Docs/screenshots/lowpoly-audit/` (`04_stilvarianten.jpg`). Assets imported under #91-#100 (Fab/Sketchfab PBR models, photoscans, photo textures) are legacy and get replaced by #122-#127 and #133; the runtime code built around them stays.
 
-- **Art Style:** Detailed, textured sci-fi in the look of a modern indie/AA space game: real PBR materials (painted and bare metal, panel lines, rivets, wear, emissive lights), believable proportions, slightly game-y colour accents. Reference: the Dart hull (Fab "SpaceShip" by JazOone3D, grey/dark slate plating with orange accents and glowing intakes). A screenshot must look like a finished game.
-- **Where assets come from:** ready-made models and textures first, built ourselves only where nothing fits. Sources, in order: Fab free listings (Fab Standard License; check "AI use allowed"), Poly Haven and ambientCG (CC0 HDRIs, PBR materials, models), Kenney and Quaternius (CC0), Sketchfab CC-BY (credit required), Unity Asset Store free packs. Every asset gets a line in `Assets/_Project/Art/CREDITS.md` (name, author, URL, licence).
-- **Consistency:** assets from different authors must read as one world. Pick assets with similar detail density and texel density (about 4K per 10-20 m hull), keep a shared palette family (slate/gunmetal hulls, one warm accent colour per faction, cyan/orange emissives), and unify them through lighting, post-processing and colour grading rather than by repainting.
-- **Material & Lighting (URP):** URP Lit (metallic/smoothness workflow) for imported assets, reflection probes, bloom on emissives, contact shadows/SSAO. Custom shaders (VW_Planet, VW_Ocean, skybox, atmosphere, VFX) stay where no asset can replace them.
-- **Atmospheric Palette:** Deep cosmic nebulae in saturated gradients with layered depth (dust, stars, distant bodies). Fog is tinted to the sector palette to provide depth layering between planets, ships, and debris.
-- **Pipeline:** builds stay reproducible: the source files live in the repo, a `Tools/Blender` script normalizes models (metres, nose +Z, origin), the builder code (`AssetModelBuilder`) sets importers, packs maps and creates the materials. Gameplay parts (colliders, seats, muzzles, thrusters, lights) are placed around the asset in `PrefabBuilder`.
+- **Art Style:** clear silhouettes from few, large, readable faces. Hard facets everywhere (geometric flat normals, no smoothing groups), one colour per face from the shared palette, slight per-face brightness jitter (+-5 %) allowed for life. Readable at a glance first, detail second. A screenshot must look like a finished stylised game, not like a prototype.
+- **No:** photo or scan textures, normal/height/detail maps, baked AO textures, greebles and panel lines in texture, PBR metal/roughness maps, decimated high-poly scans (they read as noisy facets). Small palette atlases (<= 256 px, flat swatches) that some CC0 packs ship with are converted to vertex colours on import.
+- **Light and glow:** emissives carry the sci-fi look: cyan and orange glow (`surf.y` glow in the vertex contract) plus bloom. Lighting, fog, ACES tonemapping and the per-galaxy grade (`PaletteDef`) stay and do the mood; materials stay simple.
+- **Shader:** `VW_ToonFlat` with `_FLATSHADING_ON` + `_USEVERTEXCOLOR_ON` (steps 6, softness 1, low rim) is the standard material for models. Glass: dark palette colour with high gloss (opaque or `VW_Glass`). Planet terrain follows #124 (faceted ground with a fixed facet size if the prototype works, else smooth ground with faceted objects).
+- **Budgets (triangles):** small props < 300, props/decor < 1k, hand tools < 800, crew body 1.5-3k, creatures 1-3k, bosses <= 8k, small ships 1.5-4k exterior + <= 3k cockpit, Nostos <= 8k hull + <= 10k walkable interior, station <= 12k. Textures: none (vertex colour only).
+- **Where assets come from:** free low-poly packs first (Quaternius, Kenney, Poly Pizza; Sketchfab/Fab only with a true flat low-poly look; CC0/CC-BY, commercial use allowed), recoloured to the palette; building it ourselves with a Blender script is equally fine because the style is simple. Every third-party asset gets a line in `Assets/_Project/Art/CREDITS.md`.
+- **Consistency:** the palette is the glue: assets from different authors are recoloured to it, no asset keeps its own colour scheme. Similar facet size for objects of the same size class (a 2 m rock and a 2 m crate have a similar number of faces).
+- **Atmospheric Palette:** deep cosmic nebulae in saturated gradients with layered depth (dust, stars, distant bodies). Fog is tinted to the sector palette for depth between planets, ships and debris. The photographic sky (NASA star map, galaxy photos) is checked against the style in #133.
+- **Pipeline:** reproducible as before: sources in the repo, a `Tools/Blender/<asset>.py` script normalizes (metres, nose +Z, origin) and writes the vw vertex contract (`Col` = palette colour, `surf` = gloss/glow), `PrefabBuilder.ImportedMesh` builds the mesh, gameplay parts (colliders, seats, muzzles, thrusters, lights) are placed in `PrefabBuilder`.
+
+#### Shared palette (sRGB, design values)
+| Group | Colours |
+|---|---|
+| Human tech hulls (Dart, Mule, Nostos, station) | hull light `#C9CED4`, hull mid `#8A9199`, hull dark `#424850`, trim `#262A30`, accent orange `#E07A2E`, warning yellow `#E8B53A` |
+| Glass and screens | canopy glass `#1B2532`, screen base `#0F1A22` |
+| Emission | cyan `#4FD8FF`, engine orange `#FF9A3C`, warning red `#FF4D4D` |
+| Crew | suit `#D8DBDF`, joints/gear `#3A3F46`, visor `#162030` + crew colour on the visor rim (#60) |
+| Wardens / precursors | ivory `#E8E2D0`, ivory shade `#B8B09A`, warden cyan `#5FE3E0` |
+| Aliens (default faction, #51 adds one accent per galaxy) | chitin purple `#581C87`, acid green `#84CC16`, lime glow `#A3E635` |
+| Rock and ground (neutral) | rock light `#A39A91`, rock mid `#7F766F`, rock dark `#5A534E`; biome colours: "Planet Biome Identities" below |
+| Resources | ore `#C46A3A`, crystal violet `#8B5CF6`, crystal cyan `#5BD6E8`, exotic matter `#C084FC` (glow) |
+
+The palette becomes data (a palette asset the builders read) with the first asset issue (#122); until then these values are the reference.
 
 ### Ship Design Language
 
-- **Dart (Agile Starter Fighter) (core):** asset since #91 (Fab "SpaceShip" by JazOone3D).
+- **Dart (Agile Starter Fighter) (core):** today the Fab "SpaceShip" by JazOone3D (#91, legacy PBR); rebuilt low poly in #122 with the same silhouette, scale and cockpit layout.
   - Silhouette: Long armoured nose with a smoked glass canopy (roof panes + side windows), two engine pods with octagonal intakes and dorsal fins, forward-swept wings.
   - Scale: 15.0m length, 17.8m wingspan, 4.5m height.
   - Cockpit: the pilot sits inside under the canopy (seat, dash screens, side consoles, stick); no windscreen, the front frame works as glare shield.
   - Visual Features: Twin nose cannons, big rear engine rings, ribbed dorsal intakes.
   - Palette: Grey and dark slate plating with orange accents, warm orange emissive intakes (alternative liveries in the source pack: black/blue, black/red).
-- **Mule (Cargo Hauler) (core):** asset since #97 (Fab "DROPSHIP R35" by GrafxBOX, Grey livery).
+- **Mule (Cargo Hauler) (core):** today the Fab "DROPSHIP R35" by GrafxBOX (#97, legacy PBR); rebuilt low poly in #122.
   - Silhouette: Armoured wedge dropship with a long nose, two big engine pods on stub wings, landing gear and a rear cargo ramp.
   - Scale: 15.0m length, 11.4m width (engine pods), 5.3m height.
   - Cockpit: the upper nose is a smoked glass canopy; the pilot sits under it on a raised deck with the Dart's fittings (chair, consoles, side stick + throttle, dashboard with live screens). Cargo terminal at the ramp.
   - Visual Features: Four engine nozzles on the pods, chin laser under the nose, orange spine and pod armour.
   - Palette: Black and gunmetal plating with orange accents, cyan engine glow.
-- **Nostos (home ship, multi-station co-op transport) (core, #49):** the Ark hull of #97 (Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci) at 1.5 x, interior from the "Sci-Fi Corridor - Revisited 2019" kit (Mesh Masters), cryo pods "Cryo LOD0" (Nikitos & 3130). The crew's ship from the first minute: it carries the warp drive (it leads every warp; parts and Exotic Matter are handled aboard), the cryo pods and the Darts; destroyed = the loop resets.
+- **Nostos (home ship, multi-station co-op transport) (core, #49):** today the Ark hull of #97 (Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci) at 1.5 x, interior from the "Sci-Fi Corridor - Revisited 2019" kit (Mesh Masters), cryo pods "Cryo LOD0" (Nikitos & 3130), all legacy PBR; rebuilt low poly in #122 with the same room layout. The crew's ship from the first minute: it carries the warp drive (it leads every warp; parts and Exotic Matter are handled aboard), the cryo pods and the Darts; destroyed = the loop resets.
   - Silhouette: Long hauler with a tall forward cab (bridge), a row of cargo racks on the spine, four engine nacelles on front and rear wings, a Dart docked on each wing.
   - Scale: 54.0m length, 37.3m width (wings), 12.0m height.
   - Walkable Interior Architecture (one deck at y -2.33, Gravity Volumes), stern to bow:
@@ -479,5 +496,5 @@ VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impac
 ## Technical Design References & Implementation Bounds
 
 - **Reference Display:** 1920 x 1080 resolution, 16:9 aspect ratio. All pixel dimensions scale uniformly using reference-resolution canvas scaling.
-- **Render Pipeline Scope:** Universal Render Pipeline (URP). Stylized PBR-like shaders (toon-ramped diffuse, readable specular, rim light, normal/detail maps where they add definition). Post-processing: Bloom, Tonemapping (ACES), SSAO, color grading per sector, plus Chromatic Aberration/Vignette overrides for damage and threat states.
+- **Render Pipeline Scope:** Universal Render Pipeline (URP). Flat-shaded low-poly materials (`VW_ToonFlat`: vertex colour, geometric flat normals, soft light ramp, readable specular, low rim; no normal/detail maps), see "Visual Identity". Post-processing: Bloom, Tonemapping (ACES), SSAO, color grading per sector, plus Chromatic Aberration/Vignette overrides for damage and threat states.
 - **Network Awareness:** All gameplay feedback (weapon hit flashes, mining node shattering, shield break bursts) executes predictively on the local client with authoritative health confirmation from the server to guarantee instantaneous input feel under latency.

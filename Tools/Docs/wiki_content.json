@@ -34,10 +34,10 @@
   "art-and-assets": {
     "title": "Art & Asset-Pipeline",
     "eyebrow": "Visuelle Identität",
-    "summary": "Detaillierte PBR-Science-Fiction mit reproduzierbarer Asset-Pipeline. Die aktuellen Regeln orientieren sich an der assetbasierten Dart.",
-    "highlights": [["Referenz & Lizenz", "Passende Assets suchen und die erlaubte Nutzung prüfen; Auswahl mit dem Nutzer abstimmen."], ["Reproduzierbarer Import", "Quelldaten behalten, per Blender-Skript normalisieren und durch Builder einbinden."], ["Im Spiel beurteilen", "Maßstab, Cockpit, Materialien und Beleuchtung in passenden Ansichten prüfen."]],
-    "flow": ["Auswahl", "Quelldaten", "Blender", "Builder", "Spielansicht"],
-    "images": [{"path": "Docs/screenshots/issue-26/dart_front34.jpg", "caption": "Archiv · #26: frühere Dart und Crew. Diese Aufnahme zeigt einen älteren Look und ist ausdrücklich keine Referenz für die aktuelle PBR-Art-Direction.", "alt": "Historische Entwicklungsaufnahme einer weiß-blauen Dart mit stilisiertem Astronauten"}, {"path": "Docs/screenshots/issue-115/provinces_all_biomes.jpg", "caption": "#115 · Terrainvergleich über mehrere Biome. Die Perspektiven helfen, Form, Atmosphäre und Bodendetails gemeinsam zu beurteilen.", "alt": "Planetenvergleich mit verschiedenen Biomen und Betrachtungsdistanzen"}]
+    "summary": "Low Poly, flat-shaded mit gemeinsamer Farbpalette (Variante A, #120). Ältere PBR- und Scan-Assets aus #91-#100 werden schrittweise ersetzt.",
+    "highlights": [["Stilregeln", "Harte Facetten, Farbe pro Fläche aus der Palette, Leuchten über Emission; keine Foto-Texturen oder Normal-Maps."], ["Quelle & Lizenz", "Low-Poly-Packs (Quaternius, Kenney, Poly Pizza) oder eigenes Blender-Skript; Auswahl mit dem Nutzer abstimmen."], ["Im Spiel beurteilen", "Neben einem schon umgestellten Asset rendern und Vorher/Nachher-Bilder ablegen."]],
+    "flow": ["Auswahl", "Quelldaten", "Blender + Palette", "Builder", "Spielansicht"],
+    "images": [{"path": "Docs/screenshots/lowpoly-audit/04_stilvarianten.jpg", "caption": "#120 · Stilentscheidung 2026-10-17: links der alte PBR-Look, daneben die Varianten A (gewählt), B und C als schnelle automatische Umwandlung desselben Darts und einer Testlandschaft.", "alt": "Vergleich heutiger PBR-Look gegen drei Low-Poly-Varianten von Landschaft und Dart"}, {"path": "Docs/screenshots/lowpoly-audit/01_passt_nicht_assets.jpg", "caption": "#120 · Audit: diese PBR- und Scan-Assets aus #91-#100 passen nicht zum Low-Poly-Stil und werden in #122-#127 ersetzt.", "alt": "Raster aus zwölf aktuellen Assets wie Dart, Mule, Nostos, Crew-Anzug, Station und Loot-Kiste"}, {"path": "Docs/screenshots/issue-115/provinces_all_biomes.jpg", "caption": "#115 · Terrainformen über mehrere Biome. Die Formen bleiben; die Foto-Bodentexturen werden in #124 durch den facettierten Look ersetzt.", "alt": "Planetenvergleich mit verschiedenen Biomen und Betrachtungsdistanzen"}]
   },
   "testing": {
     "title": "Tests & visuelle Prüfung",

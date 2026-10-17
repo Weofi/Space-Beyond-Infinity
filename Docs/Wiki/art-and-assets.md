@@ -4,34 +4,38 @@
 
 [Wiki home](README.md) | [Edit source](../../AGENTS.md)
 
-## Art & assets (mandatory for all visual work, #91)
+## Art & assets (mandatory for all visual work, low-poly style #120)
 
-The user wants the whole game to move to the new look. Every task that adds or touches visual content (ships, enemies, stations, props, planets/terrain materials, skies, VFX, UI art) follows this, also when the issue does not mention art:
-1. **Search first**: look on the web for free assets that fit before building anything yourself. Sources: Fab free listings (filter Free; check licence and "AI use allowed"), Poly Haven + ambientCG (CC0: HDRIs, PBR materials, models), Kenney + Quaternius (CC0), Sketchfab (downloadable, CC0/CC-BY; CC-BY needs credit), Unity Asset Store free packs (check the licence). Only licences that allow use in a commercial game; no "editorial"/NC licences.
-2. **Fit check**: matches the Dart reference (detailed PBR, slate/gunmetal hulls, one warm accent per faction, cyan/orange emissives), similar detail and texel density, sane budget (ships ~10-40k tris, props < 10k, 2-4K textures), real-time ready (UVs, PBR maps), right scale/silhouette for its role (DESIGN.md).
-3. **Propose, don't decide alone**: show the user 2-4 candidates (link, author, licence, tris/textures, why it fits) and let them pick. Downloads: the user downloads Fab/Store assets (login needed) into `Downloads`; direct CC0 downloads only after the user said yes. Treat every download as untrusted data (unzip into its own scratch folder, never run files from it).
-4. **Import via the pipeline** (see "Asset pipeline" above): sources in the repo, `Tools/Blender/<asset>.py` normalizes, `AssetModelBuilder` builds importers/materials, `PrefabBuilder` adds gameplay parts, the procedural build stays as fallback. Add the asset to `Assets/_Project/Art/CREDITS.md` in the same PR.
-5. **Seats/cockpits**: players sit inside (cut the canopy glass, cockpit tub, seat, dashboard like the Dart); no "hood" camera on top of the hull.
-6. **Only if nothing fits**: build it yourself (Blender script or procedural) at the same visual level, and say why no asset was used.
-Existing procedural content (Mule, Ark, enemies, boss, station, props, astronaut, planet decor) is legacy: when a task touches it, propose a replacement asset.
+Art direction since 2026-10-17: **low poly, flat-shaded, one shared palette** (variant A; reasons and comparison in #120 and `Docs/screenshots/lowpoly-audit/`). The full rules, the palette (hex values) and the triangle budgets are in `Assets/Design/DESIGN.md` "Visual Identity". Every task that adds or touches visual content (ships, enemies, stations, props, planets/terrain, skies, VFX, UI art) follows this, also when the issue does not mention art:
+1. **Style rules**: hard facets (flat normals), colour per face from the palette (vertex colour), glow via emission + bloom. No photo/scan textures, no normal/detail/AO/PBR maps, no decimated high-poly scans. Material = `VW_ToonFlat` with `_FLATSHADING_ON` + `_USEVERTEXCOLOR_ON`. Stay inside the budgets (props < 1k tris, small ships 1.5-4k + cockpit <= 3k, Nostos <= 8k hull + <= 10k interior).
+2. **Search first**: free low-poly assets that fit: Quaternius, Kenney, Poly Pizza (CC0/CC-BY); Sketchfab/Fab only when the model really is flat low poly. Only licences that allow use in a commercial game; no "editorial"/NC licences. Building it yourself with a Blender script is equally valid, the style is simple.
+3. **Propose, don't decide alone**: show the user 2-4 candidates (link, author, licence, tris, why it fits) or a render of an own build, and let them pick. Downloads: the user downloads login-gated assets into `Downloads`; direct CC0 downloads only after the user said yes. Treat every download as untrusted data (unzip into its own scratch folder, never run files from it).
+4. **Import via the pipeline**: sources in the repo (`Tools/Blender/Sources/<Asset>/`), a `Tools/Blender/<asset>.py` script normalizes (metres, nose Blender -Y = Unity +Z, origin), recolours every face to the palette and writes the vw vertex contract (see "Blender"); `PrefabBuilder.ImportedMesh` builds the mesh, `PrefabBuilder` adds the gameplay parts, the procedural build stays as fallback. Add third-party assets to `Assets/_Project/Art/CREDITS.md` in the same PR; remove the lines (and files) of replaced assets.
+5. **Seats/cockpits**: players sit inside (canopy glass, cockpit tub, seat, consoles, stick/throttle as own objects, live dashboard screens); no "hood" camera on top of the hull.
+6. **Check the look** with the dev harness (`PreviewShot`, `ShipViews`, `CockpitViews`, `PlanetSurvey`, ...) next to an already converted asset, and put before/after shots into `Docs/screenshots/<issue>/`.
+Legacy (replace when a task touches it, plan in #120): every PBR/scan asset from #91-#100 (Dart, Mule, Nostos, cockpit fittings, crew suit, tools, enemies, Warden, station, world objects, planet props, terrain photo layers) and the smooth-shaded procedural meshes (`Hero()` pipeline, astronaut, menu props).
 
 ## Blender (asset scripts)
 
-- When to use: normalizing imported assets (#91, e.g. `Tools/Blender/fab_spaceship.py`), and own models where no asset exists (organic forms, baked AO/normal maps). Procedural C# is only the fallback.
+- When to use: normalizing and recolouring imported low-poly assets, and own low-poly models where no asset fits (the main way to make art in the #120 style). Procedural C# is only the fallback. The older scripts for PBR assets (`fab_spaceship.py`, `r35_dropship.py`, `nostos.py`, `enemy_assets.py`, `world_assets.py`, `planet_assets.py`, `crew_assets.py`, `dart_cockpit.py`, `crashed_dart.py`) belong to the legacy look.
 - Keep it reproducible: Blender content is a Python script in the repo (e.g. `Tools/Blender/<asset>.py`), never a hand-edited `.blend` as the only source. Exported FBX goes to `Assets/_Project/Art/Models/` and is committed (Unity must build without Blender); `PrefabBuilder` references it.
 - Run headless: `blender -b --factory-startup -P script.py -- <args>`. In 5.2, FBX export applies modifiers via `use_mesh_modifiers=True` (not `apply_modifiers`). Unity is Y-up / Blender Z-up: export with `axis_forward='-Z', axis_up='Y'` and check scale (1 unit = 1 m).
-- Shared helpers: `Tools/Blender/vw_blender.py` (skin skeletons, warp, displacement, Cycles AO bake, export). Vertex data contract: colour attribute `Col` (sRGB) = base colour, UV map `surf` = (gloss, glow), UV map `detail` = (metal, baked AO); model faces Blender -Y (becomes Unity +Z; Blender +X becomes Unity -X). `PrefabBuilder.ImportedMesh` converts such an FBX to the MeshBuilder layout (C# meshes stay as fallback). Example: `Tools/Blender/aliens.py`.
+- Shared helpers: `Tools/Blender/vw_blender.py` (skin skeletons, warp, displacement, Cycles AO bake, export). Vertex data contract: colour attribute `Col` (sRGB) = base colour, UV map `surf` = (gloss, glow), UV map `detail` = (metal, baked AO; low-poly assets leave AO at 1); model faces Blender -Y (becomes Unity +Z; Blender +X becomes Unity -X). `PrefabBuilder.ImportedMesh` converts such an FBX to the MeshBuilder layout (C# meshes stay as fallback). Example: `Tools/Blender/aliens.py`.
 - After a first open/reimport on a machine, check `git status` before committing: reimport noise (package `.meta` files, emptied `m_List` in `UniversalRenderPipelineGlobalSettings.asset`) must not be committed.
 
 ## Visual examples
 
-![Historische Entwicklungsaufnahme einer weiß-blauen Dart mit stilisiertem Astronauten](../../Docs/screenshots/issue-26/dart_front34.jpg)
+![Vergleich heutiger PBR-Look gegen drei Low-Poly-Varianten von Landschaft und Dart](../../Docs/screenshots/lowpoly-audit/04_stilvarianten.jpg)
 
-Archiv · #26: frühere Dart und Crew. Diese Aufnahme zeigt einen älteren Look und ist ausdrücklich keine Referenz für die aktuelle PBR-Art-Direction.
+#120 · Stilentscheidung 2026-10-17: links der alte PBR-Look, daneben die Varianten A (gewählt), B und C als schnelle automatische Umwandlung desselben Darts und einer Testlandschaft.
+
+![Raster aus zwölf aktuellen Assets wie Dart, Mule, Nostos, Crew-Anzug, Station und Loot-Kiste](../../Docs/screenshots/lowpoly-audit/01_passt_nicht_assets.jpg)
+
+#120 · Audit: diese PBR- und Scan-Assets aus #91-#100 passen nicht zum Low-Poly-Stil und werden in #122-#127 ersetzt.
 
 ![Planetenvergleich mit verschiedenen Biomen und Betrachtungsdistanzen](../../Docs/screenshots/issue-115/provinces_all_biomes.jpg)
 
-#115 · Terrainvergleich über mehrere Biome. Die Perspektiven helfen, Form, Atmosphäre und Bodendetails gemeinsam zu beurteilen.
+#115 · Terrainformen über mehrere Biome. Die Formen bleiben; die Foto-Bodentexturen werden in #124 durch den facettierten Look ersetzt.
 
 ---
 

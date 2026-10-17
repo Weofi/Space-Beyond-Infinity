@@ -29,8 +29,9 @@ Two endings only: **Homecoming** or **death** (= the loop resets). Target run le
 > Section 3 describes both the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
-the Input System, Cinemachine 3 and TextMeshPro. The art direction is detailed PBR sci-fi,
-using imported assets with reproducible builders and procedural fallbacks. Audio and music
+the Input System, Cinemachine 3 and TextMeshPro. The art direction is low poly, flat-shaded with one shared colour
+palette (#120; parts of the game still use older PBR assets until the conversion is done),
+built with reproducible builders and procedural fallbacks. Audio and music
 still include procedural placeholders. Asset sources and licences are recorded in
 [CREDITS.md](Assets/_Project/Art/CREDITS.md).
 
