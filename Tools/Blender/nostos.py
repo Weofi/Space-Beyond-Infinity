@@ -194,8 +194,9 @@ def import_kit(name):
 # ================================================================ hull (the Ark hull at S)
 
 FLOOR_Y = -1.55 * S
-ROOMS = [  # (x half width, y min, y max, z min, z max) of the inner volume, Unity coordinates
-    (1.62 * S, FLOOR_Y - 0.08, 0.76 * S, -8.6 * S, 6.6 * S),   # corridor (fuselage)
+ROOMS = [  # (x half width, y min, y max, z min, z max) of the inner volume, Unity coordinates (PrefabBuilder Nostos*)
+    (1.62 * S, FLOOR_Y - 0.08, 0.85, -16.0, -10.2),            # engine room (the tail: lower roof, outer top 1.01)
+    (1.62 * S, FLOOR_Y - 0.08, 0.76 * S, -10.2, 6.6 * S),      # cargo hall + cryo bay (fuselage)
     (1.36 * S, FLOOR_Y - 0.08, 1.6 * S, 6.6 * S, 15.7 * S),    # bridge (cab)
 ]
 DOOR = (-2.5 * S, -0.5 * S, 0.55 * S)  # airlock in the left flank: z range, top (sill = FLOOR_Y)

@@ -28,7 +28,16 @@ namespace Voidward.EditorTools
         /// <summary>Static import (no rig/animation/cameras/lights, MikkTSpace tangents) with the asset's URP materials remapped.</summary>
         static GameObject WorldSource(string asset)
         {
-            string path = WorldModelDir + "/" + asset + ".fbx";
+            string set = WorldTextureSet.TryGetValue(asset, out var shared) ? shared : asset;
+            return GltfModelSource(WorldModelDir + "/" + asset + ".fbx", WorldTextures(asset), set);
+        }
+
+        /// <summary>
+        /// Static import of a Sketchfab-derived FBX (no rig/animation/cameras/lights, MikkTSpace tangents) with URP materials
+        /// from its glTF texture folder (GltfMaterials, named `set_material`) remapped by material name. Null when missing.
+        /// </summary>
+        static GameObject GltfModelSource(string path, string texDir, string set)
+        {
             if (!(AssetImporter.GetAtPath(path) is ModelImporter imp)) return null;
             if (imp.importAnimation || imp.animationType != ModelImporterAnimationType.None || imp.importTangents != ModelImporterTangents.CalculateMikk
                 || imp.importNormals != ModelImporterNormals.Import || imp.importCameras || imp.importLights)
@@ -40,8 +49,7 @@ namespace Voidward.EditorTools
                 imp.importCameras = imp.importLights = false;
                 imp.SaveAndReimport();
             }
-            string set = WorldTextureSet.TryGetValue(asset, out var shared) ? shared : asset;
-            RemapMaterials(imp, GltfMaterials(WorldTextures(asset), set));
+            RemapMaterials(imp, GltfMaterials(texDir, set));
             return AssetDatabase.LoadAssetAtPath<GameObject>(path);
         }
 

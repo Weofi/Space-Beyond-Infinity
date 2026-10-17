@@ -20,7 +20,7 @@ namespace Voidward.Dev
     /// <summary>Where QuickStart puts the local player.</summary>
     public enum DevScenario
     {
-        /// <summary>Seated as pilot in the starting ship (normal run start).</summary>
+        /// <summary>Seated as pilot in the starting ship, launched from its clamp at the Nostos (normal run start + launch).</summary>
         Space,
         /// <summary>On foot on a sunlit, dry spot of a planet, blaster in hand, god mode.</summary>
         Planet,
@@ -32,6 +32,8 @@ namespace Voidward.Dev
         Warp,
         /// <summary>Seated as lead pilot in the flight home from the LMC (#81): Home Drive, the Rift chasing, cruising at 80 %.</summary>
         Finale,
+        /// <summary>At the helm of the home ship Nostos (#49), the own Dart docked at its clamp.</summary>
+        Nostos,
     }
 
     /// <summary>Camera views of <see cref="DevTest.PlanetSurvey"/> (one sheet column each).</summary>
@@ -143,14 +145,18 @@ namespace Voidward.Dev
             float seatWait = Time.realtimeSinceStartup + 4f;
             while (Pawn.CurrentSeat == null && Time.realtimeSinceStartup < seatWait) yield return null;
 
+            // The run starts docked at the Nostos (#49): the flying scenarios launch the Dart first (the warps are led by the Nostos).
+            if (IsServer && (scenario == DevScenario.Space || scenario == DevScenario.Lab || scenario == DevScenario.Galaxy)) { Launch(); yield return new WaitForSeconds(0.3f); }
             switch (scenario)
             {
                 case DevScenario.Planet: yield return PlanetCo(); break;
                 case DevScenario.Lab: BuildLab(); break;
                 case DevScenario.Galaxy: if (Voidward.UI.UIRoot.Instance != null) Voidward.UI.UIRoot.Instance.OpenGalaxyMap(); break;
+                case DevScenario.Nostos: if (IsServer) Board(ShipClass.HomeShip); break;
                 case DevScenario.Warp:
                     if (IsServer)
                     {
+                        Board(ShipClass.HomeShip);
                         SetDrive(2);
                         StartWarp();
                         yield return null;
@@ -161,6 +167,7 @@ namespace Voidward.Dev
                 case DevScenario.Finale:
                     if (IsServer)
                     {
+                        Board(ShipClass.HomeShip);
                         yield return FinaleCo(DriveComponentDef.MaxTier);
                         SetThrottle(0.8f);
                     }
@@ -940,7 +947,7 @@ namespace Voidward.Dev
         /// <summary>
         /// Server (#97): the local player boards a ship of a class in a seat of a role (index-th seat of that role).
         /// Takes an existing ship of the class (a working one before a derelict), else spawns one 45 m to the right of
-        /// the player's ship. claim = restore a derelict first. Logs "[Dev] end board Ark Pilot ...".
+        /// the player's ship. claim = restore a derelict first. Logs "[Dev] end board HomeShip Pilot ...".
         /// </summary>
         public static ShipCore Board(ShipClass cls, StationRole role = StationRole.Pilot, bool claim = false, int index = 0)
         {
@@ -973,6 +980,99 @@ namespace Voidward.Dev
             }
             Log($"end board FAILED: {cls} has no {role} seat #{index}");
             return ship;
+        }
+
+        // ------------------------------------------------------------------ home ship Nostos (#49)
+
+        /// <summary>Server: the local player's ship leaves its clamp at the Nostos (as holding thrust). Logs "[Dev] launch ...".</summary>
+        public static void Launch()
+        {
+            var s = Ship;
+            if (!IsServer || s == null) { Log("launch FAILED: needs the host + a ship"); return; }
+            bool was = s.Docked;
+            s.ServerUndock(true);
+            Log($"launch {(was ? "ok" : "not docked")} | {HomeInfo}");
+        }
+
+        /// <summary>Server: dock the local player's ship at clamp `clamp` of the Nostos (-1 = the first free one).</summary>
+        public static void Dock(int clamp = -1)
+        {
+            var s = Ship;
+            var home = ShipCore.Home;
+            if (!IsServer || s == null || home == null) { Log("dock FAILED: needs the host, a ship and the Nostos"); return; }
+            int i = home.FreeClamp(clamp);
+            bool ok = i >= 0 && s.ServerDock(home, i);
+            Log($"dock {(ok ? "ok clamp " + i : "FAILED")} | {HomeInfo}");
+        }
+
+        /// <summary>"Nostos hull 900/900 shield 320 | clamps 0:112 1:- 2:- 3:- | pods 4 | cryo 4 | pilot - | me Dart docked 0".</summary>
+        public static string HomeInfo
+        {
+            get
+            {
+                var h = ShipCore.Home;
+                if (h == null) return "no home ship";
+                var sb = new System.Text.StringBuilder();
+                sb.Append($"{h.ShipName.Value.ToString()} hull {h.Hull.Hp.Value:0}/{h.Hull.MaxHp.Value:0} shield {h.Shield.Value:0} | clamps");
+                foreach (var c in h.Clamps) { var d = c.Docked; sb.Append($" {c.Index}:{(d != null ? d.NetworkObjectId.ToString() : "-")}"); }
+                ShipSeat pilot = null;
+                foreach (var seat in ShipSeat.All) if (seat != null && seat.Ship == h && seat.Role == StationRole.Pilot) pilot = seat;
+                var me = Ship;
+                sb.Append($" | pods {h.CryoPods.Length} | cryo {(Run != null ? Run.RespawnsLeft.Value : 0)} | pilot {(pilot != null && pilot.IsOccupied ? pilot.Occupant.Value.ToString() : "-")}");
+                sb.Append($" | me {(me != null ? me.Class + (me.Docked ? " docked " + me.DockIndex.Value : " free") : "-")}");
+                return sb.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Server: the local pawn falls (a lethal hit, ignores god mode) and nobody revives it: it should wake in its
+        /// cryo pod aboard the Nostos. Logs "[Dev] end cryo pod i at d m | HomeInfo" or FAILED.
+        /// </summary>
+        public static void CryoTest()
+        {
+            Log("begin cryo");
+            var p = Pawn;
+            if (!IsServer || p == null || ShipCore.Home == null) { Log("end cryo FAILED: needs the host, a pawn and the Nostos"); return; }
+            DevRunner.Get().Run(CryoCo());
+        }
+
+        static IEnumerator CryoCo()
+        {
+            var p = Pawn;
+            var seat = ShipSeat.SeatOf(p.OwnerClientId);
+            if (seat != null) { seat.Vacate(); yield return new WaitForSeconds(0.3f); }
+            HurtPawn(99999f, Vector3.forward);
+            float until = Time.realtimeSinceStartup + 25f;
+            while (Time.realtimeSinceStartup < until && !p.IsDown.Value) yield return null;
+            while (Time.realtimeSinceStartup < until && p.IsDown.Value) yield return null;
+            yield return new WaitForSeconds(0.4f);
+            var h = ShipCore.Home;
+            int best = -1;
+            float bestD = float.MaxValue;
+            for (int i = 0; h != null && i < h.CryoPods.Length; i++)
+            {
+                float d = Vector3.Distance(p.transform.position, h.CryoPods[i].Exit.position);
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            if (p.IsDown.Value) Log("end cryo FAILED: still down | " + HomeInfo);
+            else Log($"end cryo pod {best} at {bestD:0.0} m | inside {(GravityVolume.At(p.transform.position) != null)} | {HomeInfo}");
+        }
+
+        /// <summary>Server: destroy the Nostos (ends the loop: "Nostos destroyed"). BackupMeta()/RestoreMeta() around it. Logs "[Dev] end destroyhome &lt;LoopInfo&gt;".</summary>
+        public static void DestroyHome()
+        {
+            Log("begin destroyhome");
+            var h = ShipCore.Home;
+            if (!IsServer || h == null) { Log("end destroyhome FAILED: needs the host and the Nostos"); return; }
+            DevRunner.Get().Run(DestroyHomeCo(h));
+        }
+
+        static IEnumerator DestroyHomeCo(ShipCore h)
+        {
+            HurtServer(h.Hull, h.transform.position, Vector3.up, h.Hull.MaxHp.Value * 10f + h.Shield.Value);
+            float until = Time.realtimeSinceStartup + 10f;
+            while (Time.realtimeSinceStartup < until && (UI.UIRoot.Instance == null || UI.UIRoot.Instance.Current != UI.Screen.Results)) yield return null;
+            Log("end destroyhome " + LoopInfo);
         }
 
         /// <summary>Server (#97): switch a ship of a class (the first found) to derelict or back (ShipDerelictLook).</summary>

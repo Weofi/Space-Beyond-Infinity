@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Voidward.Ship
 {
     /// <summary>
-    /// Derelict look of a ship (#97, the Derelict Ark): while ShipCore.Derelict is set, the hull renderers show their
+    /// Derelict look of a ship (#97): while ShipCore.Derelict is set, the hull renderers show their
     /// damaged material (dark, scorched, no emission) and the interior lights fall back to a dim red emergency glow
     /// that flickers now and then. Client-local, driven by the synced flag; restoring power switches everything back.
     /// </summary>

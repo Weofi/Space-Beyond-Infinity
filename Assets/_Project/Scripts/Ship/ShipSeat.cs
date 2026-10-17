@@ -55,7 +55,16 @@ namespace Voidward.Ship
         public GameObject GameObject => gameObject;
         public Transform SeatAnchor => seatAnchor != null ? seatAnchor : transform;
         public Transform ViewPoint => viewPoint != null ? viewPoint : SeatAnchor;
-        public Transform ExitPoint => exitPoint != null ? exitPoint : transform;
+        /// <summary>Where the occupant steps out; in a ship docked at the home ship that is the clamp's hatch inside it (#49).</summary>
+        public Transform ExitPoint
+        {
+            get
+            {
+                var clamp = Ship != null ? Ship.Clamp : null;
+                if (clamp != null && clamp.Hatch != null) return clamp.Hatch;
+                return exitPoint != null ? exitPoint : transform;
+            }
+        }
 
         void Awake()
         {
@@ -125,7 +134,7 @@ namespace Voidward.Ship
                 if (IsOccupied) return SeatRole + " station (occupied)";
                 switch (SeatRole)
                 {
-                    case StationRole.Pilot: return Ship != null && Ship.Class != ShipClass.Ark ? $"Board {Ship.ShipName.Value}" : "Take the helm";
+                    case StationRole.Pilot: return Ship != null && !Ship.IsHome ? $"Board {Ship.ShipName.Value}" : "Take the helm";
                     case StationRole.Turret: return "Man the turret";
                     default: return "Engineer station";
                 }
@@ -150,7 +159,7 @@ namespace Voidward.Ship
             Occupant.Value = c;
             if (SeatRole == StationRole.Pilot && Ship.NetworkObject.OwnerClientId != c)
                 Ship.NetworkObject.ChangeOwnership(c);
-            if (Ship.OwnerPlayer.Value == ShipCore.NoPlayer && Ship.Class != ShipClass.Ark)
+            if (Ship.OwnerPlayer.Value == ShipCore.NoPlayer && !Ship.IsHome)
                 Ship.OwnerPlayer.Value = c;
         }
 

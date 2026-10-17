@@ -57,7 +57,8 @@ namespace Voidward.World
         float maxXThisSystem;
         float autoStartTimer = 3f;
         int clearedEnclaves;
-        ShipCore ark;
+        /// <summary>The home ship Nostos (#49); losing it ends the loop.</summary>
+        ShipCore home;
 
         // ---- client state ----
         SystemVisuals visuals;
@@ -276,10 +277,10 @@ namespace Voidward.World
             foreach (var pawn in PlayerPawn.All) if (pawn != null) pawn.Gear.ResetServer();
             if (WarpDrive.Instance != null) WarpDrive.Instance.ServerReset(0);
             EnterSystem(1, 0, false);
+            SpawnHomeShip(null);
             int slot = 0;
             foreach (var pawn in PlayerPawn.All)
                 if (pawn != null) SetupPlayer(pawn, slot++, true, null);
-            SpawnDerelictArk();
             StartClock();
             var def = director.Def;
             AnnounceClientRpc($"{GalaxyTitle(def)}\n{(def != null ? def.Intro : "")}", "jump_gate");
@@ -314,9 +315,12 @@ namespace Voidward.World
             EnterSystem(save.Galaxy, save.System, false);
             VisitedMask.Value = save.VisitedMask | (1 << save.System);
 
-            // Match players by name; each saved entry is handed out once (two players may share a name).
+            // The home ship first (the players' ships dock at it), then the players by name; each saved entry is
+            // handed out once (two players may share a name). An old save without a working home ship gets a new one.
+            var homeSave = save.Ships.Find(s => s.Class == ShipClass.HomeShip && !s.Derelict);
+            SpawnHomeShip(homeSave);
             var players = new List<PlayerSave>(save.Players);
-            var ships = save.Ships.FindAll(s => s.Class != ShipClass.Ark);
+            var ships = save.Ships.FindAll(s => s.Class != ShipClass.HomeShip);
             int slot = 0;
             foreach (var pawn in PlayerPawn.All)
             {
@@ -328,9 +332,6 @@ namespace Voidward.World
                 ships.Remove(ss);
                 SetupPlayer(pawn, slot++, true, ps, ss);
             }
-            var arkSave = save.Ships.Find(s => s.Class == ShipClass.Ark);
-            if (arkSave != null && !arkSave.Derelict) RestoreArk(arkSave);
-            else if (save.Galaxy == 1 && save.System == 0) SpawnDerelictArk();
             StartClock();
             AnnounceClientRpc($"RUN RESUMED - {GalaxyTitle(director.Def)}\n{director.System.Name}", "jump_gate");
         }
@@ -344,7 +345,7 @@ namespace Voidward.World
             distanceDone = 0f;
             clearedEnclaves = 0;
             RespawnsLeft.Value = respawns;
-            ark = null;
+            home = null;
             ClearShips();
             RunSeed.Value = seed;
             VisitedMask.Value = 0;
@@ -615,7 +616,6 @@ namespace Voidward.World
         void BeginWarpFlight(int stop, int system, ShipCore lead, bool seamless)
         {
             distanceDone += Mathf.Max(0f, maxXThisSystem - director.Layout.StartX);
-            if (ark != null && ark.IsSpawned && ark.Derelict.Value) { ark.NetworkObject.Despawn(true); ark = null; }
             director.Clear();
             DestroyedAsteroids.Clear();
             asteroidDamage.Clear();
@@ -681,8 +681,6 @@ namespace Voidward.World
             bool newGalaxy = galaxy != GalaxyIndex.Value;
             distanceDone += Mathf.Max(0f, maxXThisSystem - director.Layout.StartX);
 
-            // Abandon unclaimed derelicts.
-            if (ark != null && ark.IsSpawned && ark.Derelict.Value) { ark.NetworkObject.Despawn(true); ark = null; }
 
             if (newGalaxy)
             {
@@ -711,7 +709,7 @@ namespace Voidward.World
             Quaternion turn = Quaternion.FromToRotation(WarpBubble.Axis, inward);
             foreach (var s in ShipCore.All.ToArray())
             {
-                if (s == null || !s.IsSpawned) continue;
+                if (s == null || !s.IsSpawned || s.Docked) continue; // docked ships ride on their clamps
                 Vector3 p = anchor + turn * (s.transform.position - origin);
                 s.GetComponent<NetTeleport>().ServerTeleport(p, turn * s.transform.rotation);
                 s.RestoreServer(false, false);
@@ -734,9 +732,9 @@ namespace Voidward.World
             var shipPositions = new Dictionary<ShipCore, Vector3>();
             foreach (var s in ShipCore.All.ToArray())
             {
-                if (s == null || !s.IsSpawned) continue;
+                if (s == null || !s.IsSpawned || s.Docked) continue; // docked ships ride on their clamps
                 Vector3 p = layout.StartPoint + new Vector3(-(slot / 3) * 40f, (slot % 3) * 30f - 30f, (slot % 2 == 0 ? 1 : -1) * (20f + slot * 12f));
-                if (s.Class == ShipClass.Ark) p = layout.StartPoint + new Vector3(-60f, 0f, -90f);
+                if (s.IsHome) p = HomeShipPoint(layout);
                 slot++;
                 s.GetComponent<NetTeleport>().ServerTeleport(p, Quaternion.LookRotation(Vector3.right));
                 s.RestoreServer(false, false);
@@ -748,6 +746,7 @@ namespace Voidward.World
                 var vol = GravityVolume.At(pawn.transform.position);
                 if (vol != null) continue; // carried by the interior it stands in
                 var own = ShipCore.OwnedBy(pawn.OwnerClientId);
+                if (own != null && own.Docked && home != null) own = home;
                 Vector3 p = own != null && shipPositions.TryGetValue(own, out var sp) ? sp + Vector3.up * 8f : layout.StartPoint + Random.onUnitSphere * 10f;
                 if (pawn.IsDown.Value) continue;
                 pawn.GetComponent<NetTeleport>().ServerTeleport(p, Quaternion.LookRotation(Vector3.right));
@@ -802,7 +801,7 @@ namespace Voidward.World
             foreach (var ship in ShipCore.All)
             {
                 if (ship == null || !ship.IsSpawned || !ship.Hull.IsAlive) continue;
-                bool crewShip = ship.Class == ShipClass.Ark;
+                bool crewShip = ship.IsHome;
                 if (!crewShip && !NetworkManager.ConnectedClients.ContainsKey(ship.OwnerPlayer.Value)) continue;
                 var ss = new ShipSave
                 {
@@ -875,6 +874,12 @@ namespace Voidward.World
             }
 
             var ship = SpawnShip(shipSave != null ? shipSave.Class : lo.Ship, c, basePos, Quaternion.LookRotation(Vector3.right));
+            if (ship != null && home != null && home.IsSpawned)
+            {
+                // the crew wakes aboard their docked ships at the Nostos (#49): hold thrust to launch
+                int clamp = home.FreeClamp(runStart ? slot : -1);
+                if (clamp >= 0) ship.ServerDock(home, clamp);
+            }
             if (ship != null)
             {
                 if (shipSave != null) ApplyShipSave(ship, shipSave);
@@ -931,32 +936,24 @@ namespace Voidward.World
                 }
         }
 
-        void SpawnDerelictArk()
-        {
-            var cat = ContentCatalog.Instance;
-            if (cat.ShipArk == null) return;
-            var go = Instantiate(cat.ShipArk, director.Layout.ArkPos, Quaternion.Euler(8f, 70f, 14f));
-            go.GetComponent<NetworkObject>().Spawn(true);
-            ark = go.GetComponent<ShipCore>();
-            ark.Derelict.Value = true;
-            ark.ShipName.Value = "Derelict Ark";
-            ark.Hull.Hp.Value = ark.Hull.MaxHp.Value * 0.35f;
-            ark.Fuel.Value = 0f;
-            ark.Shield.Value = 0f;
-            ark.Cargo.Add(WarpDrive.ExoticId, 2);
-            ark.Cargo.Add("scrap", 4);
-        }
+        /// <summary>Where the home ship waits at a galaxy's arrival point (beside the crew's formation).</summary>
+        static Vector3 HomeShipPoint(SystemLayout layout) => layout.StartPoint + new Vector3(-60f, 0f, -90f);
 
-        void RestoreArk(ShipSave save)
+        /// <summary>
+        /// Server (#49): the home ship Nostos at the arrival point, from the suspend save or new. Crewed by everyone
+        /// (no owner); losing it ends the loop.
+        /// </summary>
+        void SpawnHomeShip(ShipSave save)
         {
             var cat = ContentCatalog.Instance;
-            if (cat.ShipArk == null) return;
-            var go = Instantiate(cat.ShipArk, director.Layout.StartPoint + new Vector3(-60f, 0f, -90f), Quaternion.LookRotation(Vector3.right));
+            if (cat == null || cat.ShipHome == null) return;
+            var go = Instantiate(cat.ShipHome, HomeShipPoint(director.Layout), Quaternion.LookRotation(Vector3.right));
             go.GetComponent<NetworkObject>().Spawn(true);
-            ark = go.GetComponent<ShipCore>();
-            ark.Derelict.Value = false;
-            ark.ShipName.Value = string.IsNullOrEmpty(save.Name) ? "Ark" : save.Name;
-            ApplyShipSave(ark, save);
+            home = go.GetComponent<ShipCore>();
+            home.Derelict.Value = false;
+            var def = home.Def;
+            home.ShipName.Value = save != null && !string.IsNullOrEmpty(save.Name) ? save.Name : def != null ? def.DisplayName : "Nostos";
+            if (save != null) ApplyShipSave(home, save);
         }
 
         public Vector3 TeamCenter()
@@ -985,10 +982,11 @@ namespace Voidward.World
                         RespawnsLeft.Value--;
                         pawn.RespawnAt.Value = Time.time + 8f;
                     }
-                    else if (Time.time >= pawn.RespawnAt.Value && TryRespawnPoint(pawn.OwnerClientId, out var pos, out var rot))
+                    else if (Time.time >= pawn.RespawnAt.Value && TryRespawnPoint(pawn.OwnerClientId, out var pos, out var rot, out int pod))
                     {
                         pawn.RespawnAt.Value = 0f;
                         pawn.RespawnServer(pos, rot);
+                        if (pod >= 0 && home != null) home.ServerCryoWake(pod);
                     }
                 }
 
@@ -1003,17 +1001,35 @@ namespace Voidward.World
                         Vector3 p = (pawn.IsDown.Value ? TeamCenter() : pawn.transform.position) + Random.onUnitSphere * 25f;
                         var src = GravitySource.Dominant(p);
                         if (src != null) p = src.Center + src.UpAt(p) * (src.GroundRadius(p) + 70f);
-                        SpawnShip(ShipClass.Dart, c, p, Quaternion.LookRotation(Vector3.right));
-                        AnnounceClientRpc(NameOf(c) + " received a replacement Dart", "spawn");
+                        var dart = SpawnShip(ShipClass.Dart, c, p, Quaternion.LookRotation(Vector3.right));
+                        // the Nostos carries a spare (#49): it waits at a free clamp
+                        int clamp = home != null && home.IsSpawned && dart != null ? home.FreeClamp(WarpFlight.PlayerClamp(dart)) : -1;
+                        if (clamp >= 0 && dart.ServerDock(home, clamp)) AnnounceClientRpc($"{NameOf(c)}: a replacement Dart waits at clamp {clamp + 1} of the {home.ShipName.Value}", "spawn");
+                        else AnnounceClientRpc(NameOf(c) + " received a replacement Dart", "spawn");
                     }
                 }
             }
         }
 
-        bool TryRespawnPoint(ulong client, out Vector3 pos, out Quaternion rot)
+        /// <summary>
+        /// Where a fallen crew member wakes up: the cryo pod of their player slot in the Nostos (#49, `pod` >= 0),
+        /// else at their own ship, any ship, or beside a living crew member.
+        /// </summary>
+        bool TryRespawnPoint(ulong client, out Vector3 pos, out Quaternion rot, out int pod)
         {
+            pod = -1;
+            if (home != null && home.IsSpawned && home.CryoPods.Length > 0)
+            {
+                int slot = 0;
+                foreach (var p in PlayerPawn.All) { if (p == null) continue; if (p.OwnerClientId == client) break; slot++; }
+                pod = slot % home.CryoPods.Length;
+                var cp = home.CryoPods[pod];
+                var at = cp.Exit != null ? cp.Exit : cp.transform;
+                pos = at.position;
+                rot = at.rotation;
+                return true;
+            }
             var ship = ShipCore.OwnedBy(client);
-            if (ship == null && ark != null && ark.IsSpawned && !ark.Derelict.Value) ship = ark;
             if (ship == null) foreach (var s in ShipCore.All) if (s != null && !s.Derelict.Value) { ship = s; break; }
             if (ship != null)
             {
@@ -1096,10 +1112,16 @@ namespace Voidward.World
 
         void OnShipDestroyed(ShipCore s)
         {
-            if (s == ark) ark = null;
             AnnounceClientRpc(s.ShipName.Value + " was destroyed!", "alarm");
-            // Personal ships respawn; only losing the crew ship is a logbook milestone.
-            if (Phase.Value == GamePhase.Playing && s.Class == ShipClass.Ark) ServerLog(Story != null ? Story.LogShipLost : "", null, "", s.ShipName.Value.ToString());
+            if (s != home || !s.IsHome) return;
+            // The home ship is gone (#49): nothing left to fly home in - the time loop resets (#86).
+            home = null;
+            var st = Story;
+            if (Phase.Value == GamePhase.Playing)
+            {
+                ServerLog(st != null ? st.LogHomeLost : "", null, "", s.ShipName.Value.ToString());
+                EndRun(false, st != null ? st.ResetHomeLost : "Nostos destroyed", "");
+            }
         }
 
         void OnBossDefeated()

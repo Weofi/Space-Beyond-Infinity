@@ -92,6 +92,7 @@ namespace Voidward.World
             var nm = NetworkManager;
             var seat = nm != null ? ShipSeat.SeatOf(nm.LocalClientId) : null;
             if (seat == null || seat.Role != StationRole.Pilot || seat.Ship == null || Active.Value) { localAlign = 0f; return; }
+            if (!seat.Ship.IsHome && ShipCore.Home != null) { localAlign = 0f; return; }
             var t = seat.Ship.transform;
             int zi = JumpZones.At(t.position, out _);
             if (zi < 0 || JumpZones.BlockOf(zi) != JumpBlock.Open) { localAlign = 0f; return; }
@@ -132,10 +133,12 @@ namespace Voidward.World
             blockTimer -= dt;
             if (blockTimer <= 0f) { blockTimer = 0.25f; ServerBlocks(rm, zones); }
 
+            var home = ShipCore.Home;
             foreach (var seat in ShipSeat.All)
             {
                 if (seat == null || seat.Role != StationRole.Pilot || !seat.IsOccupied || seat.Ship == null || !seat.Ship.IsSpawned || seat.Ship.Derelict.Value) continue;
                 var ship = seat.Ship;
+                if (home != null && ship != home) continue; // only the home ship's drive opens a warp (#49)
                 ulong id = ship.NetworkObjectId;
                 Vector3 pos = ship.transform.position;
                 int zi = -1;
@@ -221,7 +224,8 @@ namespace Voidward.World
             Vector3 origin = lead.transform.position;
             Quaternion turn = Quaternion.FromToRotation(lead.transform.forward, WarpBubble.Axis);
             var others = new List<ShipCore>();
-            foreach (var s in ShipCore.All) if (s != null && s.IsSpawned && s != lead) others.Add(s);
+            ServerDockForWarp(lead);
+            foreach (var s in ShipCore.All) if (s != null && s.IsSpawned && s != lead && !s.Docked) others.Add(s);
             others.Sort((a, b) => a.NetworkObjectId.CompareTo(b.NetworkObjectId));
             var axisRot = Quaternion.LookRotation(WarpBubble.Axis);
             Place(lead, Vector3.zero, turn * lead.transform.rotation);
@@ -230,7 +234,7 @@ namespace Voidward.World
                 var s = others[i];
                 Vector3 rel = s.transform.position - origin;
                 if (rel.magnitude < CarryRange) Place(s, turn * rel, turn * s.transform.rotation);
-                else Place(s, WarpBubble.FormationOffset(i + 1, s.Class == ShipClass.Ark), axisRot);
+                else Place(s, WarpBubble.FormationOffset(i + 1, s.IsHome), axisRot);
             }
             foreach (var pawn in PlayerPawn.All)
             {
@@ -241,6 +245,39 @@ namespace Voidward.World
                 pawn.GetComponent<NetTeleport>().ServerTeleport(p, turn * pawn.transform.rotation);
             }
             Debug.Log($"[Jump] rebased into the bubble around {lead.ShipName.Value} ({others.Count} more ships)");
+        }
+
+        /// <summary>
+        /// Server (#49): every small ship docks at the home ship for the warp flight (the clamps carry them; their
+        /// pilots stay seated and launch again after the warp). Ships beyond the free clamps fly in formation.
+        /// </summary>
+        static void ServerDockForWarp(ShipCore lead)
+        {
+            if (lead == null || !lead.IsHome) return;
+            var free = new List<ShipCore>();
+            foreach (var s in ShipCore.All) if (s != null && s.IsSpawned && s != lead && !s.IsHome && !s.Docked && !s.Derelict.Value) free.Add(s);
+            free.Sort((a, b) => a.NetworkObjectId.CompareTo(b.NetworkObjectId));
+            int n = 0;
+            foreach (var s in free)
+            {
+                int clamp = lead.FreeClamp(PlayerClamp(s));
+                if (clamp < 0 || !s.ServerDock(lead, clamp)) continue;
+                n++;
+            }
+            if (n > 0) Debug.Log($"[Jump] docked {n} ships at the {lead.ShipName.Value} for the warp");
+        }
+
+        /// <summary>The clamp a player's ship prefers: the owner's player slot (the same clamp every warp).</summary>
+        public static int PlayerClamp(ShipCore s)
+        {
+            int slot = 0;
+            foreach (var p in PlayerPawn.All)
+            {
+                if (p == null) continue;
+                if (p.OwnerClientId == s.OwnerPlayer.Value) return slot;
+                slot++;
+            }
+            return -1;
         }
 
         static void Place(ShipCore s, Vector3 pos, Quaternion rot)

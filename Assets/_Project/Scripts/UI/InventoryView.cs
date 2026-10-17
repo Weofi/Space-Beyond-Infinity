@@ -307,7 +307,7 @@ namespace Voidward.UI
                 count++;
             }
             if (count == 0) UIKit.Text(list, "No modules - find them in crates, buy them at stations or craft them.", 20, TextAlignmentOptions.Left, UIKit.TextDim);
-            details.text = "Modules change your ship's stats immediately. Weapons: Laser (fast), Missiles (homing), Flak (area). Targeting CPUs widen aim assist; Weapon Mods add shots, hit radius or fire rate. Big ships like the Ark have more slots for crew stations.";
+            details.text = "Modules change your ship's stats immediately. Weapons: Laser (fast), Missiles (homing), Flak (area). Targeting CPUs widen aim assist; Weapon Mods add shots, hit radius or fire rate. Big ships like the Nostos have more slots for crew stations.";
         }
 
         // ------------------------------------------------------------ warp drive tab (#78)

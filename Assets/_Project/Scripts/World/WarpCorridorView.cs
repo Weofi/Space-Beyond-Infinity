@@ -142,7 +142,7 @@ namespace Voidward.World
             if (p1 <= p0 || p1 - p0 > 400f) return; // stopped or jumped (dev / slingshot)
             foreach (var ship in ShipCore.All)
             {
-                if (ship == null || ship.Flight == null || !ship.Flight.IsSimulating || ship.Derelict.Value) continue;
+                if (ship == null || ship.Flight == null || !ship.Flight.IsSimulating || ship.Derelict.Value || ship.Docked) continue; // docked ships ride inside the home ship's hull
                 Vector3 sp = ship.transform.position;
                 float sr = ship.Flight.Radius;
                 // Obstacle x = S - p: it sweeps from S - p0 to S - p1 this frame; hit if it passes the ship's x close enough.
