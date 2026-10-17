@@ -432,6 +432,7 @@ namespace Voidward.EditorTools
             d.LogShipLost = "Lost the {ship}.";
             d.LogHomeLost = "The {ship} was disabled in {galaxy}. No warp until it is repaired.";
             d.LogFlightHome = "Left {galaxy} for home.";
+            d.LogLandingFailed = "The landing party was lost. The {ship} is a wreck on the ground.";
             d.LogHomecoming = "Home. Sol is outside the window.";
             EditorUtility.SetDirty(d);
             return d;

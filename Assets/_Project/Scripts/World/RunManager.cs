@@ -251,6 +251,7 @@ namespace Voidward.World
             float dt = Time.deltaTime;
 
             TickPlayers(dt);
+            TickLanding();
             TickHazards(dt);
             if (WarpFlight.Instance == null || !WarpFlight.Instance.Active.Value) director.Tick(dt);
         }
@@ -649,6 +650,10 @@ namespace Voidward.World
 
         void WarpTo(int galaxy, int system, ShipCore lead = null, int fromSystem = -1)
         {
+            // A wreck of a failed landing stays in its system (#146): it is gone once the crew leaves (the world state of
+            // revisited systems comes with #142).
+            foreach (var w in ShipCore.All.ToArray())
+                if (w != null && w.IsSpawned && w.Derelict.Value && !w.IsHome && !w.Docked) { ShipSeat.VacateAllOn(w); w.NetworkObject.Despawn(true); }
             bool newGalaxy = galaxy != GalaxyIndex.Value;
             distanceDone += Mathf.Max(0f, maxXThisSystem - director.Layout.StartX);
 
@@ -936,6 +941,66 @@ namespace Voidward.World
             return n > 0 ? sum / n : (director != null && director.Layout != null ? director.Layout.StartPoint : Vector3.zero);
         }
 
+        const float CryoWakeDelay = 4f;
+        readonly HashSet<ulong> downAnnounced = new HashSet<ulong>();
+        readonly HashSet<ulong> landingFailed = new HashSet<ulong>();
+
+        /// <summary>
+        /// The landing party (#146): living pawns that are neither seated nor inside a ship's interior. When all of them
+        /// are down the landing has failed (a lone player on the ground fails at once: nobody can revive them).
+        /// </summary>
+        void TickLanding()
+        {
+            var party = new List<PlayerPawn>();
+            foreach (var p in PlayerPawn.All)
+            {
+                if (p == null || !p.Active.Value || ShipSeat.SeatOf(p.OwnerClientId) != null || GravityVolume.At(p.transform.position) != null) continue;
+                if (p.IsDown.Value && p.ServerDownedSeated) continue; // went down in a cockpit: not on the ground
+                party.Add(p);
+            }
+            if (party.Count == 0) return;
+            bool allDown = true, anyNew = false;
+            foreach (var p in party)
+            {
+                if (!p.IsDown.Value) { allDown = false; break; }
+                if (!landingFailed.Contains(p.OwnerClientId)) anyNew = true;
+            }
+            if (allDown && anyNew) ServerFailLanding(party);
+        }
+
+        /// <summary>
+        /// Server (#146): the whole landing party is down. What they carried is lost (backpack items; Salvage and worn gear
+        /// stay), they wake in the cryo bay, and a ship of theirs that stands on the ground becomes a wreck at the landing
+        /// site (cargo and fittings stay in it; fly back and restore it for a second chance). The journey goes on.
+        /// </summary>
+        public void ServerFailLanding(List<PlayerPawn> party)
+        {
+            if (!IsServer || Phase.Value != GamePhase.Playing) return;
+            int lost = 0;
+            var names = new List<string>();
+            foreach (var p in party)
+            {
+                ulong c = p.OwnerClientId;
+                landingFailed.Add(c);
+                names.Add(NameOf(c));
+                foreach (var st in p.Inventory.Slots) if (!st.IsEmpty) lost += st.Count;
+                p.Inventory.ClearAll();
+                p.ServerGiveUpBleeding();
+                var ship = ShipCore.OwnedBy(c);
+                if (ship == null || ship.IsHome || ship.Docked || ship.Derelict.Value) continue;
+                var src = GravitySource.Dominant(ship.transform.position);
+                if (src == null || src.SurfaceDistance(ship.transform.position) > 400f) continue; // not landed
+                ShipSeat.VacateAllOn(ship);
+                ship.Derelict.Value = true;
+                ship.OwnerPlayer.Value = ShipCore.NoPlayer;
+                PingAll(ship.transform.position, "WRECK - " + NameOf(c) + "'s " + ship.ShipName.Value);
+                ServerLog(Story != null ? Story.LogLandingFailed : "", null, "", ship.ShipName.Value.ToString());
+            }
+            Debug.Log($"[Run] landing failed: {string.Join(", ", names)} lost {lost} items");
+            AnnounceClientRpc($"LANDING FAILED\n{lost} items lost - the crew wakes in the cryo bay. A ship left on the ground is a wreck: fly back to restore it", "alarm");
+            ServerWriteSave();
+        }
+
         void TickPlayers(float dt)
         {
             foreach (var pawn in PlayerPawn.All)
@@ -945,20 +1010,26 @@ namespace Voidward.World
                 if (!pawn.Active.Value) { SetupPlayer(pawn, 0, false, null); AnnounceClientRpc(NameOf(pawn.OwnerClientId) + " joined the expedition", "spawn"); continue; }
                 if (pawn.transform.position.x > maxXThisSystem && !pawn.IsDown.Value) maxXThisSystem = pawn.transform.position.x;
 
-                if (pawn.IsDown.Value && !pawn.IsLost.Value)
+                if (pawn.IsDown.Value)
                 {
-                    if (pawn.RespawnAt.Value <= 0f) pawn.RespawnAt.Value = Time.time + 8f;
-                    else if (Time.time >= pawn.RespawnAt.Value && TryRespawnPoint(pawn.OwnerClientId, out var pos, out var rot, out int pod))
+                    // Down (#146): bleeding out (PlayerPawn counts it down); a crewmate can still revive. Bled out = wake in the cryo bay.
+                    if (downAnnounced.Add(pawn.OwnerClientId)) PingAll(pawn.transform.position, NameOf(pawn.OwnerClientId) + " DOWN");
+                    if (pawn.BleedLeft.Value <= 0f)
                     {
-                        pawn.RespawnAt.Value = 0f;
-                        pawn.RespawnServer(pos, rot);
-                        if (pod >= 0 && home != null) home.ServerCryoWake(pod);
+                        if (pawn.RespawnAt.Value <= 0f) pawn.RespawnAt.Value = Time.time + CryoWakeDelay;
+                        else if (Time.time >= pawn.RespawnAt.Value && TryRespawnPoint(pawn.OwnerClientId, out var pos, out var rot, out int pod))
+                        {
+                            pawn.RespawnAt.Value = 0f;
+                            pawn.RespawnServer(pos, rot);
+                            if (pod >= 0 && home != null) home.ServerCryoWake(pod);
+                        }
                     }
                 }
+                else { downAnnounced.Remove(pawn.OwnerClientId); landingFailed.Remove(pawn.OwnerClientId); }
 
                 // Replacement ship for players who lost theirs.
                 ulong c = pawn.OwnerClientId;
-                if (!pawn.IsLost.Value && ShipCore.OwnedBy(c) == null)
+                if (ShipCore.OwnedBy(c) == null)
                 {
                     if (!shipRespawnTimers.TryGetValue(c, out var t)) shipRespawnTimers[c] = t = Time.time + 20f;
                     if (Time.time >= t)
@@ -1009,6 +1080,15 @@ namespace Voidward.World
                 {
                     pos = p.transform.position + p.transform.right * 2f + p.transform.up;
                     rot = p.transform.rotation;
+                    return true;
+                }
+            // Last resort (#145/#146): a disabled Nostos or a wreck, so nobody is stuck waiting to wake up.
+            foreach (var s in ShipCore.All)
+                if (s != null && s.IsSpawned)
+                {
+                    var rp = s.RespawnPoint != null ? s.RespawnPoint : s.transform;
+                    pos = rp.position;
+                    rot = rp.rotation;
                     return true;
                 }
             pos = default; rot = Quaternion.identity;

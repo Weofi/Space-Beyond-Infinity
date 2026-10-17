@@ -33,6 +33,13 @@ namespace Voidward.Player
         const float GroundCheckDist = 0.35f;
         const float PitchLimit = 88f;
         const float InteractRange = 4.2f;
+        /// <summary>A downed player bleeds out after this many seconds (#146).</summary>
+        public const float BleedSeconds = 45f;
+        /// <summary>Holding [F] this long next to a downed crewmate revives them.</summary>
+        public const float ReviveSeconds = 4f;
+        public const float ReviveRange = 3f;
+        /// <summary>Share of the maximum health a revived player comes back with.</summary>
+        const float ReviveHealth = 0.4f;
         const float EvaThrust = 7f;
 
         public enum Tool { Drill = 0, Blaster = 1, Rifle = 2, Medkit = 3 }
@@ -48,9 +55,12 @@ namespace Voidward.Player
         // ---- Networked state ----
         public NetworkVariable<bool> Active = new NetworkVariable<bool>(false);
         public NetworkVariable<bool> IsDown = new NetworkVariable<bool>(false);
-        public NetworkVariable<bool> IsLost = new NetworkVariable<bool>(false);
         public NetworkVariable<float> Oxygen = new NetworkVariable<float>(90f);
         public NetworkVariable<float> RespawnAt = new NetworkVariable<float>(0f);
+        /// <summary>Seconds a downed player has left before waking in the cryo bay (#146); 0 = not bleeding (up, or bled out and waiting to wake).</summary>
+        public NetworkVariable<float> BleedLeft = new NetworkVariable<float>(0f);
+        /// <summary>0..1: a crewmate's revive hold on this downed player (#146).</summary>
+        public NetworkVariable<float> ReviveFrac = new NetworkVariable<float>(0f);
         /// <summary>Body animation state for the other peers (#95), see <see cref="PackPose"/>; owner-written.</summary>
         public NetworkVariable<byte> Pose = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
@@ -188,7 +198,7 @@ namespace Voidward.Player
                 else { foreach (var t in toolModels) if (t) t.gameObject.SetActive(false); if (beam) beam.enabled = false; }
             }
             else capsule.enabled = alive && CurrentSeat == null;
-            SetBodyVisible(alive && CurrentSeat == null);
+            SetBodyVisible(Active.Value && CurrentSeat == null); // a downed player lies where they fell (#146)
         }
 
         void SetBodyVisible(bool v)
@@ -249,6 +259,7 @@ namespace Voidward.Player
                     cameraPoint.SetPositionAndRotation(CurrentSeat.ViewPoint.position, CurrentSeat.ViewPoint.rotation);
             }
             if (IsOwner && cameraPoint != null) { ApplyShake(); ApplyRecoil(); ApplyHitStop(); }
+            UpdateDownPose();
             float fov = GameState.FieldOfView + GameState.FovPunch + WarpBubble.FovBoost;
             if (IsOwner && vcam != null && Mathf.Abs(vcam.Lens.FieldOfView - fov) > 0.05f)
             {
@@ -256,6 +267,21 @@ namespace Voidward.Player
                 lens.FieldOfView = fov;
                 vcam.Lens = lens;
             }
+        }
+
+        // ---- down pose (#146): the body lies down where it fell, the owner's view drops to the ground ----
+        float downBlend;
+        void UpdateDownPose()
+        {
+            bool down = IsDown.Value && Active.Value && CurrentSeat == null;
+            downBlend = Mathf.MoveTowards(downBlend, down ? 1f : 0f, Time.deltaTime * 2.5f);
+            if (body != null)
+            {
+                var target = down ? Quaternion.Euler(82f, 0f, 0f) : Quaternion.identity;
+                body.localRotation = Quaternion.Slerp(body.localRotation, target, Mathf.Clamp01(Time.deltaTime * 8f));
+            }
+            if (IsOwner && cameraPoint != null && CurrentSeat == null && (down || downBlend > 0.001f))
+                cameraPoint.localPosition = new Vector3(0f, Mathf.Lerp(1.62f, 0.45f, Mathf.SmoothStep(0f, 1f, downBlend)), 0f);
         }
 
         // Local hit-stop (#43): the view holds its pose for a few frames. On foot the whole camera holds; in a
@@ -348,7 +374,7 @@ namespace Voidward.Player
         {
             var seat = CurrentShipSeat;
             CurrentSeat = null;
-            SetBodyVisible(Active.Value && !IsDown.Value);
+            SetBodyVisible(Active.Value);
             capsule.enabled = Active.Value && !IsDown.Value;
             if (!IsOwner) return;
             Vector3 exit = seat != null ? seat.ExitPoint.position : transform.position;
@@ -537,10 +563,47 @@ namespace Voidward.Player
             public int Compare(RaycastHit a, RaycastHit b) => a.distance.CompareTo(b.distance);
         }
 
+        PlayerPawn DownedMateInReach()
+        {
+            PlayerPawn best = null;
+            float bestD = ReviveRange * ReviveRange;
+            foreach (var p in All)
+            {
+                if (p == null || p == this || !p.Active.Value || !p.IsDown.Value || p.BleedLeft.Value <= 0f) continue;
+                float d = (p.transform.position - transform.position).sqrMagnitude;
+                if (d < bestD) { bestD = d; best = p; }
+            }
+            return best;
+        }
+
+        float nextReviveBeat;
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void ReviveHoldServerRpc(ulong targetObjectId, RpcParams rp = default)
+        {
+            if (rp.Receive.SenderClientId != OwnerClientId || !Active.Value || IsDown.Value) return;
+            if (NetworkManager == null || !NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(targetObjectId, out var no)) return;
+            var target = no.GetComponent<PlayerPawn>();
+            if (target == null || target == this || !target.IsDown.Value || target.BleedLeft.Value <= 0f) return;
+            if ((target.transform.position - transform.position).sqrMagnitude > (ReviveRange + 1.5f) * (ReviveRange + 1.5f)) return;
+            target.ServerReviveHold();
+        }
+
         void UpdateInteraction(bool input)
         {
             focused = null;
             Prompt = "";
+            var downed = DownedMateInReach();
+            if (downed != null)
+            {
+                Prompt = $"Hold [{VwInput.BindingDisplay(VwInput.Interact)}] to revive{(downed.ReviveFrac.Value > 0.02f ? $" ({Mathf.RoundToInt(downed.ReviveFrac.Value * 100f)}%)" : "")}";
+                if (input && VwInput.Held(VwInput.Interact) && Time.time >= nextReviveBeat)
+                {
+                    nextReviveBeat = Time.time + 0.12f;
+                    ReviveHoldServerRpc(downed.NetworkObjectId);
+                }
+                return;
+            }
             if (FindInteractable(out var hit, out var it))
             {
                 if (it != null && it.CanInteract(this))
@@ -744,8 +807,55 @@ namespace Voidward.Player
         /// <summary>Server: true when protected from vacuum/radiation.</summary>
         public bool ServerSheltered => IsSheltered();
 
+        // ---- down / revive (#146), server ----
+        float reviveHold = -99f, reviveProgress;
+        /// <summary>Server: the pawn went down in a ship seat (a shot-down pilot is not a failed landing party, #146).</summary>
+        public bool ServerDownedSeated { get; private set; }
+
+        /// <summary>Server: a crewmate's hold heartbeat (the bleed-out pauses while it lasts).</summary>
+        public void ServerReviveHold() => reviveHold = Time.time;
+
+        void ServerDownTick(float dt)
+        {
+            if (BleedLeft.Value <= 0f) return; // bled out: RunManager wakes the player in the cryo bay
+            bool held = Time.time - reviveHold < 0.35f;
+            if (held) reviveProgress += dt;
+            else
+            {
+                reviveProgress = Mathf.Max(0f, reviveProgress - dt * 0.5f);
+                BleedLeft.Value = Mathf.Max(0f, BleedLeft.Value - dt);
+            }
+            float frac = Mathf.Clamp01(reviveProgress / ReviveSeconds);
+            if (Mathf.Abs(ReviveFrac.Value - frac) > 0.02f) ReviveFrac.Value = frac;
+            if (reviveProgress >= ReviveSeconds) ServerRevive();
+        }
+
+        /// <summary>Server: stop bleeding at once (the landing party failed, #146): they wake in the cryo bay.</summary>
+        public void ServerGiveUpBleeding()
+        {
+            if (!IsServer || !IsDown.Value) return;
+            reviveProgress = 0f;
+            ReviveFrac.Value = 0f;
+            BleedLeft.Value = 0f;
+        }
+
+        /// <summary>Server: back on their feet where they fell, at a share of their health.</summary>
+        public void ServerRevive()
+        {
+            if (!IsServer || !IsDown.Value) return;
+            reviveProgress = 0f;
+            ReviveFrac.Value = 0f;
+            BleedLeft.Value = 0f;
+            RespawnAt.Value = 0f;
+            Health.ReviveServer(ReviveHealth);
+            Oxygen.Value = Mathf.Max(Oxygen.Value, 20f);
+            IsDown.Value = false;
+            PlaySfxClientRpc("heal");
+        }
+
         void ServerTick(float dt)
         {
+            if (Active.Value && IsDown.Value) { ServerDownTick(dt); return; }
             if (!Active.Value || IsDown.Value) return;
             float max = Gear != null ? Gear.MaxOxygen : 90f;
             if (IsSheltered()) Oxygen.Value = Mathf.Min(max, Oxygen.Value + 30f * dt);
@@ -763,21 +873,27 @@ namespace Voidward.Player
 
         void OnServerDied(DamageInfo info)
         {
+            // Down, not dead (#146): bleeding out for BleedSeconds; a crewmate can revive them, else they wake in the cryo bay.
             IsDown.Value = true;
-            if (info.Type == DamageType.Collapse) IsLost.Value = true;
+            reviveProgress = 0f;
+            reviveHold = -99f;
+            ReviveFrac.Value = 0f;
+            RespawnAt.Value = 0f;
+            BleedLeft.Value = BleedSeconds;
             var seat = ShipSeat.SeatOf(OwnerClientId);
+            ServerDownedSeated = seat != null;
             if (seat != null) seat.Vacate();
-            DiedClientRpc(transform.position, info.Type == DamageType.Collapse);
+            DiedClientRpc(transform.position);
         }
 
         [ClientRpc]
-        void DiedClientRpc(Vector3 pos, bool lost)
+        void DiedClientRpc(Vector3 pos)
         {
-            Vfx.Explosion(pos + transform.up, 1.5f, new Color(0.6f, 0.9f, 1f));
+            Vfx.Explosion(pos + transform.up, 1.0f, new Color(0.6f, 0.9f, 1f));
             if (IsOwner)
             {
                 Sfx.PlayUI("alarm");
-                EventBus.RaiseNotification(lost ? "You were lost to the Collapse" : "You died - respawning at a ship...");
+                EventBus.RaiseNotification("You are down - a crewmate can revive you");
             }
         }
 
@@ -786,7 +902,7 @@ namespace Voidward.Player
         {
             if (!IsServer) return;
             Active.Value = active;
-            if (active) { IsDown.Value = false; IsLost.Value = false; }
+            if (active) { IsDown.Value = false; BleedLeft.Value = 0f; ReviveFrac.Value = 0f; }
         }
 
         /// <summary>Server: revive at a position.</summary>
@@ -796,6 +912,9 @@ namespace Voidward.Player
             Health.SetMaxHealthServer(Gear != null ? Gear.MaxHp : 100f, true);
             Health.DamageTakenMult = Gear != null ? Gear.Armor : 1f;
             Oxygen.Value = Gear != null ? Gear.MaxOxygen : 90f;
+            BleedLeft.Value = 0f;
+            ReviveFrac.Value = 0f;
+            reviveProgress = 0f;
             IsDown.Value = false;
             GetComponent<NetTeleport>().ServerTeleport(pos, rot);
         }

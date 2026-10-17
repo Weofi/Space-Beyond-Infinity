@@ -164,7 +164,7 @@ namespace Voidward.World
             int missing = 0;
             foreach (var pawn in PlayerPawn.All)
             {
-                if (pawn == null || !pawn.Active.Value || pawn.IsDown.Value || pawn.IsLost.Value) continue;
+                if (pawn == null || !pawn.Active.Value || (pawn.IsDown.Value && pawn.BleedLeft.Value <= 0f)) continue; // a bleeding crewmate outside still counts as missing (#146)
                 if (ShipSeat.SeatOf(pawn.OwnerClientId) != null || GravityVolume.At(pawn.transform.position) != null) continue;
                 missing++;
             }

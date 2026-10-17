@@ -581,7 +581,7 @@ namespace Voidward.Dev
         {
             foreach (var p in PlayerPawn.All)
                 if (p != null && p.Active.Value && !p.IsDown.Value) HurtServer(p.Health, p.transform.position + p.transform.up, Vector3.up, 100000f);
-            float until = Time.realtimeSinceStartup + 25f;
+            float until = Time.realtimeSinceStartup + 70f; // bleed out (45 s) + cryo wake delay
             yield return new WaitForSecondsRealtime(1f);
             while (Time.realtimeSinceStartup < until)
             {
@@ -591,6 +591,91 @@ namespace Voidward.Dev
                 yield return null;
             }
             Log("end killcrew " + RunInfo);
+        }
+
+        /// <summary>Server: the local pawn goes down (a lethal hit; bleeds out in 45 s unless a crewmate revives it). Logs "[Dev] end down &lt;DownInfo&gt;".</summary>
+        public static void DownPawn()
+        {
+            Log("begin down");
+            var p = Pawn;
+            if (!IsServer || p == null) { Log("end down FAILED: needs the host + a pawn"); return; }
+            HurtServer(p.Health, p.transform.position + p.transform.up, Vector3.up, 100000f);
+            DevRunner.Get().Run(DownCo());
+        }
+
+        static IEnumerator DownCo()
+        {
+            yield return null;
+            yield return null;
+            Log("end down " + DownInfo);
+        }
+
+        /// <summary>Server: revive the local pawn at once (the real path: a crewmate holds [F] for 4 s). Logs "[Dev] end revive &lt;DownInfo&gt;".</summary>
+        public static void Revive()
+        {
+            var p = Pawn;
+            if (!IsServer || p == null) { Log("end revive FAILED: needs the host + a pawn"); return; }
+            p.ServerRevive();
+            Log("end revive " + DownInfo);
+        }
+
+        /// <summary>Server: put a crewmate's revive hold on the local pawn for `seconds` (as if another player held [F]); the pawn revives after 4 s of it.</summary>
+        public static void ReviveHold(float seconds)
+        {
+            var p = Pawn;
+            if (!IsServer || p == null) { Log("ReviveHold FAILED: needs the host + a pawn"); return; }
+            DevRunner.Get().Run(ReviveHoldCo(p, seconds));
+        }
+
+        static IEnumerator ReviveHoldCo(PlayerPawn p, float seconds)
+        {
+            float until = Time.time + seconds;
+            while (Time.time < until && p != null && p.IsDown.Value) { p.ServerReviveHold(); yield return null; }
+            Log("revive hold done " + DownInfo);
+        }
+
+        /// <summary>"down True bleed 41.2 revive 0.00 hp 0/100 | up False" for the local pawn.</summary>
+        public static string DownInfo
+        {
+            get
+            {
+                var p = Pawn;
+                if (p == null) return "no pawn";
+                return $"down {p.IsDown.Value} bleed {p.BleedLeft.Value:0.0} revive {p.ReviveFrac.Value:0.00} hp {p.Health.Hp.Value:0}/{p.Health.MaxHp.Value:0} oxygen {p.Oxygen.Value:0}";
+            }
+        }
+
+        /// <summary>Server: the landing party fails (every pawn on foot is struck down); waits for the wake-up. Logs "[Dev] end faillanding &lt;WreckInfo&gt;".</summary>
+        public static void FailLanding()
+        {
+            Log("begin faillanding");
+            if (!IsServer || Run == null || Run.Phase.Value != GamePhase.Playing) { Log("end faillanding FAILED: needs the host in a run"); return; }
+            DevRunner.Get().Run(FailLandingCo());
+        }
+
+        static IEnumerator FailLandingCo()
+        {
+            foreach (var p in PlayerPawn.All)
+                if (p != null && p.Active.Value && !p.IsDown.Value) HurtServer(p.Health, p.transform.position + p.transform.up, Vector3.up, 100000f);
+            yield return new WaitForSecondsRealtime(1.5f);
+            Log("end faillanding " + WreckInfo);
+        }
+
+        /// <summary>"wrecks 1: 134:Dart owner none hull 100/100 cargo 3 | pawn down True" (derelict ships that are not the Nostos).</summary>
+        public static string WreckInfo
+        {
+            get
+            {
+                var sb = new System.Text.StringBuilder();
+                int n = 0;
+                foreach (var sh in ShipCore.All)
+                {
+                    if (sh == null || !sh.IsSpawned || !sh.Derelict.Value || sh.IsHome) continue;
+                    n++;
+                    sb.Append($" {sh.NetworkObjectId}:{sh.Class} owner {(sh.OwnerPlayer.Value == ShipCore.NoPlayer ? "none" : sh.OwnerPlayer.Value.ToString())} hull {sh.Hull.Hp.Value:0}/{sh.Hull.MaxHp.Value:0} cargo {(sh.Cargo != null ? sh.Cargo.SlotCount : 0)}");
+                }
+                return $"wrecks {n}:{sb} | {DownInfo}";
+            }
         }
 
         /// <summary>"Playing seed 123 | log 2 | screen None | best galaxy 1".</summary>

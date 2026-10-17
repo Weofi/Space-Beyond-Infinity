@@ -22,9 +22,10 @@ build up over one continuous journey.
 
 Route: M33 → Andromeda (M31) → NGC 6822 → Leo I → Large Magellanic Cloud → home flight to Sol.
 **Direction change (2026-10-17):** no roguelite runs, no time loop and no Rift. Since #145 the build matches
-that: a fallen crew member wakes in a cryo pod, a Nostos at 0 health is disabled until repaired, and the journey only
-ends with the homecoming. Still to come in #146: down/revive, and a failed landing that costs what the landing party
-carried (the landed ship stays as a salvageable wreck).
+that: at 0 health a player is down and bleeds out in 45 s unless a crewmate holds [F] for 4 s; bled out, they wake in a
+cryo pod. If the whole landing party is down the landing has failed: the backpacks are lost, the crew wakes aboard and
+a landed ship stays behind as a wreck. A Nostos at 0 health is disabled until repaired, and the journey only ends with
+the homecoming.
 
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
@@ -183,7 +184,7 @@ the system edge to the next system, or through the **Galactic Rim** of the outer
   glowing core pods (weak points) to drop its shield, then the hull. It drops a hoard of top-tier crates.
 * **Oxygen** drains outside ships and outside breathable atmospheres (Ice and Crystal worlds are
   breathable). Ships, the Nostos interior and station pads refill it.
-* **Cryo pods**: a fallen crew member wakes in their cryo pod aboard the Nostos after a short wait. Lose your Dart and
+* **Down and cryo pods**: at 0 health you are down for 45 s; a crewmate revives you by holding [F] near you for 4 s. Bled out, you wake in your cryo pod aboard the Nostos. If the whole landing party is down, the landing has failed: backpack items are lost and a landed ship stays as a wreck (restore it for 8 Scrap while the crew is still in the system). Lose your Dart and
   a replacement waits at a free docking clamp after 20 s.
 * **The Nostos** — the crew's home ship (#49). The run starts with every player in their Dart docked at
   one of its four wing clamps (hold W to launch, ease into a free clamp to dock again, leave the seat to step

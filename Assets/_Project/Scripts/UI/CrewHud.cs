@@ -94,7 +94,7 @@ namespace Voidward.UI
                     mates[np.OwnerClientId] = m;
                 }
 
-                bool active = pawn.Active.Value && !pawn.IsLost.Value;
+                bool active = pawn.Active.Value;
                 bool down = pawn.IsDown.Value;
                 string name = np.PlayerName.Value.ToString();
                 Color c = np.CrewColor;
@@ -176,12 +176,11 @@ namespace Voidward.UI
         {
             c = HudKit.TextDim;
             if (pawn == null || !pawn.Active.Value) return "LOBBY";
-            if (pawn.IsLost.Value) { c = HudKit.TextDim; return "LOST"; }
             if (pawn.IsDown.Value)
             {
                 c = HudKit.Danger;
-                float t = pawn.RespawnAt.Value - Time.time;
-                return t > 0f ? "DOWN " + HudKit.Num(Mathf.CeilToInt(t) + "s") : "DOWN";
+                if (pawn.ReviveFrac.Value > 0.02f) return "REVIVING " + HudKit.Num(Mathf.RoundToInt(pawn.ReviveFrac.Value * 100f) + "%");
+                return pawn.BleedLeft.Value > 0f ? "DOWN " + HudKit.Num(Mathf.CeilToInt(pawn.BleedLeft.Value) + "s") : "WAKING";
             }
             if (pawn.CurrentShipSeat != null) { c = HudKit.Shield; return pawn.CurrentShipSeat.Role.ToString().ToUpperInvariant(); }
             if (self || local == null) return "";

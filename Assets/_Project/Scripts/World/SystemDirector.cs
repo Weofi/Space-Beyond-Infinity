@@ -320,7 +320,7 @@ namespace Voidward.World
             if (cat.BossMothership == null || BossBrain.Instance != null) return;
             var go = Object.Instantiate(cat.BossMothership, pos, Quaternion.LookRotation(Vector3.left));
             int players = 0;
-            foreach (var p in PlayerPawn.All) if (p != null && p.Active.Value && !p.IsLost.Value) players++;
+            foreach (var p in PlayerPawn.All) if (p != null && p.Active.Value) players++;
             // Tuned for the old sector 3 (tier 2): the first enclaves are gentler, the LMC one harder.
             go.GetComponent<BossBrain>().Configure(players, Mathf.Clamp(EnemyTier / 2f, 0.5f, 1.4f));
             var no = go.GetComponent<NetworkObject>();
