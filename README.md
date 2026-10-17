@@ -2,6 +2,14 @@
 
 > *Find the way home. Together.*
 
+Player handbook & developer documentation: [Visual wiki](Docs/Wiki/index.html) ([Markdown view](Docs/Wiki/README.md)).
+Open `Docs/Wiki/index.html` in a browser for search, illustrated articles and navigation; no server is needed.
+New to the game? Start with [your first expedition](Docs/Wiki/first-steps.md),
+then [controls](Docs/Wiki/controls.md) or [help with a blocker](Docs/Wiki/help.md).
+Claude and other agents maintain the technical source in [AGENTS.md](AGENTS.md) and the
+player instructions in [player_guide.json](Tools/Docs/player_guide.json) alongside relevant code changes; CI checks that
+the generated wiki stays in sync.
+
 A first-person co-op space roguelite for 1–4 players. A routine **moon mission** is already on its way
 back to Earth - the families watch the return live on the news - when an **anomaly** (a wormhole) swallows
 the ship, and the crew wakes up in the **Triangulum Galaxy (M33)** — 2.73 million light-years from
@@ -16,24 +24,26 @@ Two endings only: **Homecoming** or **death** (= the loop resets). Target run le
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
 > galaxy map, suspend save), the crew warp drive with Home ETA (#78) and the flown warp between galaxies (#79) are
-> playable, as are system cruise and the flown in-galaxy warp (#80), the flight home chased by the Rift (#81) and the time loop (#86); still to come are
-> the story intro (#109), the prologue, Sol approach and landing on Earth (#74), seamless warps by flying out of jump zones (#108) and the home ship (#49). Section 3 describes both: the target design and what is playable today.
+> playable, as are system cruise and the flown in-galaxy warp (#80), the flight home chased by the Rift (#81), the time loop (#86), seamless jump zones (#108) and the home ship Nostos (#49).
+> Still to come are the story intro (#109), the prologue, Sol approach and landing on Earth (#74).
+> Section 3 describes both the target design and what is playable today.
 
 Built with Unity 6 (URP), Netcode for GameObjects, Unity Transport + Facepunch.Steamworks,
-the Input System, Cinemachine 3 and TextMeshPro. All art, audio and music are procedural
-(no external assets required), in a polished, high-end stylized sci-fi look: clean chunky
-shapes in the spirit of Astroneer, but with real surface detail, lighting and VFX - not abstract placeholder art.
+the Input System, Cinemachine 3 and TextMeshPro. The art direction is detailed PBR sci-fi,
+using imported assets with reproducible builders and procedural fallbacks. Audio and music
+still include procedural placeholders. Asset sources and licences are recorded in
+[CREDITS.md](Assets/_Project/Art/CREDITS.md).
 
 ---
 
 ## 1. Running the game
 
-1. Open the project in **Unity 6000.6.x**.
+1. Open the project in **Unity 6000.6.5f1** (see `ProjectSettings/ProjectVersion.txt`).
 2. Run **Voidward ▸ Build All Content** once (it regenerates every ScriptableObject, mesh, material,
    prefab, the network prefab list and the scene `Assets/_Project/Scenes/Voidward.unity`).
    The repository already contains the generated output; rerun after changing the builder code.
 3. Open `Assets/_Project/Scenes/Voidward.unity` and press **Play**.
-4. Main menu → **Host Game** → **Start Run**.
+4. Main menu → **Host Game** → **Start Mission** (first run) or **New Loop**.
 
 ### Standalone build
 *File ▸ Build Profiles* → Windows (or macOS) → Build. `steam_appid.txt` (AppID 480) is copied
@@ -63,7 +73,7 @@ next to the executable automatically by `SteamAppIdBuildStep`.
 1. *Window ▸ Multiplayer ▸ Multiplayer Play Mode* → enable **Player 2…4** (up to 4 virtual players).
 2. Press Play. In the main editor window click **Host Game**.
 3. In each virtual player window click **Join Game ▸ Join IP** (`127.0.0.1`).
-4. Host clicks **Start Run**.
+4. Host clicks **Start Mission** or **New Loop**.
 
 ### Local test with two builds / build + editor
 ```
@@ -79,7 +89,7 @@ the Editor and release players); build ↔ build and Editor ↔ Multiplayer Play
 2. Build the game (Steam is the default transport in builds; `steam_appid.txt` = 480).
 3. PC 1: **Host Game** → a Steam lobby is created → **Invite Friends** (or Shift+Tab overlay).
 4. PC 2: accept the invite (the game joins automatically) or **Join Game ▸ Refresh ▸ Join**.
-5. Host: **Start Run**.
+5. Host: **Start Mission** or **New Loop**.
 
 Late joiners are dropped into the running system with a fresh ship. If a client disconnects, its
 ship stays in the world. If the host quits, clients return to the main menu with a notification.
@@ -180,15 +190,14 @@ the system edge to the next system, or through the **Galactic Rim** of the outer
   Inside: bridge (Pilot), engine room (warp core + drive terminal, Engineer, aft turret), cargo hall
   (airlock, fabricator, cargo, hatches to the clamps), cryo bay; forward flak turret. It lands only on flat
   ground, slowly. Destroyed = the loop resets.
-* **Trader stations** (wormhole exit and nomad systems): buy modules/gear/cells/fuel, sell resources,
-  repair & refuel (60 cr).
+* **Trader stations** (wormhole exit and nomad systems): buy modules, gear, kits, Fuel and Exotic Matter,
+  sell resources, repair & refuel (60 Salvage).
 * **Events**: meteor showers, distress signals (salvage + hostiles), solar flares (shields
   offline, radiation in the open).
 * **Suspend save:** the host's run is saved when entering a galaxy and when leaving the session; *Continue
   Run* in the lobby resumes it (players are matched by name). The save is deleted when the run ends.
 * **Meta progression**: every run awards *Memory fragments* (distance, kills, galaxies, homecoming).
   Spend it in the **Hangar** on perks, the Mule ship and starting modules (saved locally).
-  (Becomes memory fragments / the Logbook, #47.)
 
 ### Controls (rebindable in Settings)
 
@@ -304,7 +313,6 @@ VFX/projectile visuals/audio sources are pooled, and only the active system's co
 * No real client-side prediction/reconciliation — owner authority is used instead (cheat-prone
   but responsive; fine for co-op).
 * Players riding inside the moving Nostos may see slight jitter of *other* players.
-* Docking is "land on the pad/next to the ship"; there is no magnetic docking clamp.
-* Large co-op ship is only found as a derelict (not buildable).
-* All visuals/audio are procedural placeholders in the intended style; no Asset Store packages.
+* The full story intro, prologue and Earth landing are pending; homecoming currently ends on a result screen.
+* Some visual effects, props and audio remain procedural placeholders; imported models and terrain materials are already used.
 * Steam lobby list uses Spacewar (AppID 480), so you may see other developers' test lobbies.

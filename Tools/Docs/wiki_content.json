@@ -1,0 +1,67 @@
+{
+  "home": {
+    "title": "Wissen für die Reise nach Hause.",
+    "summary": "Spielidee, Systeme und Werkzeuge von Voidward. Ein gemeinsamer Ort zum Verstehen, Entwickeln und Nachschlagen.",
+    "image": "Docs/screenshots/issue-115/after_ingame_ice.jpg",
+    "caption": "Eisplanet: vom Boden bis in den Orbit. Aufnahmen aus dem Entwicklungsschritt #115, kein neu erstellter Test."
+  },
+  "journey": {
+    "title": "Die Reise nach Hause",
+    "summary": "Eine Crew, fünf Galaxien und ein gemeinsames Ziel: Sol erreichen. Der Warp-Antrieb bestimmt, wie weit der Weg nach Hause noch ist.",
+    "eyebrow": "Spielkonzept",
+    "highlights": [["01 · Erkunden", "Auf Planeten landen, Ressourcen bergen und Antriebsteile finden."], ["02 · Verbessern", "Die Nostos ausrüsten und die Home ETA senken."], ["03 · Weiterfliegen", "Sprungzonen durchfliegen und gemeinsam die nächste Galaxie erreichen."]],
+    "flow": ["M33", "M31", "NGC 6822", "Leo I", "LMC", "Sol"],
+    "note": "Die Route ist das Zielkonzept. Prolog und Erdlandung sind im dokumentierten Stand noch ausstehend; die technische Referenz trennt Planung und Umsetzung.",
+    "images": [{"path": "Docs/screenshots/issue-115/provinces_all_biomes.jpg", "caption": "Planetenvielfalt aus #115: dieselben Welten aus Orbit, Anflug und Bodennähe. Die Übersicht zeigt Entwicklungsaufnahmen.", "alt": "Kontaktbogen verschiedener Planeten mit jeweils vier Ansichten von Orbit bis Boden"}]
+  },
+  "architecture": {
+    "title": "Architektur & Systeme",
+    "eyebrow": "Technik verstehen",
+    "summary": "Der Host steuert den Spielzustand. Clients erzeugen Welten aus gemeinsamen Seeds; Besitzer simulieren die Bewegung ihrer Figuren und Schiffe.",
+    "highlights": [["RunManager", "Verwaltet Run, Galaxienwechsel, Schiffe und Speicherstand."], ["WarpFlight", "Steuert die geflogenen Warpstrecken und das Finale mit dem Rift."], ["Builder", "Erzeugen Daten, Materialien, Prefabs und Szenen reproduzierbar."]],
+    "flow": ["Core", "Data", "Ship / Player", "World", "UI"],
+    "note": "Vereinfachte Orientierung im Modulaufbau. Die vollständigen Abhängigkeiten und Networking-Regeln stehen in der Referenz.",
+    "images": []
+  },
+  "development": {
+    "title": "Entwickeln im Projekt",
+    "eyebrow": "Arbeitsablauf",
+    "summary": "Vom Issue zur überprüfbaren Änderung. Hier stehen die Regeln für generierte Inhalte, Unity und die Zusammenarbeit auf Mac und Windows.",
+    "highlights": [["Generatoren zuerst", "Generierte Szenen und Prefabs werden überschrieben. Änderungen gehören in Builder oder Laufzeitcode."], ["Gezielt prüfen", "Mit dem günstigsten passenden Test beginnen. Multiplayer prüfen, wenn Netzwerkverhalten betroffen ist."], ["Wissen mitführen", "Neue Erkenntnisse und Testhelfer zusammen mit dem Code dokumentieren."]],
+    "flow": ["Issue lesen", "Branch", "Umsetzen", "Prüfen", "Review"],
+    "images": []
+  },
+  "art-and-assets": {
+    "title": "Art & Asset-Pipeline",
+    "eyebrow": "Visuelle Identität",
+    "summary": "Detaillierte PBR-Science-Fiction mit reproduzierbarer Asset-Pipeline. Die aktuellen Regeln orientieren sich an der assetbasierten Dart.",
+    "highlights": [["Referenz & Lizenz", "Passende Assets suchen und die erlaubte Nutzung prüfen; Auswahl mit dem Nutzer abstimmen."], ["Reproduzierbarer Import", "Quelldaten behalten, per Blender-Skript normalisieren und durch Builder einbinden."], ["Im Spiel beurteilen", "Maßstab, Cockpit, Materialien und Beleuchtung in passenden Ansichten prüfen."]],
+    "flow": ["Auswahl", "Quelldaten", "Blender", "Builder", "Spielansicht"],
+    "images": [{"path": "Docs/screenshots/issue-26/dart_front34.jpg", "caption": "Archiv · #26: frühere Dart und Crew. Diese Aufnahme zeigt einen älteren Look und ist ausdrücklich keine Referenz für die aktuelle PBR-Art-Direction.", "alt": "Historische Entwicklungsaufnahme einer weiß-blauen Dart mit stilisiertem Astronauten"}, {"path": "Docs/screenshots/issue-115/provinces_all_biomes.jpg", "caption": "#115 · Terrainvergleich über mehrere Biome. Die Perspektiven helfen, Form, Atmosphäre und Bodendetails gemeinsam zu beurteilen.", "alt": "Planetenvergleich mit verschiedenen Biomen und Betrachtungsdistanzen"}]
+  },
+  "testing": {
+    "title": "Tests & visuelle Prüfung",
+    "eyebrow": "Verifizieren",
+    "summary": "Eine konkrete Situation prüfen, statt einen ganzen Run durchzuspielen. Das Dev-Harness liefert Szenarien, reproduzierbare Aktionen und Kontaktbögen.",
+    "highlights": [["Edit Mode", "Materialien und einfache Ansichten möglichst ohne Spielsitzung prüfen."], ["QuickStart", "Passendes Szenario öffnen, die Situation auslösen und Logs oder Ansichten prüfen."], ["Multiplayer", "Bei RPCs, NetworkVariables und Authority zusätzlich Host und Client vergleichen."]],
+    "flow": ["Szenario", "Aktion", "Log / Screenshot", "Beurteilen"],
+    "images": [{"path": "Docs/screenshots/issue-115/after_ingame_ice.jpg", "caption": "#115 · Kontaktbogen eines Eisplaneten: Boden, Flug und Orbit in einer Übersicht. Ein vorhandenes Prüfartefakt, kein Nachweis für einen neuen Testlauf.", "alt": "Sechs Spielansichten eines Eisplaneten mit HUD in Boden- und Orbitperspektiven"}]
+  },
+  "status": {
+    "title": "Stand & nächste Schritte",
+    "eyebrow": "Projektstand",
+    "summary": "Dokumentierte Implementierung, bekannte Grenzen und der Verweis auf die verbindliche Roadmap. Datierte Einträge beschreiben den zuletzt festgehaltenen Wissensstand.",
+    "highlights": [["Umgesetzt", "Reisestruktur, geflogener Warp, Zeitschleife und Nostos sind im Übergabestand beschrieben."], ["Noch offen", "Unter anderem Story-Intro, Prolog und die vollständige Heimkehr gemäß ihren Issues."], ["Reihenfolge", "Roadmap #53 enthält die verbindliche Arbeitsreihenfolge. Hier entsteht keine zweite Checkliste."]],
+    "note": "Diese Übersicht fasst die lokale Übergabe zusammen. Sie fragt keine Live-Issues ab und bestätigt keinen aktuellen Build.",
+    "images": []
+  },
+  "maintenance": {
+    "title": "So bleibt das Wiki aktuell",
+    "eyebrow": "Gemeinsam pflegen",
+    "summary": "Claude und andere Agenten pflegen das Wissen während der Arbeit am Repository. Die lesbare Ansicht und die Markdown-Seiten werden aus denselben Quellen erzeugt.",
+    "highlights": [["AGENTS.md", "Zentrale technische Fakten, Regeln, bekannte Grenzen und Testabläufe."], ["Visuelle Redaktion", "Einstiege, Bildauswahl und Bildunterschriften in Tools/Docs/wiki_content.json pflegen."], ["Automatisch prüfen", "Der Generator erzeugt beide Ansichten; CI erkennt fehlende oder veraltete Ausgaben."]],
+    "flow": ["Code ändern", "Wissen aktualisieren", "Bilder einordnen", "Generieren", "Prüfen"],
+    "note": "Die Synchronitätsprüfung erkennt Abweichungen zwischen Quellen und Ausgaben. Ob eine Aussage noch zum Code passt, müssen Agenten und Reviewer prüfen.",
+    "images": []
+  }
+}
