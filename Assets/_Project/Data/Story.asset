@@ -12,58 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c11a1209a15a4b3284cce7e980dce71, type: 3}
   m_Name: Story
   m_EditorClassIdentifier: Voidward.Data::Voidward.Data.StoryDef
-  DejaVu:
-  - Speaker: VEGA
-    Text: Wormhole exit... again? We were here. I remember this light.
-  - Speaker: LYRA
-    Text: Same stars, same silence. Third time? Fourth? Logbook says we keep coming back.
-  - Speaker: ALTAIR
-    Text: Again. Fine. We know the way now - let's make it count this time.
-  - Speaker: DENEB
-    Text: The loop holds us, but it can't take what we remember. Go.
-  Echoes:
-  - Galaxy: 1
-    MinLoop: 2
-    Speaker: ECHO // VEGA
-    Text: 'If you hear this: keep the Nostos whole. Lose her and the loop starts over.'
-  - Galaxy: 1
-    MinLoop: 3
-    Speaker: ECHO // LYRA
-    Text: Exotic Matter first, sightseeing later. The tank decides how far we get.
-  - Galaxy: 2
-    MinLoop: 2
-    Speaker: ECHO // ALTAIR
-    Text: Andromeda's Wardens keep a Mk III core. Clear the enclave before you warp on.
-  - Galaxy: 2
-    MinLoop: 4
-    Speaker: ECHO // VEGA
-    Text: Swarms everywhere here. Stay in the ship until the guns are better.
-  - Galaxy: 3
-    MinLoop: 2
-    Speaker: ECHO // DENEB
-    Text: Nebulae blind the nav. Throttle down in the fields - a hull breach costs more time.
-  - Galaxy: 4
-    MinLoop: 2
-    Speaker: ECHO // LYRA
-    Text: Leo I is dark. Something hunts between the stars. Keep the shields up.
-  - Galaxy: 5
-    MinLoop: 2
-    Speaker: ECHO // ALTAIR
-    Text: The last enclave holds the Home Drive. Without it the flight home takes forever.
-  - Galaxy: 6
-    MinLoop: 2
-    Speaker: ECHO // VEGA
-    Text: The Rift wakes near the end. Don't drop out, don't slow down. Just fly.
-  LogLoopStart: Loop {loop}. Woke at the wormhole exit in {galaxy}. Home ETA {eta}.
+  LogJourneyStart: Woke at the wormhole exit in {galaxy}. Home ETA {eta}.
   LogGalaxy: Reached {galaxy}. Home ETA {eta}.
   LogWarden: Wardens of {galaxy} defeated.
   LogDrive: Installed {part}. Home ETA {eta}.
   LogShipLost: Lost the {ship}.
-  LogHomeLost: The {ship} broke apart in {galaxy}. Nothing left to fly home in.
-  LogFlightHome: Left {galaxy} for home. The Rift is waking.
-  LogCrewLost: The whole crew was lost in {galaxy}.
-  LogRiftCaught: The Rift caught us on the flight home.
+  LogHomeLost: The {ship} was disabled in {galaxy}. No warp until it is repaired.
+  LogFlightHome: Left {galaxy} for home.
   LogHomecoming: Home. Sol is outside the window.
-  ResetCrewLost: Crew lost
-  ResetRiftCaught: Caught by the Rift
-  ResetHomeLost: Nostos destroyed
