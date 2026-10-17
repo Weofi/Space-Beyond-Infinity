@@ -1,8 +1,8 @@
 # Game Design: VOIDWARD
 
-VOIDWARD is a 1-4 player co-op space roguelite vertical slice. A routine moon mission is already on its way back to Earth - the families watch the return live on the news - when an anomaly (a wormhole) swallows the ship; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. Death sends the crew back to the moment they entered the current system in a time loop, memories intact. This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
+VOIDWARD is a 1-4 player co-op space adventure (vertical slice). A routine moon mission is already on its way back to Earth - the families watch the return live on the news - when an anomaly (a wormhole) swallows the ship; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. One continuous journey: the crew picks targets, flies there, lands and raids them, and turns the loot into a better ship (direction 2026-10-17: no roguelite runs, no time loop). This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
 
-**Source of truth for gameplay decisions:** this document (it replaces the closed gameplan issue #72; work order: roadmap #53), with the issues #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue, loop, homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones), #128-#132 (missions, expeditions, own ships in warp, drive variants, system loop). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates), it is marked *(legacy)* and will be replaced by the issue that migrates it.
+**Source of truth for gameplay decisions:** this document (it replaces the closed gameplan issue #72; work order: roadmap #53), with the issues #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue and homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones), #128-#132 (missions, expeditions, own ships in warp, drive variants, down/revive and failed raids). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates), it is marked *(legacy)* and will be replaced by the issue that migrates it.
 
 Key dependencies between domains:
 - UI accent colors and HUD styling derive directly from galaxy color palettes defined in Asset Design.
@@ -17,13 +17,13 @@ Key dependencies between domains:
 
 ### Pillars
 1. **The way home is always visible:** the Home ETA shows how long the flight home takes with the current drive. Every new part lowers it measurably.
-2. **Explore for tech:** planets are expeditions. What the crew needs is down there, and it is guarded.
+2. **Raids are part of the world:** pick a target from the orbital scan or the galaxy map, fly there yourself, land, disembark, raid it (15-25 min), carry the loot back to the ship, lift off and dock at the Nostos. No mission menu, no loading screen, no separate mission mode (direction 2026-10-17).
 3. **Travel is gameplay:** no portals, no travel cutscenes, no warp button: every warp starts seamlessly when the crew flies out of a jump zone (#108). Reaching the next galaxy is a physical warp flight with long empty stretches and obstacles (asteroids, debris, anomalies). The pilot controls the pace (warp throttle); a better drive is really faster, but high speed has to be mastered. Landing and combat handle the same at every tier (#73).
-4. **Roguelite:** a crew wipe loops the current system back to the moment of arrival; scans, coordinates and unlocks stay (see "Endings, death and the loop").
+4. **Progress is your ship:** one continuous journey (campaign save), no runs and no resets. Every raid brings parts, materials and Exotic Matter; upgrading the Nostos, the Darts and above all the warp drive is the progression. Failing a raid costs its loot, never the journey (see "Endings and failure"). The time loop of #86 is dropped (2026-10-17).
 5. **Co-op crew:** everyone flies their own ship by default; multi-seat ships split roles (pilot, gunner, engineer). Land, carry and fight together; revive each other.
 6. **Every galaxy is a mission:** clear goals (fuel for the jump, the galaxy's drive core, optional signals) instead of aimless wandering; each goal is an expedition with a structure.
 
-### Route (fixed order, content per loop from the seed)
+### Route (fixed order, content per journey from the seed)
 | # | Galaxy | Distance to Sol | Character | Best drive found there |
 |---|---|---|---|---|
 | 1 | Triangulum (M33) | 2.73 M ly | wormhole exit, temperate, calm start | Mk II |
@@ -33,7 +33,7 @@ Key dependencies between domains:
 | 5 | Large Magellanic Cloud | 0.16 M ly | Milky Way fills the sky, home of the Wardens, hardest enemies | Home Drive |
 | Goal | Milky Way -> Sol | 0 | finale: flight home (~5 min) and landing | - |
 
-Target run length ~2.5-3 h (per galaxy ~20-25 min exploring + ~8-12 min warp flight). Suspend save on entering each galaxy (one run slot); a system checkpoint on every system entry is the loop's restart point (see "Endings, death and the loop").
+A campaign over several sessions: an evening is two or three raids plus upgrades and travel (per galaxy roughly 4-6 raids, ~8-12 min warp flight to the next). The journey is saved (one save slot per crew: on docking at the Nostos, on every system and galaxy arrival, and when the host leaves).
 
 ### Home ETA & drive tiers (real flight minutes, balancing in #73)
 | Drive | Found in | -> next galaxy | skip one galaxy | straight home |
@@ -47,12 +47,14 @@ Target run length ~2.5-3 h (per galaxy ~20-25 min exploring + ~8-12 min warp fli
 
 Balance as implemented in #78 (`WarpDriveDef` + `GalaxyDef.LegLength/LegFuel`, balanced build): leg time = leg length / core speed (Mk I 1, II 3, III 10, IV 25, V 60, Home 240); next galaxy 10 min with the core found there, skipping ~35-43 min, home: Mk I ~36 h, Mk II ~12 h, Mk III ~3.6 h, Mk IV ~80 min, Mk V ~30 min, Home Drive 5 min. Exotic Matter per leg 8/10/12/14/16, +25 % per skipped galaxy; tanks hold 12/20/30/42/56/75. Times assume a fitting build and good flying; poor navigation/cooling forces braking (intended grind). Skipping a galaxy costs much more flight time and exotic matter. Any drive can theoretically fly home (Mk I ~40 h, achievement "The Long Way").
 
-### Core loop per galaxy
-1. **Arrival** by warp flight at the galaxy's edge -> galaxy map with 4-6 systems and unknown **signals** ("?").
-2. **Approach a system:** fly out of the jump zone at the system's edge towards a neighbouring system -> short in-galaxy hop (#108); **orbital scan** turns signals into known sites (type, threat, reward).
-3. **Expedition:** land at a site and play its objective (see "Galaxy missions"). The **alert level** rises the longer and louder the crew stays on a planet and resets on lift-off.
-4. **Back on board:** fit parts, craft, choose upgrades -> the ETA drops.
-5. **Decision:** keep searching (better core, more fuel, assault the Warden enclave) or warp to the next galaxy by flying out through the **Galactic Rim** of the galaxy's outermost system (or skip one through the skip zone next to it, with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
+### Core loop: the raid
+1. **Choose a target** aboard the Nostos: orbital scan or galaxy map show sites with type, threat and reward ("ice planet, mining outpost, guarded, drive part").
+2. **Fly there:** with the Nostos into the system (jump zone hop, #108), then in the Darts (or a bigger ship) down to the planet. Interceptors, asteroids or a signal can get in the way.
+3. **Land and disembark:** find a landing spot; the parked ship is the retreat point and where the loot goes.
+4. **Raid (15-25 min):** play the site's objective (drill, salvage, ruin, nest, see "Galaxy missions"). The **alert level** rises with time and noise; staying longer is greedier and more dangerous.
+5. **Extract:** carry the loot to the ship, lift off (resets the alert level), fly back and dock.
+6. **Upgrade:** fit parts, craft, tune the drive -> the ship gets noticeably better and the Home ETA drops (#50, #55, #131).
+7. **Next:** another target in this galaxy, or the warp to the next galaxy through the **Galactic Rim** once drive and fuel allow it (or skip one through the skip zone, with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
 
 ### Galaxy missions (#128) and expeditions (#129)
 Every galaxy gives the crew three kinds of goals, shown in the galaxy map and the HUD objective:
@@ -96,25 +98,20 @@ Every warp starts without a button, countdown or cutscene: the lead pilot flies 
 
 System types: planetary system, asteroid/wreck field, anomaly, Warden enclave (guardian boss + best warp core, #42), nomad meeting point (trade, optional), empty space with an event.
 
-### Endings, death and the loop
-- **Homecoming:** flight home done, Sol reached, Earth approached and landed at the mission's landing site, all flown by the crew; closing shot: the same family and news show as the intro, "The crew of SELENE-4 is back" (#88). Score = run time.
-- **Death - the system loop (#132):**
-  - **Down, not dead:** a player at 0 health goes down with a bleed-out window (~45 s); a crewmate revives them by holding [F] (~4 s).
-  - **Solo:** one **emergency cryo** charge per system: the first down wakes the player in a cryo pod on their ship; the second down is a wipe.
-  - **Crew wipe** (everyone down at once, or caught by the Rift) -> the collapse plays and the **current system loops back to the moment the crew arrived** (checkpoint on every system entry: drive, inventory, cargo, Exotic Matter, ships). Everything gained in this system is lost; the crew starts at the arrival jump zone.
-  - **Same layout, new dice:** after a loop the system keeps its seed (planets, ruins, wrecks, signal sites in the same places), but enemies and loot are rerolled; the alert level starts at 0.
-  - **What survives a loop:** scanned signals, coordinate fragments, logbook entries and unlocked blueprints, so the second attempt is faster (knowledge counts, like Outer Wilds).
-  - **Cost:** every loop costs something small (e.g. a bit of Exotic Matter or a cryo charge) so dying never becomes free. The loop counter keeps driving deja-vu radio and lore.
-  - The Rift in the finale works the same: caught = the flight home starts again from the LMC's outermost system.
-- **Story intro (#109, #87, first loop only, skippable):** a family at home watches the evening news: "Today the crew of the moon mission SELENE-4 returns to Earth." The camera moves into the live picture on the TV and lands in the cockpit on the return flight (Earth in the window, radio with Mission Control, short playable flight tutorial). An anomaly opens and pulls the ship in; short cut back: the TV shows "SIGNAL LOST". Waking in M33: "Distance to Earth: 2.73 million light-years", the Home ETA appears for the first time.
-- The wormhole is a natural phenomenon, not a villain. A loop keeps the system's layout (same seed) and rerolls enemies and loot; a new journey (new game) reshuffles the galaxies. Lore: crew logbook, radio echoes from earlier loops, alien ruins, codex entries.
-- **The Rift** (former Collapse): the wormhole pulls at the crew. No permanent chaser per system; it is the climax of the finale (flight home = escape from the Rift) and a rare hazard.
+### Endings and failure
+- **Homecoming:** flight home done, Sol reached, Earth approached and landed at the mission's landing site, all flown by the crew; closing shot: the same family and news show as the intro, "The crew of SELENE-4 is back" (#88). The campaign ends there.
+- **Down, not dead (#132):** a player at 0 health goes down with a bleed-out window (~45 s); a crewmate revives them by holding [F] (~4 s). A player who bleeds out wakes in their cryo pod aboard the Nostos.
+- **Failed raid (#132):** the whole landing party down (or the parked ship destroyed with nobody left to revive): everyone wakes in the cryo pods of the Nostos. **The loot of this raid is lost, the ship stays:** the landed ship remains as a wreck at the landing site and can be salvaged by flying back (a second chance at the cargo and the ship's fittings). The journey, the drive and everything stored aboard the Nostos stay.
+- **Nostos destroyed:** the crew wakes in the escape pods at the last docking position; the Nostos is badly damaged (heavy repair costs), not lost. Details in #132.
+- **Story intro (#109, #87, first start only, skippable):** a family at home watches the evening news: "Today the crew of the moon mission SELENE-4 returns to Earth." The camera moves into the live picture on the TV and lands in the cockpit on the return flight (Earth in the window, radio with Mission Control, short playable flight tutorial). An anomaly opens and pulls the ship in; short cut back: the TV shows "SIGNAL LOST". Waking in M33: "Distance to Earth: 2.73 million light-years", the Home ETA appears for the first time.
+- The wormhole is a natural phenomenon, not a villain, and it does not loop time (dropped 2026-10-17). Lore: crew logbook, alien ruins, codex entries (#89).
+- **The Rift** (former Collapse): the climax of the finale (flight home = escape from the Rift) and a rare hazard. What being caught means without the loop is open (#132).
 
 ### Enemies: nature and aliens only
 No pirates, no humans. Fauna (#39) is neutral to predatory and guards nests and resources. Each galaxy has its own alien ecosystem (#51: swarm, crystal beings, void creatures ...). The **Wardens** are an ancient biomechanical species hoarding warp cores and tech; one enclave per galaxy guards the best drive core (#42). Optional trade with neutral alien nomads for salvage.
 
-### Meta: Logbook of the Loop (#47)
-Codex, memories (unlocks for the pools), start options, flat perks, skill tree (#59), after the first homecoming **wormhole tiers** (difficulty modifiers like the Heat system in Hades) and leaderboard (#48).
+### Logbook and codex (#47, to be redefined)
+No meta progression between runs (there are no runs). The logbook stays as the crew's journal and codex (scanned fauna, aliens, plants, ruins, galaxies); unlocks come from blueprints found during the journey. Difficulty options instead of wormhole tiers.
 
 ### Glossary (UI and code)
 German terms are the design language (issues, discussion), English terms are used in the UI and in code. Existing code keeps its old names until the issue that migrates the system renames it; new code uses the new names.
@@ -132,16 +129,14 @@ German terms are the design language (issues, discussion), English terms are use
 | Signal | Signal | `Signal` | - |
 | Koordinaten-Fragment | Coordinate fragment | `CoreFragment` | - |
 | Antriebs-Variante | Drive variant | `DriveVariant` | - |
-| Notfall-Kryo | Emergency cryo | `EmergencyCryo` | - |
-| System-Checkpoint | System checkpoint | `SystemCheckpoint` | Galaxy-entry suspend save |
 | Alarmstufe | Alert level | `AlertLevel` | Collapse pressure |
 | Bergungsgut | Salvage | `Salvage` | Credits |
 | Exotische Materie | Exotic matter | `ExoticMatter` | Energy Cells (as travel resource) |
 | Waechter | Wardens | `Warden` | The Warden (single boss) |
 | Riss | The Rift | `Rift` | The Collapse |
-| Schleife | Loop | `Loop`, `LoopIndex` | Run (meta view) |
-| Erinnerungsfragmente | Memory fragments | `Memories` | Stardust |
-| Logbuch der Schleife | Logbook | `Logbook` | Hangar |
+| Schleife *(dropped 2026-10-17, code removed in #132)* | Loop | `Loop`, `LoopIndex` | Run (meta view) |
+| Erinnerungsfragmente *(meta currency, dropped with the loop; #47 decides)* | Memory fragments | `Memories` | Stardust |
+| Logbuch | Logbook | `Logbook` | Hangar |
 | Heimatschiff | Home ship | `HomeShip` (`ShipClass.HomeShip`) | Ark |
 | Heimkehr | Homecoming | `Homecoming` | Demo Complete / victory |
 | Kryo-Kapsel | Cryo pod | `CryoPod` | Team respawns |
@@ -160,20 +155,20 @@ Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; 
 ### Screen Inventory & Flows
 
 ```
-[Main Menu] ---> [Lobby] ---> [Logbook] ---> [Prologue] ---> [Galaxy 1..5 HUD / Galaxy Map] ---> [Loop Reset]
-      |                                                               |                            |
-  [Settings]                                                      [Pause]                     [Homecoming]
+[Main Menu] ---> [Lobby] ---> [Prologue] ---> [Galaxy 1..5 HUD / Galaxy Map / Logbook] ---> [Homecoming]
+      |                                                     |
+  [Settings]                                            [Pause]
 ```
 
 - **Main Menu (core):** Title banner, Host Game, Join Game (Direct IP / Steam Session Code), Settings, Quit. Clean centered stack with a live backdrop of a sector nebula and rotating low-poly asteroid.
-- **Lobby (core):** Player roster card (1-4 slots with avatar color, callsign, ready state, selected starting role: Pilot, Gunner, Engineer), route preview (M33 -> Sol), loop counter, Launch button (unlocked when all players ready). Continue Run when a suspend save exists (host).
-- **Logbook (core, formerly Hangar):** Inter-loop meta-progression hub (#47). Memory fragment balance, codex, unlocks, start options, perks.
+- **Lobby (core):** Player roster card (1-4 slots with avatar color, callsign, ready state, selected starting role: Pilot, Gunner, Engineer), route preview (M33 -> Sol), Launch button (unlocked when all players ready). Continue Journey when a save exists (host).
+- **Logbook (core, formerly Hangar):** the crew's journal and codex during the journey (#47, to be redefined); no meta progression.
 - **Galaxy Map (core):** Systems of the current galaxy with type, threat and scan info, Home ETA, exotic matter and range; shows the jump zones and the Galactic Rim for navigation (warps start by flying out of a zone, #108).
 - **HUD (core):** Persistent contextual gameplay overlay supporting both on-foot and ship flight contexts.
-- **Pause Menu (core):** Modal overlay pausing single-player or providing an in-game options sheet in co-op. Resume, Settings, Abandon Run (with confirmation dialogue).
+- **Pause Menu (core):** Modal overlay pausing single-player or providing an in-game options sheet in co-op. Resume, Settings, Save & Quit to Lobby.
 - **Settings (core):** Tabbed overlay (Audio, Video, Controls). Sliders for Master/Music/SFX; toggles for Fullscreen, V-Sync, Bloom; slider for FOV (70-100); mouse sensitivity slider with Invert Y toggle; full input rebind table.
-- **Loop Reset (core, formerly Game Over):** Debrief when the crew dies. Cause banner ("Crew lost", "Nostos destroyed"), run statistics (galaxies reached, best drive, run time, enemies, loot), memory fragments gained, transition back to the wormhole exit.
-- **Homecoming (core, formerly Demo Complete):** Shown after landing on Earth, after the closing news scene. Run time (score), summary stats, bonus memory fragments, wormhole tier unlock.
+- **Raid Failed (core, replaces Loop Reset/Game Over, #132):** short debrief when the landing party is lost: cause, loot lost, where the wreck lies; the crew wakes in the cryo pods.
+- **Homecoming (core, formerly Demo Complete):** Shown after landing on Earth, after the closing news scene. Journey time and summary stats (galaxies, raids, best drive), credits.
 
 ### HUD Layout Specifications (1080p Reference)
 
@@ -312,7 +307,7 @@ The palette becomes data (a palette asset the builders read) with the first asse
     4. *Bridge (cab):* raised pilot platform with a ramp behind the wide front window (Dart fittings, live screens), forward gunner station at the rear left; flak turret on the cab roof.
   - Docking clamps: four, on the wing tops. Darts dock for every warp flight (automatically under the bubble's veil) or when a pilot eases into a free clamp (< 16 m, < 14 m/s); holding thrust launches them. Leaving the seat of a docked Dart puts the pilot at its hatch inside; the hatch boards it again.
   - Landing: heavy - the descent is capped (6 m/s, easing to a crawl) and it only sets down on ground flatter than 14 deg (it hovers with a warning above steeper ground). Hardpoints for #50 are data on its `ShipDef`.
-  - Derelict look (unused in the loop): the same ship, scorched and dark (no glow), red flickering emergency light inside.
+  - Derelict look (unused): the same ship, scorched and dark (no glow), red flickering emergency light inside.
   - Palette: Gunmetal plating with tan trim, cyan glow; slate interior panels with cyan light strips and orange warning lights.
 - **Cockpit Dashboard Conventions (core):**
   - Diegetic instrumentation: Angled, detailed dashboard consoles positioned within player field of view.

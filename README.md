@@ -1,4 +1,4 @@
-# VOIDWARD — co-op space roguelite (vertical-slice demo)
+# VOIDWARD — co-op space adventure (vertical-slice demo)
 
 > *Find the way home. Together.*
 
@@ -10,16 +10,19 @@ Claude and other agents maintain the technical source in [AGENTS.md](AGENTS.md) 
 player instructions in [player_guide.json](Tools/Docs/player_guide.json) alongside relevant code changes; CI checks that
 the generated wiki stays in sync.
 
-A first-person co-op space roguelite for 1–4 players. A routine **moon mission** is already on its way
+A first-person co-op space adventure for 1–4 players. A routine **moon mission** is already on its way
 back to Earth - the families watch the return live on the news - when an **anomaly** (a wormhole) swallows
 the ship, and the crew wakes up in the **Triangulum Galaxy (M33)** — 2.73 million light-years from
 home. Explore alien planets, mine, loot and fight for drive parts, exotic matter and alien tech,
 upgrade the ship and above all its **warp drive**, and fly galaxy by galaxy through the Local Group
 back to the Milky Way. The **Home ETA** always shows how long the flight home would take with the
-current drive. Die, and the wormhole's **time loop** wakes you at its exit again — with your memories.
+current drive. Pick a target, fly there, land, raid it and bring the loot home to your ship: progress is
+the ship you build up over one continuous journey.
 
 Route: M33 → Andromeda (M31) → NGC 6822 → Leo I → Large Magellanic Cloud → home flight to Sol.
-Two endings only: **Homecoming** or **death** (= the loop resets). Target run length ~2.5–3 h.
+**Direction change (2026-10-17):** no roguelite runs and no time loop any more. Failing a raid costs its
+loot (the landed ship stays as a salvageable wreck), never the journey (#132). The time loop described in
+section 3 is still what the current build does until #132 replaces it.
 
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
