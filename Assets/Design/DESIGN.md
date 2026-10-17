@@ -290,19 +290,19 @@ The palette becomes data (a palette asset the builders read) with the first asse
 
 ### Ship Design Language
 
-- **Dart (Agile Starter Fighter) (core):** today the Fab "SpaceShip" by JazOone3D (#91, legacy PBR); rebuilt low poly in #122 with the same silhouette, scale and cockpit layout.
-  - Silhouette: Long armoured nose with a smoked glass canopy (roof panes + side windows), two engine pods with octagonal intakes and dorsal fins, forward-swept wings.
-  - Scale: 15.0m length, 17.8m wingspan, 4.5m height.
-  - Cockpit: the pilot sits inside under the canopy (seat, dash screens, side consoles, stick); no windscreen, the front frame works as glare shield.
-  - Visual Features: Twin nose cannons, big rear engine rings, ribbed dorsal intakes.
-  - Palette: Grey and dark slate plating with orange accents, warm orange emissive intakes (alternative liveries in the source pack: black/blue, black/red).
-- **Mule (Cargo Hauler) (core):** today the Fab "DROPSHIP R35" by GrafxBOX (#97, legacy PBR); rebuilt low poly in #122.
-  - Silhouette: Armoured wedge dropship with a long nose, two big engine pods on stub wings, landing gear and a rear cargo ramp.
-  - Scale: 15.0m length, 11.4m width (engine pods), 5.3m height.
-  - Cockpit: the upper nose is a smoked glass canopy; the pilot sits under it on a raised deck with the Dart's fittings (chair, consoles, side stick + throttle, dashboard with live screens). Cargo terminal at the ramp.
-  - Visual Features: Four engine nozzles on the pods, chin laser under the nose, orange spine and pod armour.
-  - Palette: Black and gunmetal plating with orange accents, cyan engine glow.
-- **Nostos (home ship, multi-station co-op transport) (core, #49):** today the Ark hull of #97 (Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci) at 1.5 x, interior from the "Sci-Fi Corridor - Revisited 2019" kit (Mesh Masters), cryo pods "Cryo LOD0" (Nikitos & 3130), all legacy PBR; rebuilt low poly in #122 with the same room layout. The crew's ship from the first minute: it carries the warp drive (it leads every warp; parts and Exotic Matter are handled aboard), the cryo pods and the Darts; destroyed = the loop resets.
+- **Dart (Agile Starter Fighter) (core):** low poly since #122: Quaternius "Omen" (CC0) recoloured to the palette (`lowpoly_ships.py`); the Fab "SpaceShip" (#91) stays only as the builder's fallback. Placeholder look: the ships get another pass later.
+  - Silhouette: long nose cannon, a delta wing widening to the stern, short tail fins, the cockpit block in front of the stern cowl.
+  - Scale: 15.0m length, 15.2m span, 3.7m height.
+  - Cockpit: glass roof + windscreen on the cockpit block; the pilot sits in a tub sunk into the hull (Kenney chair, Kenney console as dashboard with the six live screens, side stick + throttle as own objects).
+  - Visual Features: one big exhaust in the stern cowl behind the cockpit, nose cannon mouth.
+  - Palette: hull greys with orange accent panels (palette `accent`), cyan/orange glow.
+- **Mule (Cargo Hauler) (core):** low poly since #122: Quaternius "Spitfire" (CC0) recoloured; the Fab "DROPSHIP R35" (#97) stays as fallback.
+  - Silhouette: tall body at the stern, a long flat nose boom, stub wings out to two stacked engine pods per side.
+  - Scale: 13.0m length, 18.2m width (engine pods), 5.3m height.
+  - Cockpit: the raised glass wedge on the body's front, the same low-poly tub and fittings as the Dart. Cargo terminal at the stern.
+  - Visual Features: four exhausts in the pods, guns at the boom tip.
+  - Palette: hull greys, large orange pod and body panels.
+- **Nostos (home ship, multi-station co-op transport) (core, #49):** today the Ark hull of #97 (Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci) at 1.5 x, interior from the "Sci-Fi Corridor - Revisited 2019" kit (Mesh Masters), cryo pods "Cryo LOD0" (Nikitos & 3130), all legacy PBR. A low-poly hull (Quaternius "Imperial") is prepared, but the interior, airlock and clamps are fitted to the Ark's narrow winged hull, so the swap waits for the ship rework. The crew's ship from the first minute: it carries the warp drive (it leads every warp; parts and Exotic Matter are handled aboard), the cryo pods and the Darts; destroyed = the loop resets.
   - Silhouette: Long hauler with a tall forward cab (bridge), a row of cargo racks on the spine, four engine nacelles on front and rear wings, a Dart docked on each wing.
   - Scale: 54.0m length, 37.3m width (wings), 12.0m height.
   - Walkable Interior Architecture (one deck at y -2.33, Gravity Volumes), stern to bow:
