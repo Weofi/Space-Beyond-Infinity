@@ -118,6 +118,53 @@ namespace Voidward.EditorTools
             return SavePrefab(go);
         }
 
+        // ================================================================ Mule (Quaternius "Spitfire", 13 m)
+
+        /// <summary>Seated eye of the low-poly Mule's pilot: under the cockpit wedge on the body's front (glass z -3.4..0.5, roof ~y 2.2).</summary>
+        static readonly Vector3 MuleLPEye = new Vector3(0f, 1.75f, -1.6f);
+
+        /// <summary>
+        /// Mule, low poly (#122): the Quaternius Spitfire at 13 m: a tall body at the stern, a long nose boom (+Z), stub wings
+        /// out to two stacked engine pods per side (18.2 m across). The pilot sits under the glass wedge on the body's front
+        /// in the same tub as the Dart; cargo terminal at the stern.
+        /// </summary>
+        static GameObject BuildLowPolyMule(Mesh hull)
+        {
+            var go = ShipRoot("Ship_Mule", ShipClass.Mule, 3500f, 6, 3);
+            var core = go.GetComponent<ShipCore>();
+            Visual(go.transform, "Hull", hull, LowPolyMaterial());
+            var canopy = LowPolyMesh("Ship_Mule_LP_Canopy");
+            if (canopy != null)
+            {
+                Visual(go.transform, "Canopy", canopy, FabShipGlassMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                Visual(go.transform, "CanopyInner", canopy, FabShipGlassInnerMaterial()).GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            var interior = LowPolyCockpit(go.transform, MuleLPEye, 1.1f, -3.0f, 0.2f, 1.3f);
+
+            Box(go, new Vector3(0f, 1.2f, -4.0f), new Vector3(5f, 3f, 6.2f));        // body
+            Box(go, new Vector3(0f, 0.5f, 2.8f), new Vector3(2.8f, 1.2f, 7.4f));     // nose boom
+            Box(go, new Vector3(0f, 0.55f, -2.7f), new Vector3(13f, 0.8f, 3.8f));    // stub wings
+            Box(go, new Vector3(-7.77f, -0.1f, -3.07f), new Vector3(2.7f, 5.1f, 3.9f)); // engine pods
+            Box(go, new Vector3(7.77f, -0.1f, -3.07f), new Vector3(2.7f, 5.1f, 3.9f));
+
+            var pilot = Seat(go.transform, "PilotSeat", StationRole.Pilot, MuleLPEye - new Vector3(0f, 1.2f, -0.04f), MuleLPEye, new Vector3(-3.8f, 1.4f, -2.6f),
+                new Vector3(0f, 1.6f, -1.4f), new Vector3(2.8f, 1.8f, 4f));
+            SeatGrips(pilot, interior.Find("Stick/GripIK"), interior.Find("Throttle/GripIK"));
+            var term = Child(go.transform, "CargoTerminal", new Vector3(0f, 0.6f, -7.2f));
+            Box(term, Vector3.zero, new Vector3(3.5f, 3f, 2.5f), true);
+            term.AddComponent<ShipTerminal>().TerminalMode = ShipTerminal.Mode.ShipPanel;
+
+            core.MuzzlesA = new[] { Child(go.transform, "MuzzleL", new Vector3(-0.45f, 0.5f, 6.6f)).transform, Child(go.transform, "MuzzleR", new Vector3(0.45f, 0.5f, 6.6f)).transform };
+            core.MuzzlesB = new[] { Child(go.transform, "MuzzleC", new Vector3(0f, 0.2f, 6.7f)).transform };
+            core.RespawnPoint = Child(go.transform, "Respawn", new Vector3(-3.8f, 1.4f, -2.6f)).transform;
+            core.FabricatorPoint = go.transform;
+            var fx = go.AddComponent<ShipEngineFx>();
+            fx.Thrusters = Thrusters(go.transform, new Vector3(-7.77f, 1.22f, -5.0f), new Vector3(-7.77f, -1.32f, -5.0f), new Vector3(7.77f, 1.22f, -5.0f), new Vector3(7.77f, -1.32f, -5.0f));
+            foreach (var t in fx.Thrusters) t.localScale = new Vector3(1.7f, 1.7f, 1.8f);
+            ShipLighting(go, new Vector3(0f, -1.5f, -3f), 14f, new Vector3(-0.5f, 0.3f, 6.5f), new Vector3(0.5f, 0.3f, 6.5f));
+            return SavePrefab(go);
+        }
+
         /// <summary>
         /// A low-poly cockpit tub under `ship` ("Interior"), seat facing +Z: floor 1.3 m under the eye, side walls at +-halfWidth,
         /// rear wall at zBack, open towards the windscreen at zFront, a hull-coloured ledge up to `sill` around the glass.
@@ -227,6 +274,7 @@ namespace Voidward.EditorTools
             try
             {
                 if (ship == "Dart") go = BuildLowPolyDart(LowPolyMesh("Ship_Dart_LP"));
+                else if (ship == "Mule") go = BuildLowPolyMule(LowPolyMesh("Ship_Mule_LP"));
             }
             finally { previewOnly = false; }
             if (go == null) { Debug.LogWarning("[Voidward] PreviewLowPoly: nothing built for " + ship); return; }

@@ -32,8 +32,9 @@ SHIPS = {
     # the Omen has no canopy of its own: the cockpit block in front of the stern cowl gets a glass roof and windscreen
     "Dart": dict(src="Omen", out="Ship_Dart_LP", length=15.0, canopy=None,
                  glass_box=((-1.05, 1.05), (0.45, 1.6), (-4.25, -2.2))),
-    "Mule": dict(src="Spitfire", out="Ship_Mule_LP", length=13.0,
-                 canopy=((-0.75, 0.75), (-1.2, 0.6), (0.0, 1.1))),
+    # the raised cockpit wedge only (the dark strip on the nose boom in front of it is paint): dark faces above the boom deck
+    "Mule": dict(src="Spitfire", out="Ship_Mule_LP", length=13.0, canopy=None,
+                 glass_box=((-1.45, 1.45), (1.3, 2.4), (-3.4, 2.6)), glass_dark=True),
     "Nostos": dict(src="Imperial", out="Ship_Nostos_LP", length=54.0,
                    canopy=None),
 }
@@ -144,7 +145,8 @@ def build(key, cfg, preview):
         for i, p in enumerate(me.polygons):
             u = to_unity(p.center)
             # Unity up = Blender +Z, Unity forward = Blender -Y
-            if x0 <= u[0] <= x1 and y0 <= u[1] <= y1 and z0 <= u[2] <= z1 and (p.normal.z > 0.45 or -p.normal.y > 0.45):
+            facing = names[i] in ("hull_dark", "trim") and p.normal.z > -0.3 if cfg.get("glass_dark") else (p.normal.z > 0.45 or -p.normal.y > 0.45)
+            if x0 <= u[0] <= x1 and y0 <= u[1] <= y1 and z0 <= u[2] <= z1 and facing:
                 glass.append(i)
     gl = set(glass)
     for i in gl:

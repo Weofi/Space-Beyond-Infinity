@@ -1483,6 +1483,8 @@ namespace Voidward.EditorTools
 
         static GameObject BuildMule()
         {
+            var lowPoly = LowPolyMesh("Ship_Mule_LP");
+            if (lowPoly != null) return BuildLowPolyMule(lowPoly);
             var r35 = MuleR35Mesh();
             if (r35 != null) return BuildR35Mule(r35);
             var go = ShipRoot("Ship_Mule", ShipClass.Mule, 3500f, 6, 3);
