@@ -24,6 +24,8 @@ namespace Voidward.Planet
         [SerializeField] float radius = 200f;
 
         public static readonly List<PlanetVisuals> All = new List<PlanetVisuals>();
+        /// <summary>Dev switch (#115): generate far decor on coarse LOD chunks (affects chunks built afterwards).</summary>
+        public static bool FarDecor = true;
 
         public PlanetTerrain Terrain { get; private set; }
         public PlanetShapeDef Shape => shape;
@@ -54,6 +56,8 @@ namespace Voidward.Planet
             public Mesh Mesh, DecorMesh;
             public GameObject PropGo;
             public Mesh PropMesh;
+            /// <summary>Far decor (#115): shown only while this node itself is drawn (its children bring their own).</summary>
+            public MeshRenderer FarDecor;
             public bool Dead;
             public bool Ready => Mesh != null;
         }
@@ -137,6 +141,8 @@ namespace Voidward.Planet
         static readonly int HorizonColorId = Shader.PropertyToID("_HorizonColor");
         static readonly int HasSkyId = Shader.PropertyToID("_HasSky");
         static readonly int LavaId = Shader.PropertyToID("_Lava");
+        static readonly int ShoreFoamId = Shader.PropertyToID("_ShoreFoam");
+        static readonly int SeaRadiusId = Shader.PropertyToID("_SeaRadius");
 
         void OnEnable() => All.Add(this);
         void OnDisable() => All.Remove(this);
@@ -188,6 +194,8 @@ namespace Voidward.Planet
             terrainMat.SetVector(CliffSlopeId, planetShape.CliffSlope);
             terrainMat.SetFloat(RegionStrengthId, planetShape.RegionStrength);
             terrainMat.SetVector(PlanetCenterId, transform.position);
+            // Wet banks along the waterline (not along lava).
+            terrainMat.SetFloat(SeaRadiusId, Terrain.HasOcean && !planetShape.Lava ? Terrain.SeaRadius : -1f);
             ApplySurfaceLayers(terrainMat, planetShape);
             decorMat = catalog.TerrainMaterial != null ? catalog.TerrainMaterial : catalog.ToonMaterial;
             props = PlanetPropLibrary.Get(catalog);
@@ -255,6 +263,7 @@ namespace Voidward.Planet
             oceanMat.SetColor(HorizonColorId, Color.Lerp(s.HazeColor, Color.white, 0.25f));
             oceanMat.SetFloat(HasSkyId, s.HasAtmosphere ? 1f : 0f);
             oceanMat.SetFloat(LavaId, s.Lava ? 1f : 0f);
+            oceanMat.SetFloat(ShoreFoamId, s.ShoreFoam);
             // Before the atmosphere shell (which hazes the sea through the ground sphere).
             oceanMat.renderQueue = 2850;
             oceanMesh = PlanetMesh.BuildSphere(Terrain.SeaRadius, 96, "PlanetOcean");
@@ -448,6 +457,7 @@ namespace Voidward.Planet
         static void SetVisible(Node n, bool on)
         {
             if (n.Renderer != null && n.Renderer.enabled != on) n.Renderer.enabled = on;
+            if (n.FarDecor != null && n.FarDecor.enabled != on) n.FarDecor.enabled = on;
         }
 
         static void HideSubtree(Node n)
@@ -479,6 +489,7 @@ namespace Voidward.Planet
             n.Go = n.DecorGo = null;
             n.Mesh = n.DecorMesh = null;
             n.Renderer = null;
+            n.FarDecor = null;
         }
 
         // ---------------------------------------------------------------- jobs
@@ -491,6 +502,8 @@ namespace Voidward.Planet
             var data = PlanetMesh.BuildChunk(terrain, n.Face, n.Level, n.X, n.Y, chunkN, false);
             if (n.Level == smallDecorLevel || n.Level == largeDecorLevel)
                 PlanetDecor.Generate(terrain, data, n.Level == smallDecorLevel, n.Level == largeDecorLevel, props);
+            else if (FarDecor && n.Level == largeDecorLevel - 1) PlanetDecor.GenerateFar(terrain, data, 0.6f);
+            else if (FarDecor && n.Level == largeDecorLevel - 2) PlanetDecor.GenerateFar(terrain, data, 0.3f);
             return data;
         }
 
@@ -593,8 +606,14 @@ namespace Voidward.Planet
                 mr.lightProbeUsage = LightProbeUsage.Off;
                 mr.shadowCastingMode = n.Level == largeDecorLevel ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 AddDecorColliders(n.DecorGo, d.DecorColliders);
+                if (n.Level < largeDecorLevel)
+                {
+                    // Far decor follows the node's own visibility.
+                    n.FarDecor = mr;
+                    mr.enabled = false;
+                }
                 // Decor belongs to the node, not to its renderer: it stays while finer children are shown.
-                n.DecorGo.transform.SetParent(transform, true);
+                else n.DecorGo.transform.SetParent(transform, true);
             }
 
             // Asset props (#100): one mesh per chunk, a submesh per model material (tinted per planet).

@@ -15,40 +15,14 @@ MonoBehaviour:
   DisplayName: Cratered Moon
   ChunkResolution: 40
   LeafSpacing: 1.6
-  LodQuality: 1.6
+  LodQuality: 2
   HeightMultiplier: 1
   Warp: 0.08
   Layers:
   - Enabled: 1
     Kind: 0
-    Strength: 0.04
+    Strength: 0.02
     Frequency: 1.1
-    Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 4
-    Persistence: 0.5
-    Lacunarity: 2
-    MinValue: 0
-    RidgeWeight: 1.5
-    MaskByFirstLayer: 0
-    MaskRange: {x: 0, y: 0.25}
-    Terraces: 0
-  - Enabled: 1
-    Kind: 1
-    Strength: 0.025
-    Frequency: 2.4
-    Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 5
-    Persistence: 0.5
-    Lacunarity: 2
-    MinValue: 0.35
-    RidgeWeight: 1.2
-    MaskByFirstLayer: 0
-    MaskRange: {x: 0, y: 0.25}
-    Terraces: 0
-  - Enabled: 1
-    Kind: 0
-    Strength: 0.003
-    Frequency: 18
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 3
     Persistence: 0.5
@@ -58,7 +32,57 @@ MonoBehaviour:
     MaskByFirstLayer: 0
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
+  - Enabled: 1
+    Kind: 0
+    Strength: 0.002
+    Frequency: 18
+    Stretch: {x: 1, y: 1, z: 1}
+    Octaves: 2
+    Persistence: 0.5
+    Lacunarity: 2
+    MinValue: 0
+    RidgeWeight: 1.5
+    MaskByFirstLayer: 0
+    MaskRange: {x: 0, y: 0.25}
+    Terraces: 0
   Variation: 0.2
+  Provinces:
+  - Enabled: 1
+    Kind: 0
+    Share: 2
+    Elevation: -0.012
+    Relief: 0.002
+    Frequency: 5
+    Sharpness: 0
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.1
+    Region: 1
+  - Enabled: 1
+    Kind: 1
+    Share: 3
+    Elevation: 0.008
+    Relief: 0.022
+    Frequency: 5
+    Sharpness: 0.5
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.5
+    Region: 0
+  - Enabled: 1
+    Kind: 2
+    Share: 1
+    Elevation: 0.02
+    Relief: 0.05
+    Frequency: 3.5
+    Sharpness: 0.85
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 1
+    Region: 0
+  ProvinceCount: 12
+  ProvinceBlend: 0.05
+  ProvinceWarp: 0.24
   Features:
   - Enabled: 1
     Kind: 3
@@ -79,6 +103,11 @@ MonoBehaviour:
   CanyonCoverage: 0.6
   CanyonWarp: 0.35
   CanyonRivers: 0
+  ErosionDepth: 3
+  ErosionScale: 60
+  ErosionOctaves: 4
+  ErosionSlope: {x: 0.08, y: 0.4}
+  ErosionBranching: 0.3
   CraterCount: 220
   CraterSize: {x: 0.008, y: 0.2}
   CraterSizeBias: 3.5
@@ -99,6 +128,7 @@ MonoBehaviour:
   WaterEmission: {r: 0, g: 0, b: 0, a: 1}
   WaterGloss: 0.9
   WaveStrength: 0.5
+  ShoreFoam: 1
   Underwater:
     serializedVersion: 2
     key0: {r: 0.23137255, g: 0.21568628, b: 0.20392157, a: 1}

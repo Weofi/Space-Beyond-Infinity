@@ -12,6 +12,9 @@ namespace Voidward.Data
     /// <summary>Biome-specific surface composition (props, set pieces).</summary>
     public enum PlanetDecorStyle { Barren, Rocky, Desert, Ice, Jungle, Crystal, Volcanic }
 
+    /// <summary>Terrain province types (#115): big zones with their own relief, so a planet has calm and dramatic parts.</summary>
+    public enum PlanetProvinceKind { Plains, Hills, Mountains, Plateau, Basin }
+
     public enum PlanetParticles { None, Dust, Snow, Ash, Spores, Motes }
 
     public enum PlanetWeather { None, Sandstorm, Blizzard, AshFall, SporeBloom, Shimmer }
@@ -71,6 +74,36 @@ namespace Voidward.Data
             [Range(0f, 0.6f)] public float Caldera = 0.2f;
         }
 
+        /// <summary>
+        /// A terrain province (#115). The planet surface is split into warped Voronoi cells; each cell takes one of these
+        /// definitions (weighted by Share) and contributes Elevation + Relief x its own noise. Borders blend softly, or
+        /// as cliffs toward lower neighbours (EdgeCliff), so plateaus get walls and plains stay quiet.
+        /// </summary>
+        [Serializable]
+        public class ProvinceDef
+        {
+            public bool Enabled = true;
+            public PlanetProvinceKind Kind = PlanetProvinceKind.Plains;
+            [Tooltip("Relative share of the cells that get this province.")]
+            public float Share = 1f;
+            [Tooltip("Base elevation as a fraction of the radius (negative = basin).")]
+            public float Elevation;
+            [Tooltip("Relief amplitude of the province noise (fraction of the radius).")]
+            public float Relief = 0.01f;
+            [Tooltip("Noise frequency on the unit sphere.")]
+            public float Frequency = 4f;
+            [Tooltip("0 = rounded hills, 1 = sharp ridged crests.")]
+            [Range(0f, 1f)] public float Sharpness;
+            [Tooltip("Stepped terraces of the relief and of the cliff edge (0 = off).")]
+            [Range(0, 8)] public int Terraces;
+            [Tooltip("0 = soft border, 1 = near vertical cliff toward lower neighbours.")]
+            [Range(0f, 1f)] public float EdgeCliff;
+            [Tooltip("Multiplier of the planet's erosion inside this province (calm plains ~0.2, mountains > 1).")]
+            [Range(0f, 2f)] public float Erosion = 1f;
+            [Tooltip("Colour zone: 0 = ground ramp, 1 = region ramp.")]
+            [Range(0f, 1f)] public float Region;
+        }
+
         public string DisplayName = "Planet";
 
         [Header("Geometry")]
@@ -79,7 +112,7 @@ namespace Voidward.Data
         [Tooltip("Target ground spacing (m) of the finest LOD; also the collider resolution.")]
         [Range(0.75f, 6f)] public float LeafSpacing = 1.6f;
         [Tooltip("Higher = finer distant terrain (split when distance < chunk size * this).")]
-        [Range(1f, 4f)] public float LodQuality = 1.6f;
+        [Range(1f, 4f)] public float LodQuality = 2f;
 
         [Header("Terrain")]
         [Tooltip("Global multiplier for all layer and crater heights.")]
@@ -89,6 +122,16 @@ namespace Voidward.Data
         public List<NoiseLayer> Layers = new List<NoiseLayer>();
         [Tooltip("Per-seed jitter of layer strengths, feature counts and canyon settings (0 = identical planets).")]
         [Range(0f, 0.6f)] public float Variation = 0.2f;
+
+        [Header("Provinces (#115)")]
+        [Tooltip("Empty = the old single-noise relief. Otherwise the main relief comes from these provinces.")]
+        public List<ProvinceDef> Provinces = new List<ProvinceDef>();
+        [Tooltip("Number of province cells on the planet.")]
+        [Range(4, 32)] public int ProvinceCount = 14;
+        [Tooltip("Border blend width (chord on the unit sphere, 0.05 ~ 75 m at R 1500).")]
+        public float ProvinceBlend = 0.05f;
+        [Tooltip("Warp of the province borders (organic outlines).")]
+        [Range(0f, 0.5f)] public float ProvinceWarp = 0.24f;
 
         [Header("Landforms")]
         public List<FeatureSet> Features = new List<FeatureSet>();
@@ -112,6 +155,17 @@ namespace Voidward.Data
         [Range(0f, 1f)] public float CanyonWarp = 0.35f;
         [Tooltip("Carve down to sea level so the ocean fills the channels (rivers, lava channels).")]
         public bool CanyonRivers;
+
+        [Header("Erosion (#115)")]
+        [Tooltip("Gully depth in meters (0 = off). Gullies run downhill on slopes and branch; flats stay untouched.")]
+        public float ErosionDepth;
+        [Tooltip("Wavelength of the largest gullies in meters (each octave halves it).")]
+        public float ErosionScale = 90f;
+        [Range(1, 7)] public int ErosionOctaves = 5;
+        [Tooltip("Slope (m per m) over which erosion fades in.")]
+        public Vector2 ErosionSlope = new Vector2(0.03f, 0.25f);
+        [Tooltip("How strongly finer gullies follow the coarser ones (branching networks).")]
+        [Range(0f, 1.5f)] public float ErosionBranching = 0.6f;
 
         [Header("Craters")]
         public int CraterCount;
@@ -149,6 +203,8 @@ namespace Voidward.Data
         [ColorUsage(false, true)] public Color WaterEmission = Color.black;
         [Range(0f, 1f)] public float WaterGloss = 0.9f;
         [Range(0f, 2f)] public float WaveStrength = 0.5f;
+        [Tooltip("Shore foam and surf: 1 = ocean breakers, ~0.3 = calm lakes and rivers.")]
+        [Range(0f, 1f)] public float ShoreFoam = 1f;
 
         [Header("Surface colors")]
         [Tooltip("Lowest seabed (0) to sea level (1).")]

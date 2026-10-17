@@ -9,7 +9,7 @@ namespace Voidward.Planet
     /// chunk meshes, colliders, decor, sites and gameplay surface queries. Read-only after construction, so it
     /// can be sampled from worker threads.
     /// Layers: noise continents/ranges -> canyon network -> landforms (volcanoes, mesas, spires, basins, domes)
-    /// -> craters -> ocean deepening -> rivers -> flattened site clearings.
+    /// -> craters -> erosion (downhill gullies, #115) -> ocean deepening -> rivers -> flattened site clearings.
     /// </summary>
     public sealed class PlanetTerrain
     {
@@ -25,6 +25,8 @@ namespace Voidward.Planet
         public float MinRadius => Radius * (1f + minElevation);
         public float MaxRadius => Radius * (1f + maxElevation);
         public float HueShift { get; private set; }
+        /// <summary>Gully depth in meters (0 = no erosion): LOD seams can differ by up to about this much.</summary>
+        public float ErosionDepthMeters => erosionDepth * Radius;
         /// <summary>Outer radius of the atmosphere shell.</summary>
         public float AtmosphereRadius => Radius * (1f + Mathf.Max(Shape.AtmosphereHeight, maxElevation + 0.05f));
         /// <summary>Lowest radius anything can stand on (sea surface or seabed).</summary>
@@ -83,6 +85,30 @@ namespace Voidward.Planet
         Site[] sites = new Site[0];
         float[] siteChordSqr = new float[0];
         float minElevation, maxElevation, seaElevation;
+        // Erosion (#115): gully depth (fraction of radius), largest wavelength (m), octaves, slope mask, branching.
+        readonly float erosionDepth, erosionScale, erosionBranching;
+        readonly int erosionOctaves;
+        readonly Vector2 erosionSlope;
+        readonly uint erosionSeed;
+        readonly Vector3[] erosionOffsets;
+        // Provinces (#115): warped Voronoi cells, each with one ProvinceDef.
+        struct Province
+        {
+            public Vector3 Center;
+            public int Def;
+            public Vector3 Offset;
+            /// <summary>Per-cell elevation scale: neighbouring cells of the same kind sit at different heights.</summary>
+            public float Lift;
+        }
+        Province[] provinces = new Province[0];
+        PlanetShapeDef.ProvinceDef[] provinceDefs = new PlanetShapeDef.ProvinceDef[0];
+        Noise3D provinceNoise, provinceWarpNoise;
+        float provinceBlend, provinceWarp;
+        const int MaxProvinces = 32;
+
+        // Slope field on the cube faces (6 x (res+1)^2 tangent gradients), sampled bilinearly by the erosion.
+        Vector3[] slopeGrid;
+        int slopeRes;
         float oceanDeepen = 1f; // stays 1 while sampling raw elevations for the sea level
         bool riversActive, sitesActive;
 
@@ -123,10 +149,26 @@ namespace Voidward.Planet
             canyonDepth = shape.Canyons ? shape.CanyonDepth * (1f + Range(rng, -v, v)) : 0f;
             canyonCoverage = Mathf.Clamp01(shape.CanyonCoverage + Range(rng, -v, v) * 0.5f);
 
+            erosionDepth = Mathf.Max(0f, shape.ErosionDepth) / radius;
+            erosionScale = Mathf.Max(4f, shape.ErosionScale);
+            erosionOctaves = Mathf.Clamp(shape.ErosionOctaves, 1, 7);
+            erosionSlope = shape.ErosionSlope;
+            erosionBranching = shape.ErosionBranching;
+            // Own generator: adding erosion must not move craters, landforms or sites of existing seeds.
+            var erng = new System.Random(seed * 7919 + 17);
+            erosionSeed = (uint)erng.Next();
+            erosionOffsets = new Vector3[8];
+            for (int i = 0; i < erosionOffsets.Length; i++)
+                erosionOffsets[i] = new Vector3(Range(erng, -500f, 500f), Range(erng, -500f, 500f), Range(erng, -500f, 500f));
+
+            BuildProvinces(shape, seed);
+
             craters = BuildCraters(shape, rng);
             craterGrid = BuildGrid(craters.Length, k => (craters[k].Center, craters[k].MaxChord));
             landforms = BuildLandforms(shape, rng, v);
             landformGrid = BuildGrid(landforms.Length, k => (landforms[k].Center, landforms[k].MaxChord));
+
+            if (erosionDepth > 0f) BuildSlopeGrid();
 
             HueShift = Range(rng, -1f, 1f) * shape.HueJitter;
             OceanCoverage = shape.HasOcean ? Mathf.Clamp01(Range(rng, shape.OceanCoverage.x, shape.OceanCoverage.y)) : 0f;
@@ -156,9 +198,20 @@ namespace Voidward.Planet
         /// <summary>Large-scale region mask in [0,1] (alternate ground colors, decor variation).</summary>
         public float RegionAt(Vector3 d)
         {
+            float provinceRegion = -1f;
+            if (provinces.Length > 0) ProvinceField(d, float.MaxValue, false, out _, out provinceRegion);
+            return Region(d, provinceRegion);
+        }
+
+        /// <summary>Region mask from the province colour zone (&lt; 0 = no provinces) broken up by noise.</summary>
+        float Region(Vector3 d, float provinceRegion)
+        {
             float f = Shape.RegionFrequency;
             float n = regionNoise.Eval(d.x * f + 3.1f, d.y * f, d.z * f) + 0.5f * regionNoise.Eval(d.x * f * 2.7f, d.y * f * 2.7f + 9.4f, d.z * f * 2.7f);
-            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.25f, 0.35f, n));
+            float noiseRegion = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.25f, 0.35f, n));
+            if (provinceRegion < 0f) return noiseRegion;
+            // Colour zones follow the provinces (geology), the noise only breaks them up a little.
+            return Mathf.Clamp01(Mathf.Lerp(provinceRegion, noiseRegion, 0.25f));
         }
 
         /// <summary>Surface normal (local space) from finite differences over `step` meters.</summary>
@@ -219,8 +272,44 @@ namespace Voidward.Planet
         }
 
         /// <summary>Elevation above the base radius as a fraction of the radius.</summary>
-        public float ElevationFrac(Vector3 d)
+        public float ElevationFrac(Vector3 d) => ElevationFrac(d, 0f);
+
+        /// <summary>
+        /// Elevation with a band limit: erosion octaves shorter than minWavelength (m) are skipped. Coarse LOD chunks
+        /// pass about twice their vertex spacing (no aliasing, cheaper builds); gameplay queries use the full detail.
+        /// </summary>
+        public float ElevationFrac(Vector3 d, float minWavelength) => ElevationFrac(d, minWavelength, out _, false);
+
+        /// <summary>Elevation plus the region mask from the same province pass (chunk builds: no second Voronoi).</summary>
+        public float ElevationFrac(Vector3 d, float minWavelength, out float region) => ElevationFrac(d, minWavelength, out region, true);
+
+        float ElevationFrac(Vector3 d, float minWavelength, out float region, bool wantRegion)
         {
+            float e = BaseElevation(d, out float carve, out float erosionMul, out float provinceRegion, minWavelength, false);
+            region = wantRegion ? Region(d, provinceRegion) : 0f;
+            if (erosionDepth > 0f && erosionMul > 0.01f) e += Erosion(d, minWavelength) * erosionMul;
+            if (oceanDeepen > 1f && e < seaElevation) e = seaElevation - Deepen(seaElevation - e);
+            if (riversActive && carve > 0f)
+            {
+                // Channels cut down to just below sea level so the ocean (water or lava) fills them.
+                float floor = seaElevation - canyonDepth * 0.25f;
+                if (e > floor) e = Mathf.Lerp(e, floor, carve);
+            }
+            if (sitesActive) e = FlattenSites(d, e);
+            return e;
+        }
+
+        /// <summary>
+        /// Noise layers, canyons, landforms and craters (everything erosion carves into). minWavelength skips noise
+        /// octaves finer than that (m); coarse = the cheap proxy erosion steers by (no craters).
+        /// </summary>
+        float BaseElevation(Vector3 d, out float carve, float minWavelength, bool coarse) => BaseElevation(d, out carve, out _, out _, minWavelength, coarse);
+
+        float BaseElevation(Vector3 d, out float carve, out float erosionMul, out float provinceRegion, float minWavelength, bool coarse)
+        {
+            erosionMul = 1f;
+            provinceRegion = -1f;
+            float maxFreq = minWavelength > 0f ? Radius / minWavelength : float.MaxValue;
             Vector3 p = d;
             if (warp > 0f)
             {
@@ -233,7 +322,7 @@ namespace Voidward.Planet
             for (int i = 0; i < layers.Length; i++)
             {
                 var def = layers[i].Def;
-                float v = LayerValue(ref layers[i], p);
+                float v = LayerValue(ref layers[i], p, maxFreq);
                 if (i == 0) first = v;
                 float mask = 1f;
                 if (def.MaskByFirstLayer && i > 0)
@@ -241,35 +330,301 @@ namespace Voidward.Planet
                 sum += v * layers[i].Strength * mask;
             }
 
-            float carve = 0f;
+            if (provinces.Length > 0) sum += ProvinceField(d, maxFreq, true, out erosionMul, out provinceRegion);
+
+            carve = 0f;
             if (canyonDepth > 0f)
             {
                 carve = CanyonCarve(d);
                 if (!riversActive) sum -= carve * canyonDepth;
             }
 
-            float e = (sum + LandformHeight(d) + CraterHeight(d)) * heightMul;
-            if (oceanDeepen > 1f && e < seaElevation) e = seaElevation - Deepen(seaElevation - e);
-            if (riversActive && carve > 0f)
+            return (sum + LandformHeight(d) + (coarse ? 0f : CraterHeight(d))) * heightMul;
+        }
+
+        // ---------------------------------------------------------------- provinces (#115)
+
+        /// <summary>Province cells: jittered Fibonacci points, each assigned a definition by Share (own RNG).</summary>
+        void BuildProvinces(PlanetShapeDef shape, int seed)
+        {
+            var defs = new List<PlanetShapeDef.ProvinceDef>();
+            if (shape.Provinces != null) foreach (var p in shape.Provinces) if (p != null && p.Enabled && p.Share > 0f) defs.Add(p);
+            if (defs.Count == 0) return;
+            provinceDefs = defs.ToArray();
+            var prng = new System.Random(seed * 31337 + 5);
+            provinceNoise = new Noise3D(prng.Next());
+            provinceWarpNoise = new Noise3D(prng.Next());
+            provinceBlend = Mathf.Max(0.005f, shape.ProvinceBlend);
+            provinceWarp = shape.ProvinceWarp;
+            float total = 0f;
+            foreach (var p in provinceDefs) total += p.Share;
+
+            int count = Mathf.Clamp(shape.ProvinceCount, 4, MaxProvinces);
+            provinces = new Province[count];
+            // Quotas, not dice: every kind gets its share of the cells (at least one), so each planet shows the
+            // intended mix; only where they land is random.
+            var kinds = new List<int>(count);
+            for (int k = 0; k < provinceDefs.Length; k++)
             {
-                // Channels cut down to just below sea level so the ocean (water or lava) fills them.
-                float floor = seaElevation - canyonDepth * 0.25f;
-                if (e > floor) e = Mathf.Lerp(e, floor, carve);
+                int quota = Mathf.Max(1, Mathf.FloorToInt(provinceDefs[k].Share / total * count));
+                for (int q = 0; q < quota && kinds.Count < count; q++) kinds.Add(k);
             }
-            if (sitesActive) e = FlattenSites(d, e);
-            return e;
+            while (kinds.Count < count)
+            {
+                float pick = Range(prng, 0f, total);
+                int k = 0;
+                for (; k < provinceDefs.Length - 1; k++) { pick -= provinceDefs[k].Share; if (pick <= 0f) break; }
+                kinds.Add(k);
+            }
+            for (int i = kinds.Count - 1; i > 0; i--) { int j = prng.Next(i + 1); (kinds[i], kinds[j]) = (kinds[j], kinds[i]); }
+            float golden = Mathf.PI * (3f - Mathf.Sqrt(5f));
+            float spin = Range(prng, 0f, Mathf.PI * 2f);
+            for (int i = 0; i < count; i++)
+            {
+                float y = 1f - (i + 0.5f) / count * 2f;
+                float r = Mathf.Sqrt(1f - y * y);
+                float a = golden * i + spin;
+                Vector3 c = new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
+                // Jitter so the cells are not a regular pattern.
+                c = (c + new Vector3(Range(prng, -1f, 1f), Range(prng, -1f, 1f), Range(prng, -1f, 1f)) * (0.9f / Mathf.Sqrt(count))).normalized;
+                provinces[i] = new Province
+                {
+                    Center = c, Def = kinds[i],
+                    Offset = new Vector3(Range(prng, -300f, 300f), Range(prng, -300f, 300f), Range(prng, -300f, 300f)),
+                    Lift = Range(prng, 0.55f, 1.45f),
+                };
+            }
+        }
+
+        /// <summary>
+        /// Soft Voronoi over the (warped) province cells. withRelief: returns the blended province height; else only the
+        /// weights are needed (region / erosion). Cliff provinces sharpen their own elevation step so plateaus get walls.
+        /// </summary>
+        float ProvinceField(Vector3 d, float maxFreq, bool withRelief, out float erosionMul, out float region)
+        {
+            Vector3 q = d;
+            if (provinceWarp > 0f)
+            {
+                // Two octaves of domain warp: Voronoi borders would otherwise run as straight great-circle walls.
+                for (int o = 0; o < 2; o++)
+                {
+                    float wf = o == 0 ? 2.6f : 7.3f, wa = o == 0 ? provinceWarp : provinceWarp * 0.4f;
+                    float ox = o * 41.7f;
+                    q.x += provinceWarpNoise.Eval(d.x * wf + 5.1f + ox, d.y * wf, d.z * wf) * wa;
+                    q.y += provinceWarpNoise.Eval(d.x * wf, d.y * wf + 17.3f + ox, d.z * wf) * wa;
+                    q.z += provinceWarpNoise.Eval(d.x * wf, d.y * wf, d.z * wf + 29.9f + ox) * wa;
+                }
+                q.Normalize();
+            }
+            int n = provinces.Length;
+            System.Span<float> w = stackalloc float[MaxProvinces];
+            float best = float.MaxValue;
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 c = provinces[i].Center;
+                float dx = q.x - c.x, dy = q.y - c.y, dz = q.z - c.z;
+                float dist = Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
+                w[i] = dist;
+                if (dist < best) best = dist;
+            }
+            float sum = 0f, cut = provinceBlend * 7f;
+            for (int i = 0; i < n; i++)
+            {
+                float x = w[i] - best;
+                w[i] = x > cut ? 0f : System.MathF.Exp(-x / provinceBlend);
+                sum += w[i];
+            }
+            float h = 0f, ero = 0f, reg = 0f, elev = 0f, elevW = 0f;
+            // Cliff strength varies along the edges: some stretches are walls, others ramps (no endless fences).
+            float cliffMod = withRelief ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.35f, 0.3f,
+                provinceNoise.Eval(q.x * 6.3f + 71f, q.y * 6.3f, q.z * 6.3f) + 0.5f * provinceNoise.Eval(q.x * 14f, q.y * 14f + 33f, q.z * 14f))) : 0f;
+            for (int i = 0; i < n; i++)
+            {
+                if (w[i] <= 0f) continue;
+                float wi = w[i] / sum;
+                var def = provinceDefs[provinces[i].Def];
+                ero += def.Erosion * wi;
+                reg += def.Region * wi;
+                if (!withRelief || wi < 0.002f) continue;
+                // Elevation step: cliffs sharpen the weight around its midpoint (and may terrace it).
+                float we = wi;
+                float cliff = def.EdgeCliff * cliffMod;
+                if (cliff > 0.01f)
+                {
+                    float half = 0.5f * (1f - cliff * 0.95f);
+                    we = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.5f - half, 0.5f + half, wi));
+                    if (def.Terraces > 0) we = Mathf.Clamp01(Terrace(we * def.Terraces) / def.Terraces);
+                }
+                // Sharpened weights are renormalised below: they must still sum to 1, otherwise cliff borders get
+                // trenches or berms (a raw step on one side, the linear weight on the other).
+                elev += def.Elevation * provinces[i].Lift * we;
+                elevW += we;
+                h += def.Relief * ProvinceRelief(def, q, provinces[i].Offset, maxFreq) * wi;
+            }
+            if (elevW > 1e-5f) h += elev / elevW;
+            erosionMul = ero;
+            region = reg;
+            return h;
+        }
+
+        float ProvinceRelief(PlanetShapeDef.ProvinceDef def, Vector3 q, Vector3 off, float maxFreq)
+        {
+            float freq = def.Frequency, amp = 1f, sum = 0f, norm = 0f, weight = 1f;
+            for (int o = 0; o < 4; o++)
+            {
+                if (freq > maxFreq) { for (; o < 4; o++) { sum += 0.45f * amp; norm += amp; amp *= 0.5f; } break; }
+                float nv = provinceNoise.Eval(q.x * freq + off.x, q.y * freq + off.y, q.z * freq + off.z);
+                float smooth = (nv + 1f) * 0.5f;
+                float ridge = 1f - Mathf.Abs(nv);
+                ridge *= ridge * weight;
+                weight = Mathf.Clamp01(ridge * 1.6f);
+                sum += Mathf.Lerp(smooth, ridge, def.Sharpness) * amp;
+                norm += amp;
+                amp *= 0.5f; freq *= 2.1f;
+            }
+            float r = sum / norm;
+            if (def.Terraces > 0 && def.EdgeCliff <= 0f) r = Terrace(r * def.Terraces) / def.Terraces;
+            return r;
+        }
+
+        // ---------------------------------------------------------------- erosion (#115)
+
+        /// <summary>
+        /// Gully erosion in the spirit of "eroded terrain noise": per octave a jittered 3D cell grid of plane waves whose
+        /// crests run downhill (wave vector across the slope), so slopes get parallel gullies and sharp spurs instead of
+        /// soft noise blobs. Each finer octave bends along the gullies of the coarser ones (branching). Only on slopes.
+        /// </summary>
+        /// <summary>
+        /// Precomputes the slope of the smooth base terrain on a cube-face lattice (~0.3 x the gully wavelength), in
+        /// parallel. Shared face edges use identical lattice directions, so the interpolated field is continuous.
+        /// </summary>
+        void BuildSlopeGrid()
+        {
+            float faceArc = Radius * Mathf.PI * 0.5f;
+            slopeRes = Mathf.Clamp(Mathf.RoundToInt(faceArc / (erosionScale * 0.3f)), 24, 160);
+            int side = slopeRes + 1;
+            var grid = new Vector3[6 * side * side];
+            float h = erosionScale * 0.3f / Radius, band = erosionScale * 0.3f;
+            void Row(int row)
+            {
+                int f = row / side, j = row % side;
+                float b = 2f * j / slopeRes - 1f;
+                for (int i = 0; i < side; i++)
+                {
+                    Vector3 d = PlanetMesh.CubeDir(f, 2f * i / slopeRes - 1f, b);
+                    Vector3 t1 = Vector3.Cross(d, Mathf.Abs(d.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+                    Vector3 t2 = Vector3.Cross(d, t1);
+                    // Central differences of a smooth proxy at the gully scale: small bumps must not twist the gullies.
+                    // Craters included: erosion should also run down crater walls.
+                    float ea = BaseElevation((d + t1 * h).normalized, out _, band, false) - BaseElevation((d - t1 * h).normalized, out _, band, false);
+                    float eb = BaseElevation((d + t2 * h).normalized, out _, band, false) - BaseElevation((d - t2 * h).normalized, out _, band, false);
+                    grid[row * side + i] = (t1 * ea + t2 * eb) / (2f * h);
+                }
+            }
+#if UNITY_WEBGL && !UNITY_EDITOR
+            for (int row = 0; row < 6 * side; row++) Row(row); // no threads on WebGL
+#else
+            System.Threading.Tasks.Parallel.For(0, 6 * side, Row);
+#endif
+            slopeGrid = grid;
+        }
+
+        Vector3 SlopeAtGrid(Vector3 d)
+        {
+            PlanetMesh.DirToCube(d, out int f, out float a, out float b);
+            float x = (a + 1f) * 0.5f * slopeRes, y = (b + 1f) * 0.5f * slopeRes;
+            int x0 = Mathf.Clamp((int)x, 0, slopeRes - 1), y0 = Mathf.Clamp((int)y, 0, slopeRes - 1);
+            float fx = Mathf.Clamp01(x - x0), fy = Mathf.Clamp01(y - y0);
+            int side = slopeRes + 1, i0 = (f * side + y0) * side + x0;
+            Vector3 g = Vector3.Lerp(Vector3.Lerp(slopeGrid[i0], slopeGrid[i0 + 1], fx), Vector3.Lerp(slopeGrid[i0 + side], slopeGrid[i0 + side + 1], fx), fy);
+            return g - d * Vector3.Dot(g, d); // back into this point's tangent plane
+        }
+
+        float Erosion(Vector3 d, float minWavelength)
+        {
+            if (slopeGrid == null) return 0f;
+            Vector3 grad = SlopeAtGrid(d); // dimensionless slope (m per m)
+            float slope = grad.magnitude;
+            float mask = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(erosionSlope.x, erosionSlope.y, slope));
+            if (mask <= 0.001f) return 0f;
+            Vector3 k = Vector3.Cross(d, grad) / slope; // unit, across the slope: wave crests run downhill
+
+            float freq = Radius / erosionScale, amp = 1f, sum = 0f, wl = erosionScale;
+            Vector3 bend = Vector3.zero;
+            for (int o = 0; o < erosionOctaves; o++)
+            {
+                if (wl < minWavelength) break;
+                Vector3 kk = k + Vector3.Cross(d, bend) * erosionBranching;
+                float m = kk.magnitude;
+                kk = m > 1e-5f ? kk / m : k;
+                GullyOctave(d * freq + erosionOffsets[o], kk, (uint)o, out float v, out Vector3 dv);
+                sum += v * amp;
+                bend += dv * amp;
+                amp *= 0.5f; freq *= 2f; wl *= 0.5f;
+            }
+            // Gullies cut down more than spurs rise: valleys read as carved, crests as sharp.
+            sum = sum < 0f ? sum * 1.25f : sum * 0.75f;
+            return sum * erosionDepth * mask;
+        }
+
+        void GullyOctave(Vector3 q, Vector3 k, uint octave, out float value, out Vector3 deriv)
+        {
+            int ix = Floor(q.x), iy = Floor(q.y), iz = Floor(q.z);
+            float fx = q.x - ix, fy = q.y - iy, fz = q.z - iz;
+            float va = 0f, wt = 0f;
+            Vector3 dv = Vector3.zero;
+            const float Tau = Mathf.PI * 2f;
+            for (int i = -1; i <= 1; i++)
+                for (int j = -1; j <= 1; j++)
+                    for (int l = -1; l <= 1; l++)
+                    {
+                        uint hsh = Hash(ix + i, iy + j, iz + l, erosionSeed + octave * 0x9E3779B9u);
+                        // Feature point inside the cell (jittered); pp = sample relative to it.
+                        float px = fx - i - 0.5f - ((hsh & 1023) / 1023f - 0.5f) * 0.8f;
+                        float py = fy - j - 0.5f - (((hsh >> 10) & 1023) / 1023f - 0.5f) * 0.8f;
+                        float pz = fz - l - 0.5f - (((hsh >> 20) & 1023) / 1023f - 0.5f) * 0.8f;
+                        float d2 = px * px + py * py + pz * pz;
+                        if (d2 > 2.6f) continue;
+                        float w = System.MathF.Exp(-d2 * 2.2f);
+                        float ph = (px * k.x + py * k.y + pz * k.z) * Tau;
+                        va += System.MathF.Cos(ph) * w;
+                        float sn = -System.MathF.Sin(ph) * w;
+                        dv.x += sn * k.x; dv.y += sn * k.y; dv.z += sn * k.z;
+                        wt += w;
+                    }
+            if (wt < 1e-6f) { value = 0f; deriv = Vector3.zero; return; }
+            value = va / wt;
+            deriv = dv / wt;
+        }
+
+        static int Floor(float v) { int i = (int)v; return v < i ? i - 1 : i; }
+
+        static uint Hash(int x, int y, int z, uint seed)
+        {
+            uint h = seed ^ ((uint)x * 0x8DA6B343u) ^ ((uint)y * 0xD8163841u) ^ ((uint)z * 0xCB1AB31Fu);
+            h = (h ^ (h >> 15)) * 0x2C1B3C6Du;
+            h = (h ^ (h >> 12)) * 0x297A2D39u;
+            return h ^ (h >> 15);
         }
 
         // Monotonic, so coverage and coastlines are unchanged; a short shelf keeps beaches gentle.
         float Deepen(float depth) => depth * (1f + (oceanDeepen - 1f) * Mathf.SmoothStep(0f, 1f, depth / ShelfWidth));
 
-        static float LayerValue(ref Layer layer, Vector3 p)
+        static float LayerValue(ref Layer layer, Vector3 p, float maxFreq)
         {
             var def = layer.Def;
             p = Vector3.Scale(p, def.Stretch);
+            float stretch = Mathf.Max(def.Stretch.x, Mathf.Max(def.Stretch.y, def.Stretch.z));
             float freq = def.Frequency, amp = 1f, sum = 0f, norm = 0f, weight = 1f;
             for (int o = 0; o < def.Octaves; o++)
             {
+                if (freq * stretch > maxFreq)
+                {
+                    // Band limit: the skipped octaves still count with their mean value (they average out).
+                    float mean = def.Kind == PlanetNoiseKind.Ridged ? 0.25f * weight : def.Kind == PlanetNoiseKind.Billow ? 0.33f : 0.5f;
+                    for (; o < def.Octaves; o++) { sum += mean * amp; norm += amp; amp *= def.Persistence; }
+                    break;
+                }
                 float n = layer.Noise.Eval(p.x * freq + layer.Offset.x, p.y * freq + layer.Offset.y, p.z * freq + layer.Offset.z);
                 float v;
                 switch (def.Kind)

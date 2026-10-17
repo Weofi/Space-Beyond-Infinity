@@ -15,7 +15,7 @@ MonoBehaviour:
   DisplayName: Ocean Planet
   ChunkResolution: 40
   LeafSpacing: 1.6
-  LodQuality: 1.6
+  LodQuality: 2
   HeightMultiplier: 1
   Warp: 0.15
   Layers:
@@ -33,24 +33,11 @@ MonoBehaviour:
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
   - Enabled: 1
-    Kind: 1
-    Strength: 0.06
-    Frequency: 2
-    Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 5
-    Persistence: 0.5
-    Lacunarity: 2
-    MinValue: 0.3
-    RidgeWeight: 1.6
-    MaskByFirstLayer: 1
-    MaskRange: {x: 0.55, y: 0.68}
-    Terraces: 0
-  - Enabled: 1
     Kind: 0
-    Strength: 0.004
+    Strength: 0.002
     Frequency: 12
     Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 3
+    Octaves: 2
     Persistence: 0.5
     Lacunarity: 2
     MinValue: 0
@@ -59,7 +46,64 @@ MonoBehaviour:
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
   Variation: 0.2
-  Features: []
+  Provinces:
+  - Enabled: 1
+    Kind: 0
+    Share: 3
+    Elevation: 0
+    Relief: 0.007
+    Frequency: 3.5
+    Sharpness: 0
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.25
+    Region: 0
+  - Enabled: 1
+    Kind: 1
+    Share: 3
+    Elevation: 0.006
+    Relief: 0.015
+    Frequency: 6
+    Sharpness: 0.3
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.8
+    Region: 0.2
+  - Enabled: 1
+    Kind: 2
+    Share: 1.5
+    Elevation: 0.015
+    Relief: 0.07
+    Frequency: 3.5
+    Sharpness: 0.85
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 1.2
+    Region: 0.5
+  - Enabled: 1
+    Kind: 3
+    Share: 0.8
+    Elevation: 0.025
+    Relief: 0.005
+    Frequency: 4
+    Sharpness: 0.2
+    Terraces: 1
+    EdgeCliff: 0.8
+    Erosion: 0.6
+    Region: 1
+  ProvinceCount: 14
+  ProvinceBlend: 0.05
+  ProvinceWarp: 0.24
+  Features:
+  - Enabled: 1
+    Kind: 0
+    Count: {x: 1, y: 1}
+    Size: {x: 0.12, y: 0.16}
+    Height: {x: 0.5, y: 0.7}
+    Sharpness: 0.5
+    Terraces: 0
+    Roughness: 0.5
+    Caldera: 0.15
   Canyons: 0
   CanyonFrequency: 1.6
   CanyonWidth: 0.06
@@ -70,6 +114,11 @@ MonoBehaviour:
   CanyonCoverage: 0.6
   CanyonWarp: 0.35
   CanyonRivers: 0
+  ErosionDepth: 10
+  ErosionScale: 100
+  ErosionOctaves: 5
+  ErosionSlope: {x: 0.015, y: 0.2}
+  ErosionBranching: 0.6
   CraterCount: 0
   CraterSize: {x: 0.03, y: 0.2}
   CraterSizeBias: 3
@@ -90,6 +139,7 @@ MonoBehaviour:
   WaterEmission: {r: 0, g: 0, b: 0, a: 1}
   WaterGloss: 0.9
   WaveStrength: 0.5
+  ShoreFoam: 1
   Underwater:
     serializedVersion: 2
     key0: {r: 0.078431375, g: 0.16470589, b: 0.26666668, a: 1}

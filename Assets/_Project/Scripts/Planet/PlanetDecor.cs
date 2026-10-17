@@ -12,7 +12,7 @@ namespace Voidward.Planet
     /// </summary>
     public static class PlanetDecor
     {
-        enum Prop { Rock, Boulder, Pebbles, Shrub, Conifer, Cactus, DryBush, Hoodoo, IceShard, IceSpike, Tree, Mushroom, Fern, Pod, Crystal, CrystalSpire, Basalt, Vent, EmberRock, DeadTree }
+        enum Prop { Rock, Boulder, Pebbles, Shrub, Conifer, Cactus, DryBush, Hoodoo, IceShard, IceSpike, Tree, Mushroom, Fern, Pod, Crystal, CrystalSpire, Basalt, Vent, EmberRock, DeadTree, Outcrop }
 
         struct Rule
         {
@@ -25,10 +25,18 @@ namespace Voidward.Planet
             public float MaxSlope;
             public float Region;       // -1 prefers region 0, +1 prefers region 1
             public float Collider;     // 0 = none
+            public float MinSlope;     // > 0: only on slopes at least this steep (outcrops)
         }
 
         static Rule R(Prop p, bool large, float density, float sMin, float sMax, float cluster, float cut, float slope = 0.35f, float region = 0f, float col = 0f) =>
             new Rule { P = p, Large = large, Density = density, SizeMin = sMin, SizeMax = sMax, ClusterScale = cluster, ClusterCut = cut, MaxSlope = slope, Region = region, Collider = col };
+
+        /// <summary>
+        /// Rock outcrops (#115): big rocks half buried in hillsides, aligned with the slope, only where the ground is
+        /// steeper than minSlope. They break up smooth "clay" slopes into crags and read from far away.
+        /// </summary>
+        static Rule Outcrop(float density, float sMin, float sMax, float minSlope = 0.06f, float cluster = 110f, float cut = -0.05f) =>
+            new Rule { P = Prop.Outcrop, Large = true, Density = density, SizeMin = sMin, SizeMax = sMax, ClusterScale = cluster, ClusterCut = cut, MaxSlope = 1f, MinSlope = minSlope, Collider = 0.5f };
 
         static readonly Dictionary<PlanetDecorStyle, Rule[]> Styles = new Dictionary<PlanetDecorStyle, Rule[]>
         {
@@ -37,6 +45,7 @@ namespace Voidward.Planet
                 R(Prop.Rock, false, 70, 0.3f, 1.2f, 25, -0.3f, 0.6f),
                 R(Prop.Pebbles, false, 40, 0.2f, 0.5f, 15, 0f, 0.5f),
                 R(Prop.Boulder, true, 10, 2f, 6f, 60, 0.1f, 0.45f, 0f, 0.8f),
+                Outcrop(6f, 5f, 16f, 0.08f),
             },
             [PlanetDecorStyle.Rocky] = new[]
             {
@@ -44,6 +53,7 @@ namespace Voidward.Planet
                 R(Prop.Shrub, false, 80, 0.4f, 1.1f, 30, 0f, 0.3f, 0.6f),
                 R(Prop.Boulder, true, 6, 2f, 6f, 70, 0.15f, 0.45f, 0f, 0.8f),
                 R(Prop.Conifer, true, 30, 5f, 11f, 90, 0.05f, 0.28f, 0.7f, 0.15f),
+                Outcrop(7f, 6f, 20f),
             },
             [PlanetDecorStyle.Desert] = new[]
             {
@@ -53,6 +63,7 @@ namespace Voidward.Planet
                 R(Prop.Cactus, true, 12, 2.5f, 6f, 70, 0.1f, 0.3f, 0.5f, 0.25f),
                 R(Prop.Hoodoo, true, 5, 6f, 16f, 140, 0.25f, 0.35f, -0.5f, 0.45f),
                 R(Prop.Boulder, true, 5, 2f, 5f, 60, 0.1f, 0.45f, -0.4f, 0.8f),
+                Outcrop(6f, 5f, 16f, 0.07f),
             },
             [PlanetDecorStyle.Ice] = new[]
             {
@@ -60,6 +71,7 @@ namespace Voidward.Planet
                 R(Prop.Rock, false, 25, 0.3f, 1.1f, 30, 0f, 0.6f, -0.5f),
                 R(Prop.IceSpike, true, 12, 4f, 13f, 90, 0.1f, 0.45f, 0.3f, 0.35f),
                 R(Prop.Boulder, true, 4, 2f, 5f, 60, 0.15f, 0.45f, -0.5f, 0.8f),
+                Outcrop(5f, 6f, 18f),
             },
             [PlanetDecorStyle.Jungle] = new[]
             {
@@ -68,6 +80,7 @@ namespace Voidward.Planet
                 R(Prop.Rock, false, 15, 0.3f, 1f, 30, 0f, 0.6f, -0.5f),
                 R(Prop.Tree, true, 38, 7f, 17f, 70, -0.15f, 0.32f, 0f, 0.12f),
                 R(Prop.Mushroom, true, 9, 4f, 11f, 60, 0.2f, 0.3f, 0.6f, 0.3f),
+                Outcrop(4f, 5f, 14f, 0.08f),
             },
             [PlanetDecorStyle.Crystal] = new[]
             {
@@ -76,6 +89,7 @@ namespace Voidward.Planet
                 R(Prop.Pod, false, 12, 0.3f, 0.7f, 15, 0.3f, 0.4f, 0.6f),
                 R(Prop.CrystalSpire, true, 16, 5f, 18f, 80, 0.05f, 0.45f, 0.3f, 0.35f),
                 R(Prop.Boulder, true, 3, 2f, 5f, 60, 0.2f, 0.45f, -0.5f, 0.8f),
+                Outcrop(6f, 6f, 18f),
             },
             [PlanetDecorStyle.Volcanic] = new[]
             {
@@ -84,12 +98,22 @@ namespace Voidward.Planet
                 R(Prop.Basalt, true, 10, 3f, 9f, 80, 0.1f, 0.4f, -0.3f, 0.45f),
                 R(Prop.Vent, true, 2.5f, 2.5f, 5f, 90, 0.25f, 0.3f, 0.4f, 0.5f),
                 R(Prop.DeadTree, true, 4, 3f, 7f, 70, 0.2f, 0.3f, 0.5f, 0.12f),
+                Outcrop(7f, 6f, 18f),
             },
         };
 
+        /// <summary>
+        /// Far decor (#115): the big props (trees, spires, outcrops, hoodoos...) of coarser LOD chunks as light procedural
+        /// meshes, no colliders, at `density` of the normal count and only the larger sizes. Fills data.Decor.
+        /// </summary>
+        public static void GenerateFar(PlanetTerrain terrain, ChunkData data, float density) => Generate(terrain, data, false, true, null, density);
+
         /// <summary>Fills data.Decor / data.DecorProps / data.DecorColliders. Thread-safe (`props` is read only).</summary>
-        public static void Generate(PlanetTerrain terrain, ChunkData data, bool small, bool large, PlanetPropLibrary props = null)
+        public static void Generate(PlanetTerrain terrain, ChunkData data, bool small, bool large, PlanetPropLibrary props = null, float farDensity = 0f)
         {
+            bool far = farDensity > 0f;
+            // Far stand-ins sit on a coarse chunk: place them on its band-limited surface, not the full-detail one.
+            float bandLimit = far ? terrain.Radius * Mathf.PI * 0.5f / (data.N << data.Level) * 2.2f : 0f;
             var shape = terrain.Shape;
             if (!Styles.TryGetValue(shape.Decor, out var rules) || shape.DecorDensity <= 0f) return;
             float R = terrain.Radius;
@@ -109,12 +133,16 @@ namespace Voidward.Planet
             {
                 var rule = rules[ri];
                 if (rule.Large ? !large : !small) continue;
-                int count = Mathf.RoundToInt(rule.Density * hectares * shape.DecorDensity * (float)(0.8 + rng.NextDouble() * 0.4));
+                // Far stand-ins: only what reads from hundreds of meters, and no rocks (from far away the procedural
+                // rocks turn into dark specks that make the terrain look noisy; the terrain itself carries the rock).
+                if (far && (rule.SizeMax < 7f || IsRock(rule.P))) continue;
+                int count = Mathf.RoundToInt(rule.Density * hectares * shape.DecorDensity * (far ? farDensity : 1f) * (float)(0.8 + rng.NextDouble() * 0.4));
                 int clusterSeed = terrain.Seed * 31 + ri * 977;
                 for (int k = 0; k < count; k++)
                 {
                     float a = a0 + (float)rng.NextDouble() * span, b = b0 + (float)rng.NextDouble() * span;
                     float sizeT = (float)rng.NextDouble();
+                    if (far) sizeT = 0.35f + sizeT * 0.65f; // the far stand-ins are the bigger specimens
                     float yaw = (float)rng.NextDouble() * 360f;
                     int propSeed = rng.Next();
                     float accept = (float)rng.NextDouble();
@@ -131,7 +159,7 @@ namespace Voidward.Planet
                     }
                     if (accept > p) continue;
 
-                    float e = terrain.ElevationFrac(dir);
+                    float e = terrain.ElevationFrac(dir, bandLimit);
                     if (terrain.HasOcean && e < terrain.SeaElevationFrac + 0.6f / R) continue;
                     bool inClearing = false;
                     for (int s = 0; s < sites.Count; s++)
@@ -140,12 +168,14 @@ namespace Voidward.Planet
                         if ((sites[s].Dir - dir).sqrMagnitude < clear * clear) { inClearing = true; break; }
                     }
                     if (inClearing) continue;
-                    Vector3 normal = terrain.NormalAt(dir, rule.Large ? 2.5f : 1.2f);
-                    if (1f - Vector3.Dot(normal, dir) > rule.MaxSlope) continue;
+                    bool outcrop = rule.P == Prop.Outcrop;
+                    Vector3 normal = terrain.NormalAt(dir, outcrop ? 6f : rule.Large ? 2.5f : 1.2f);
+                    float slopeHere = 1f - Vector3.Dot(normal, dir);
+                    if (slopeHere > rule.MaxSlope || slopeHere < rule.MinSlope) continue;
 
                     float sz = Mathf.Lerp(rule.SizeMin, rule.SizeMax, sizeT * sizeT);
                     Vector3 pos = dir * (R * (1f + e)) - data.Origin;
-                    Vector3 up = Vector3.Slerp(dir, normal, rule.Large ? 0.25f : 0.6f);
+                    Vector3 up = outcrop ? normal : Vector3.Slerp(dir, normal, rule.Large ? 0.25f : 0.6f);
                     Quaternion rot = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, yaw, 0f);
                     float shade = 0.88f + (propSeed & 255) / 255f * 0.24f;
                     float col;
@@ -160,13 +190,22 @@ namespace Voidward.Planet
                         int first = mb.VertexCount;
                         col = Emit(mb, rule.P, pos, rot, up, sz, propSeed, shade, C(0), C(1), C(2), C(3));
                         // Contact shading: darker where the prop meets the ground, slightly sun-bleached at the top.
-                        mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
+                        if (!far) mb.Grade(first, pos, up, sz * (rule.Large ? 0.9f : 0.6f), 0.55f, 1.06f);
                     }
-                    if (rule.Collider > 0f && col > 0f)
+                    if (!far && rule.Collider > 0f && col > 0f)
                     {
                         colliders ??= new List<Vector4>();
-                        Vector3 c = pos + up * (col * 0.8f);
-                        colliders.Add(new Vector4(c.x, c.y, c.z, col));
+                        if (outcrop)
+                        {
+                            // The outcrop is sunk ~0.45 x its size into the slope: the sphere follows the rock.
+                            Vector3 oc = pos - up * (sz * 0.45f);
+                            colliders.Add(new Vector4(oc.x, oc.y, oc.z, sz * 0.85f));
+                        }
+                        else
+                        {
+                            Vector3 c = pos + up * (col * 0.8f);
+                            colliders.Add(new Vector4(c.x, c.y, c.z, col));
+                        }
                     }
                 }
             }
@@ -176,10 +215,12 @@ namespace Voidward.Planet
 
         static Matrix4x4 M(Vector3 pos, Quaternion rot, Vector3 scale) => Matrix4x4.TRS(pos, rot, scale);
 
+        static bool IsRock(Prop p) => p is Prop.Rock or Prop.Pebbles or Prop.Boulder or Prop.Outcrop or Prop.Hoodoo or Prop.Basalt or Prop.EmberRock;
+
         /// <summary>The asset family that replaces a procedural prop (#100); null = the prop stays procedural.</summary>
         static string AssetFamily(Prop prop, PlanetDecorStyle style) => prop switch
         {
-            Prop.Rock or Prop.Pebbles or Prop.Boulder => style == PlanetDecorStyle.Jungle ? "MossRock" : style == PlanetDecorStyle.Desert ? "DesertRock" : "Rock",
+            Prop.Rock or Prop.Pebbles or Prop.Boulder or Prop.Outcrop => style == PlanetDecorStyle.Jungle ? "MossRock" : style == PlanetDecorStyle.Desert ? "DesertRock" : "Rock",
             Prop.Shrub => "SpruceBush",
             Prop.Conifer => "Spruce",
             Prop.Cactus => "Saguaro",
@@ -238,6 +279,19 @@ namespace Voidward.Planet
                 case Prop.Boulder:
                     batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.15f, Tilt(20f), s);
                     return s * 0.75f;
+                case Prop.Outcrop:
+                {
+                    // One big rock sunk ~45 % into the slope, plus a few smaller ones breaking out around it.
+                    batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.45f, Tilt(25f), s);
+                    int n = r.Next(1, 4);
+                    for (int i = 0; i < n; i++)
+                    {
+                        float ss = s * Rn(0.3f, 0.6f);
+                        Vector3 off = rot * new Vector3(Rn(-1f, 1f), 0f, Rn(-1f, 1f)).normalized * s * Rn(0.7f, 1.2f);
+                        batch.Add(lib.Pick(family, r.Next()), pos + off - up * ss * 0.4f, Tilt(35f), ss);
+                    }
+                    return s * 0.55f;
+                }
                 case Prop.IceShard:
                     batch.Add(lib.Pick(family, r.Next()), pos - up * s * 0.1f, Tilt(15f), s * 1.4f);
                     return 0f;
@@ -328,6 +382,9 @@ namespace Voidward.Planet
                 case Prop.Boulder:
                     mb.AddRock(M(pos + up * s * 0.25f, Tilt(20f), new Vector3(Rn(0.9f, 1.3f), Rn(0.55f, 0.85f), Rn(0.9f, 1.2f))), s, seed, rock * shade);
                     return s * 0.75f;
+                case Prop.Outcrop:
+                    mb.AddRock(M(pos - up * s * 0.3f, Tilt(25f), new Vector3(Rn(0.9f, 1.4f), Rn(0.6f, 0.9f), Rn(0.9f, 1.3f))), s, seed, rock * shade);
+                    return s * 0.55f;
                 case Prop.Shrub:
                     mb.AddSphere(M(pos + up * s * 0.3f, Tilt(10f), new Vector3(1.2f, 0.7f, 1.1f)), s, 0, flora * shade);
                     mb.AddSphere(M(pos + up * s * 0.6f + rot * Vector3.right * s * 0.4f, Tilt(10f), new Vector3(0.9f, 0.7f, 0.9f)), s * 0.7f, 0, flora * shade * 1.1f);

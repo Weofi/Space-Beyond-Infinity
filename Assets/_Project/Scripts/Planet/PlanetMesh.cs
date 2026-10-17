@@ -95,7 +95,10 @@ namespace Voidward.Planet
             var pos = new Vector3[s * s];
             var dirs = new Vector3[side * side];
             var elev = new float[side * side];
+            var region = colliderOnly ? null : new float[side * side];
             float minR = float.MaxValue, maxR = float.MinValue;
+            // Band limit (#115): detail finer than ~2 vertex spacings can't be represented and would only alias.
+            float bandLimit = R * Mathf.PI * 0.5f / (n << level) * 2.2f;
             for (int jj = 0; jj < s; jj++)
             {
                 int j = jj - border;
@@ -104,13 +107,16 @@ namespace Voidward.Planet
                 {
                     int i = ii - border;
                     Vector3 d = CubeDir(face, Coord(x, i, n, level), b);
-                    float e = terrain.ElevationFrac(d);
+                    bool inner = i >= 0 && i <= n && j >= 0 && j <= n;
+                    float reg = 0f;
+                    float e = inner && region != null ? terrain.ElevationFrac(d, bandLimit, out reg) : terrain.ElevationFrac(d, bandLimit);
                     float r = R * (1f + e);
                     pos[jj * s + ii] = d * r - data.Origin;
                     if (i >= 0 && i <= n && j >= 0 && j <= n)
                     {
                         dirs[j * side + i] = d;
                         elev[j * side + i] = e;
+                        if (region != null) region[j * side + i] = reg;
                         if (r < minR) minR = r;
                         if (r > maxR) maxR = r;
                     }
@@ -130,7 +136,7 @@ namespace Voidward.Planet
                 var normals = new Vector3[verts.Length];
                 var uvs = new Vector2[verts.Length];
                 var uvs2 = new Vector2[verts.Length];
-                float spacing = R * Mathf.PI * 0.5f / (n << level);
+                float spacing = bandLimit / 2.2f;
                 Vector3 o = data.Origin;
                 for (int j = 0; j <= n; j++)
                     for (int i = 0; i <= n; i++)
@@ -140,7 +146,7 @@ namespace Voidward.Planet
                         int vi = j * side + i;
                         if (Vector3.Dot(nn, dirs[vi]) < 0f) nn = -nn;
                         normals[vi] = nn;
-                        uvs[vi] = new Vector2(terrain.GradientCoord(elev[vi]), terrain.RegionAt(dirs[vi]));
+                        uvs[vi] = new Vector2(terrain.GradientCoord(elev[vi]), region[vi]);
                         // Discrete Laplacian of the radius: how far the neighbours rise above this vertex.
                         float rc = (pos[c] + o).magnitude;
                         float avg = ((pos[c + 1] + o).magnitude + (pos[c - 1] + o).magnitude + (pos[c + s] + o).magnitude + (pos[c - s] + o).magnitude) * 0.25f;
@@ -148,7 +154,11 @@ namespace Voidward.Planet
                     }
                 // Skirt: duplicate the boundary loop, pushed toward the planet center.
                 float chunkSize = R * Mathf.PI * 0.5f / (1 << level);
-                float depth = 2f + chunkSize * 0.04f;
+                // Coarse chunks skip erosion octaves (band limit), so neighbours across a LOD step differ by up to the
+                // gully depth: the skirt has to reach below that.
+                // Province relief, noise octaves and erosion (scaled up to ~1.4 per province, gullies 1.25x) all differ
+                // across a LOD step: generous margin.
+                float depth = 2f + chunkSize * 0.06f + terrain.ErosionDepthMeters * 2.4f;
                 var loop = EdgeLoop(n);
                 for (int k = 0; k < loop.Length; k++)
                 {

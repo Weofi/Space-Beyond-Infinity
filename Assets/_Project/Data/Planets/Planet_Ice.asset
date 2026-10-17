@@ -15,7 +15,7 @@ MonoBehaviour:
   DisplayName: Frost World
   ChunkResolution: 40
   LeafSpacing: 1.6
-  LodQuality: 1.6
+  LodQuality: 2
   HeightMultiplier: 1
   Warp: 0.14
   Layers:
@@ -34,46 +34,7 @@ MonoBehaviour:
     Terraces: 0
   - Enabled: 1
     Kind: 1
-    Strength: 0.09
-    Frequency: 2.2
-    Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 6
-    Persistence: 0.5
-    Lacunarity: 2.1
-    MinValue: 0.35
-    RidgeWeight: 2.4
-    MaskByFirstLayer: 1
-    MaskRange: {x: 0.5, y: 0.65}
-    Terraces: 0
-  - Enabled: 1
-    Kind: 0
-    Strength: 0.012
-    Frequency: 8
-    Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 3
-    Persistence: 0.5
-    Lacunarity: 2
-    MinValue: 0
-    RidgeWeight: 1.5
-    MaskByFirstLayer: 0
-    MaskRange: {x: 0, y: 0.25}
-    Terraces: 0
-  - Enabled: 1
-    Kind: 1
-    Strength: 0.006
-    Frequency: 16
-    Stretch: {x: 1, y: 1, z: 1}
-    Octaves: 3
-    Persistence: 0.45
-    Lacunarity: 2
-    MinValue: 0.25
-    RidgeWeight: 1.4
-    MaskByFirstLayer: 0
-    MaskRange: {x: 0, y: 0.25}
-    Terraces: 0
-  - Enabled: 1
-    Kind: 1
-    Strength: 0.002
+    Strength: 0.0015
     Frequency: 26
     Stretch: {x: 1, y: 1, z: 1}
     Octaves: 2
@@ -85,21 +46,80 @@ MonoBehaviour:
     MaskRange: {x: 0, y: 0.25}
     Terraces: 0
   Variation: 0.2
+  Provinces:
+  - Enabled: 1
+    Kind: 0
+    Share: 2.5
+    Elevation: 0.005
+    Relief: 0.008
+    Frequency: 3
+    Sharpness: 0.2
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.2
+    Region: 0
+  - Enabled: 1
+    Kind: 1
+    Share: 3
+    Elevation: 0.01
+    Relief: 0.022
+    Frequency: 6
+    Sharpness: 0.4
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.6
+    Region: 0.3
+  - Enabled: 1
+    Kind: 2
+    Share: 2
+    Elevation: 0.025
+    Relief: 0.1
+    Frequency: 3.5
+    Sharpness: 0.95
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 1
+    Region: 0.6
+  - Enabled: 1
+    Kind: 3
+    Share: 1
+    Elevation: 0.03
+    Relief: 0.008
+    Frequency: 5
+    Sharpness: 0.3
+    Terraces: 1
+    EdgeCliff: 0.9
+    Erosion: 0.4
+    Region: 1
+  - Enabled: 1
+    Kind: 4
+    Share: 1
+    Elevation: -0.02
+    Relief: 0.003
+    Frequency: 4
+    Sharpness: 0
+    Terraces: 0
+    EdgeCliff: 0
+    Erosion: 0.1
+    Region: 0
+  ProvinceCount: 13
+  ProvinceBlend: 0.05
+  ProvinceWarp: 0.24
   Features:
   - Enabled: 1
     Kind: 2
-    Count: {x: 3, y: 5}
-    Size: {x: 0.04, y: 0.08}
-    Height: {x: 1, y: 1.6}
+    Count: {x: 1, y: 3}
+    Size: {x: 0.06, y: 0.1}
+    Height: {x: 1, y: 1.5}
     Sharpness: 0.8
     Terraces: 0
     Roughness: 0.7
     Caldera: 0.2
   - Enabled: 1
     Kind: 4
-    Count: {x: 3, y: 6}
-    Size: {x: 0.08, y: 0.15}
-    Height: {x: 0.2, y: 0.35}
+    Count: {x: 2, y: 3}
+    Size: {x: 0.12, y: 0.18}
+    Height: {x: 0.2, y: 0.3}
     Sharpness: 0.5
     Terraces: 0
     Roughness: 0.3
@@ -114,6 +134,11 @@ MonoBehaviour:
   CanyonCoverage: 0.5
   CanyonWarp: 0.6
   CanyonRivers: 0
+  ErosionDepth: 8
+  ErosionScale: 130
+  ErosionOctaves: 4
+  ErosionSlope: {x: 0.03, y: 0.25}
+  ErosionBranching: 0.3
   CraterCount: 0
   CraterSize: {x: 0.03, y: 0.2}
   CraterSizeBias: 3
@@ -134,6 +159,7 @@ MonoBehaviour:
   WaterEmission: {r: 0, g: 0, b: 0, a: 1}
   WaterGloss: 0.9
   WaveStrength: 0.15
+  ShoreFoam: 1
   Underwater:
     serializedVersion: 2
     key0: {r: 0.16078432, g: 0.27450982, b: 0.43529412, a: 1}
