@@ -17,8 +17,6 @@ namespace Voidward.World
         Debris,
         /// <summary>Icy body drifting across the corridor with a glowing tail.</summary>
         Comet,
-        /// <summary>Space-time rift: a wall across the corridor with one gap to fly through.</summary>
-        Rift,
         /// <summary>Gravity anomaly: pulls ships sideways; a close pass slingshots the bubble ahead, the core is deadly.</summary>
         GravityWell,
         /// <summary>A lone, huge asteroid in the void.</summary>
@@ -34,7 +32,7 @@ namespace Voidward.World
         public WarpHazard Kind;
         public float S;
         public Vector2 Lat;
-        /// <summary>Body radius; the gap radius for a rift.</summary>
+        /// <summary>Body radius.</summary>
         public float Radius;
         /// <summary>Lateral metres per metre of approach (comets cross the corridor).</summary>
         public Vector2 Drift;
@@ -59,7 +57,6 @@ namespace Voidward.World
                     case WarpHazard.Rock: return 35f + Radius * 3f;
                     case WarpHazard.Debris: return 10f;
                     case WarpHazard.Comet: return 150f;
-                    case WarpHazard.Rift: return 90f;
                     case WarpHazard.GravityWell: return 260f;
                     default: return 220f;
                 }
@@ -96,13 +93,13 @@ namespace Voidward.World
     /// along a corridor of `Length` metres. Obstacles are generated per 1 km chunk on demand (a slow drive flies
     /// thousands of kilometres), ids are chunk * 1024 + index. A hop (#80) is the short warp between two systems of
     /// one galaxy: one leg, the rims are the systems' outskirts (thinner fields), no signals and no welcome party.
-    /// The flight home (#81) has a finale stretch from FinaleStart on: the Rift chases the bubble there, the void is
-    /// more crowded (rifts, stray rocks, comets at top speed), there are no signals and no welcome party.
+    /// The flight home (#81) has a finale stretch from FinaleStart on: the void is more crowded (stray rocks, wells,
+    /// comets at top speed), there are no signals and no welcome party.
     /// </summary>
     public class WarpRoute
     {
         public const float ChunkLength = 1000f;
-        /// <summary>Share of every leg at each galaxy rim (two halos = 24 %, rifts and wells add the rest of WarpDriveDef.FieldShare).</summary>
+        /// <summary>Share of every leg at each galaxy rim (two halos = 24 %, wells add the rest of WarpDriveDef.FieldShare).</summary>
         public const float HaloShare = 0.12f;
         /// <summary>Share of a hop at each end (the systems' outskirts).</summary>
         public const float HopShare = 0.2f;
@@ -115,7 +112,7 @@ namespace Voidward.World
         public readonly int From, To;
         /// <summary>A warp between two systems of galaxy From (#80).</summary>
         public readonly bool Hop;
-        /// <summary>Route position where the Rift's chase of the flight home begins (#81); -1 = no finale.</summary>
+        /// <summary>Route position where the dense finale stretch of the flight home begins (#81); -1 = no finale.</summary>
         public readonly float FinaleStart;
         public readonly WarpLeg[] Legs;
         public readonly WarpSignal[] Signals;
@@ -170,7 +167,7 @@ namespace Voidward.World
                     float ang = (float)rng.NextDouble() * Mathf.PI * 2f;
                     float dist = 700f + 800f * (float)rng.NextDouble();
                     int sigSeed = rng.Next(), kind = rng.Next(3);
-                    if (InFinale(at - DropRangeMargin)) continue; // no time for detours with the Rift on the tail
+                    if (InFinale(at - DropRangeMargin)) continue; // no detours in the finale stretch
                     sig.Add(new WarpSignal
                     {
                         Id = i * 8 + k, Kind = (WarpSignalKind)kind, S = at,
@@ -305,17 +302,15 @@ namespace Voidward.World
             }
             else if (InFinale(c0))
             {
-                // The finale's void (#81): the Rift churns space up ahead of it - obstacles at top speed.
-                if (rng.NextDouble() < 0.35) Add(WarpHazard.StrayRock, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth * 0.9f), R(30f, 60f));
-                if (rng.NextDouble() < 0.09) Add(WarpHazard.Rift, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth - 120f), R(80f, 120f));
-                if (rng.NextDouble() < 0.03) Add(WarpHazard.GravityWell, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth * 0.7f), R(45f, 70f));
-                if (rng.NextDouble() < 0.08) AddComet();
+                // The finale's void (#81): the densest stretch of the game - obstacles at top speed.
+                if (rng.NextDouble() < 0.45) Add(WarpHazard.StrayRock, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth * 0.9f), R(30f, 60f));
+                if (rng.NextDouble() < 0.04) Add(WarpHazard.GravityWell, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth * 0.7f), R(45f, 70f));
+                if (rng.NextDouble() < 0.10) AddComet();
             }
             else
             {
                 // Deep void: mostly empty, with rare but dangerous things.
                 if (rng.NextDouble() < 0.12) Add(WarpHazard.StrayRock, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth * 0.9f), R(35f, 70f));
-                if (rng.NextDouble() < 0.025) Add(WarpHazard.Rift, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth - 120f), R(70f, 110f));
                 if (rng.NextDouble() < 0.02) Add(WarpHazard.GravityWell, c0 + R(0f, ChunkLength), Lat(WarpBubble.HalfWidth * 0.7f), R(45f, 70f));
                 if (rng.NextDouble() < 0.02) AddComet();
             }

@@ -58,7 +58,7 @@ Weiterlesen: [Nostos, Dart & Zusammenspiel](nostos.md) · [Beute nutzen & besser
 
 ## Der lange Weg nach Sol
 
-Erkunde eine Galaxie, verbessere den Antrieb und senke die Home ETA. Von der LMC geht es auf den letzten Flug nach Hause. Dort jagt euch der Rift: Abstand halten und Hindernisse durchfliegen; Ausstiege sind während der Verfolgung gesperrt.
+Erkunde eine Galaxie, verbessere den Antrieb und senke die Home ETA. Von der LMC geht es auf den letzten Flug nach Hause. Das letzte Stück ist die dichteste Strecke des Spiels: Gas geben, Hindernisse bei hohem Tempo durchfliegen und auf die Hitze achten. Unterwegs gibt es dort keine Signale zum Aussteigen.
 
 M33 → M31 → NGC 6822 → Leo I → LMC → Sol
 

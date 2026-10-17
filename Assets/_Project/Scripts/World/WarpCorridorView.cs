@@ -13,9 +13,7 @@ namespace Voidward.World
     /// nav computer's scanner range streaming past the bubble along -X (they grow out of the warp haze at the
     /// scanner edge), speed streaks, signal beacons and the gas cloud of a signal the crew dropped out at. It also
     /// detects corridor impacts for every ship this peer simulates (its own piloted ship, unpiloted ones on the
-    /// server) and reports them to WarpFlight, and feeds gravity wells into WarpBubble.Pull. In the flight home it
-    /// shows the Rift (#81) chasing the bubble: a VW_Collapse maw behind it that grows and reaches forward with
-    /// tendrils as it closes in, plus a violet pulse on the screen and in the speed streaks.
+    /// server) and reports them to WarpFlight, and feeds gravity wells into WarpBubble.Pull.
     /// </summary>
     public class WarpCorridorView : MonoBehaviour
     {
@@ -27,7 +25,6 @@ namespace Voidward.World
             public GameObject Go;
             public Transform T;
             public Vector3 Spin;
-            public bool OwnMesh;
         }
 
         readonly Dictionary<int, Item> items = new Dictionary<int, Item>();
@@ -45,23 +42,15 @@ namespace Voidward.World
         int shownSeed = int.MinValue;
         float streakBudget;
         int cloudSignal = -1;
-        Material rockMat, toonMat, glowMat, collapseMat;
-        Material streakMat; // #96: textured streak (Kenney) for comet tails and Rift tendrils, falls back to glowMat
-        GameObject rift;
-        Transform riftBody, riftHalo;
-        readonly List<Transform> tendrils = new List<Transform>();
-        Mesh riftSphere, riftRing, tendrilMesh;
-        float riftPulse;
-        const int TendrilCount = 10;
+        Material rockMat, toonMat, glowMat;
+        Material streakMat; // #96: textured streak (Kenney) for comet tails, falls back to glowMat
 
-        static readonly Color RiftColor = new Color(0.72f, 0.38f, 1f);
         static readonly Color WellColor = new Color(1f, 0.62f, 0.3f);
 
         void OnDestroy()
         {
             ClearAll();
-            foreach (var m in new[] { cometMesh, cometTail, wellCore, wellDisc, beaconMesh, puffMesh, riftSphere, riftRing, tendrilMesh }) if (m) Destroy(m);
-            if (rift) Destroy(rift);
+            foreach (var m in new[] { cometMesh, cometTail, wellCore, wellDisc, beaconMesh, puffMesh }) if (m) Destroy(m);
             if (rockMeshes != null && rockMats == null) foreach (var m in rockMeshes) if (m) Destroy(m);
             if (debrisMeshes != null) foreach (var m in debrisMeshes) if (m) Destroy(m);
             WarpBubble.Pull = null;
@@ -75,7 +64,6 @@ namespace Voidward.World
             ClearCloud();
             reported.Clear();
             if (beacon) beacon.SetActive(false);
-            if (rift) rift.SetActive(false);
             if (streaks) streaks.Clear();
         }
 
@@ -90,7 +78,7 @@ namespace Voidward.World
                 if (shownSeed != int.MinValue) { ClearAll(); shownSeed = int.MinValue; WarpBubble.Pull = null; }
                 // Entry spool-up out of a jump zone (#108): the speed lines build up along the lead's flight path.
                 float e = JumpZones.Entering;
-                if (e > 0f) { if (glowMat == null) EnsureAssets(); UpdateStreaks(0f, JumpZones.EntryDir.normalized, Mathf.Lerp(400f, 1400f, e), Mathf.Sqrt(e), 120f, 1.4f, 3f); }
+                if (e > 0f) { if (glowMat == null) EnsureAssets(); UpdateStreaks(JumpZones.EntryDir.normalized, Mathf.Lerp(400f, 1400f, e), Mathf.Sqrt(e), 120f, 1.4f, 3f); }
                 else if (streaks) streaks.gameObject.SetActive(false);
                 return;
             }
@@ -106,7 +94,7 @@ namespace Voidward.World
             foreach (var o in query)
             {
                 float ahead = o.S - p;
-                float seen = o.Kind == WarpHazard.Rift || o.Kind == WarpHazard.GravityWell || o.Kind == WarpHazard.StrayRock ? range * 1.8f : range;
+                float seen = o.Kind == WarpHazard.GravityWell || o.Kind == WarpHazard.StrayRock ? range * 1.8f : range;
                 if (ahead > seen || f.IsDestroyed(o.Id)) continue;
                 if (!items.TryGetValue(o.Id, out var it)) { it = Create(o); items[o.Id] = it; }
                 Place(it, ahead, seen);
@@ -116,8 +104,7 @@ namespace Voidward.World
             DetectImpacts(f, r);
             UpdateBeacon(f, p);
             UpdateCloud(f, r);
-            UpdateStreaks(f.RiftCloseness, WarpBubble.Axis, WarpBubble.Speed, WarpBubble.Intensity);
-            UpdateRift(f);
+            UpdateStreaks(WarpBubble.Axis, WarpBubble.Speed, WarpBubble.Intensity);
         }
 
         void Place(Item it, float ahead, float seen)
@@ -126,10 +113,9 @@ namespace Voidward.World
             Vector2 lat = o.LatAt(ahead);
             it.T.position = new Vector3(ahead, lat.x, lat.y);
             // Out of the warp haze: obstacles grow in over the outer quarter of the scanner range.
-            bool big = o.Kind == WarpHazard.Rift || o.Kind == WarpHazard.GravityWell;
+            bool big = o.Kind == WarpHazard.GravityWell;
             float fade = big ? 1f : Mathf.Clamp01((seen - ahead) / (seen * 0.25f));
-            float size = o.Kind == WarpHazard.Rift ? 1f : o.Radius;
-            it.T.localScale = Vector3.one * size * Mathf.Max(0.02f, fade);
+            it.T.localScale = Vector3.one * o.Radius * Mathf.Max(0.02f, fade);
             if (it.Spin != Vector3.zero) it.T.Rotate(it.Spin * Time.deltaTime, Space.Self);
         }
 
@@ -157,9 +143,6 @@ namespace Voidward.World
                     bool slingshot = false, hit;
                     switch (o.Kind)
                     {
-                        case WarpHazard.Rift:
-                            hit = crossed && d > o.Radius - sr;
-                            break;
                         case WarpHazard.GravityWell:
                             hit = crossed && d < o.Radius + sr;
                             slingshot = crossed && !hit && d < o.Radius * 3f;
@@ -214,9 +197,8 @@ namespace Voidward.World
         {
             var it = new Item { O = o };
             var rng = new System.Random(o.Seed);
-            bool own = o.Kind == WarpHazard.Rift;
             GameObject go = null;
-            if (!own && pools.TryGetValue(o.Kind, out var pool) && pool.Count > 0) go = pool.Pop();
+            if (pools.TryGetValue(o.Kind, out var pool) && pool.Count > 0) go = pool.Pop();
             if (go == null) go = Build(o, rng);
             else if (o.Kind == WarpHazard.Rock || o.Kind == WarpHazard.Debris || o.Kind == WarpHazard.StrayRock)
             {
@@ -229,7 +211,6 @@ namespace Voidward.World
             go.SetActive(true);
             it.Go = go;
             it.T = go.transform;
-            it.OwnMesh = own;
             var proxy = go.GetComponent<WarpObstacleProxy>();
             if (proxy != null) proxy.Id = o.Id;
             if (o.Kind == WarpHazard.Rock || o.Kind == WarpHazard.Debris || o.Kind == WarpHazard.StrayRock || o.Kind == WarpHazard.Comet)
@@ -245,12 +226,6 @@ namespace Voidward.World
         void Release(Item it)
         {
             if (it.Go == null) return;
-            if (it.OwnMesh)
-            {
-                foreach (var mf in it.Go.GetComponentsInChildren<MeshFilter>()) if (mf.sharedMesh) Destroy(mf.sharedMesh);
-                Destroy(it.Go);
-                return;
-            }
             it.Go.SetActive(false);
             if (!pools.TryGetValue(it.O.Kind, out var pool)) pools[it.O.Kind] = pool = new Stack<GameObject>();
             pool.Push(it.Go);
@@ -296,10 +271,6 @@ namespace Voidward.World
                     Renderer(disc, wellDisc, glowMat, false);
                     break;
                 }
-                case WarpHazard.Rift:
-                    // Rifts own their mesh: the gap size differs per rift.
-                    Renderer(go, RiftMesh(o.Radius), glowMat, false);
-                    break;
             }
             return go;
         }
@@ -331,7 +302,6 @@ namespace Voidward.World
             toonMat = cat.ToonMaterial;
             glowMat = cat.ParticleMaterial;
             streakMat = cat.FxStreakMaterial != null ? cat.FxStreakMaterial : glowMat;
-            collapseMat = cat.CollapseMaterial;
             if (rockMeshes != null) return;
 
             var lib = PlanetPropLibrary.Get(cat);
@@ -371,7 +341,7 @@ namespace Voidward.World
                 cometMesh = mb.Build("WarpComet");
             }
             bool textured = streakMat != glowMat;
-            // the textured streak is thin: wider quads and HDR vertex colour keep tails/tendrils as bright as before
+            // the textured streak is thin: wider quads and HDR vertex colour keep comet tails as bright as before
             float wide = textured ? 3f : 1f, hot = textured ? 3f : 1f;
             cometTail = GlowStreak("WarpCometTail", 14f, 1.8f * wide, new Color(0.55f * hot, 0.85f * hot, 1f * hot, 0.55f), textured);
             {
@@ -382,13 +352,6 @@ namespace Voidward.World
             wellDisc = Ring("WarpWellDisc", new[] { 1.25f, 2.2f, 4.2f }, new[] { 0.7f, 0.35f, 0f }, WellColor, 48);
             beaconMesh = GlowStreak("WarpBeacon", 1f, 1f, Color.white);
             puffMesh = GlowStreak("WarpPuff", 1f, 1f, Color.white);
-            {
-                var mb = new MeshBuilder();
-                mb.AddSphere(Matrix4x4.identity, 1f, 3, Color.white);
-                riftSphere = mb.Build("WarpRiftMaw");
-            }
-            riftRing = Ring("WarpRiftHalo", new[] { 0.92f, 1.0f, 1.25f, 1.9f }, new[] { 0f, 0.85f, 0.4f, 0f }, RiftColor, 96);
-            tendrilMesh = GlowStreak("WarpRiftTendril", 1f, 0.5f * wide, new Color(0.8f * hot, 0.45f * hot, 1f * hot, 0.8f), textured);
         }
 
         /// <summary>
@@ -454,10 +417,6 @@ namespace Voidward.World
             return m;
         }
 
-        /// <summary>A rift wall: bright rim around the gap, a violet curtain out past the corridor walls.</summary>
-        static Mesh RiftMesh(float gap) =>
-            Ring("WarpRift", new[] { gap, gap + 12f, gap + 70f, WarpBubble.HalfWidth * 2.6f }, new[] { 0.95f, 0.55f, 0.22f, 0.1f }, RiftColor, 72);
-
         // ================================================================ signals, gas cloud, streaks
 
         void UpdateBeacon(WarpFlight f, float p)
@@ -517,72 +476,9 @@ namespace Voidward.World
             cloudSignal = -1;
         }
 
-        // ================================================================ the Rift (#81)
-
-        /// <summary>The Rift behind the bubble: closer and bigger the less lead the crew has; tendrils reach for the ships.</summary>
-        void UpdateRift(WarpFlight f)
-        {
-            if (!f.RiftAwake || riftSphere == null)
-            {
-                if (rift) rift.SetActive(false);
-                return;
-            }
-            if (rift == null) BuildRift();
-            rift.SetActive(true);
-            float near = Mathf.Clamp01(f.RiftSeconds / 40f); // 1 = far behind, 0 = at the bubble
-            float close = f.RiftCloseness;
-            float dist = Mathf.Lerp(160f, 5200f, near);
-            float radius = Mathf.Lerp(2400f, 1300f, near);
-            rift.transform.position = new Vector3(-dist - radius * 0.25f, 0f, 0f);
-            riftBody.localScale = new Vector3(radius * 0.25f, radius, radius);
-            riftHalo.localScale = Vector3.one * radius;
-            riftHalo.localRotation = Quaternion.Euler(Time.time * 6f, 0f, 0f);
-            float t = Time.time;
-            for (int i = 0; i < tendrils.Count; i++)
-            {
-                float a = i * Mathf.PI * 2f / tendrils.Count + Mathf.Sin(t * 0.4f + i) * 0.15f;
-                // Far away they hug the maw's rim; close in they reach past the ships along the corridor walls.
-                float lat = Mathf.Lerp(Mathf.Lerp(WarpBubble.HalfWidth * 0.9f, WarpBubble.HalfWidth * 1.4f, (i * 0.37f) % 1f), radius * 0.8f, near);
-                float reach = (dist + radius * 0.25f) * Mathf.Lerp(1.15f, 0.5f, near) * (0.75f + 0.25f * Mathf.Sin(t * 1.7f + i * 2.1f));
-                var tr = tendrils[i];
-                tr.localPosition = new Vector3(radius * 0.25f, Mathf.Cos(a) * lat, Mathf.Sin(a) * lat);
-                tr.localScale = new Vector3(reach, 40f + 60f * close, 40f + 60f * close);
-            }
-
-            // Pulse: a violet flash and a shake that get stronger and faster as it closes in.
-            if (close <= 0f || !WarpBubble.Flying) { riftPulse = 0f; return; }
-            riftPulse -= Time.deltaTime;
-            if (riftPulse > 0f) return;
-            riftPulse = Mathf.Lerp(1.4f, 0.7f, close);
-            Vfx.ScreenFlash(new Color(0.55f, 0.2f, 0.9f, 0.03f + 0.1f * close), 0.25f);
-            Vfx.Shake(0.1f + 0.3f * close);
-        }
-
-        void BuildRift()
-        {
-            rift = new GameObject("Warp_Rift");
-            rift.transform.SetParent(transform, false);
-            var body = new GameObject("Maw");
-            body.transform.SetParent(rift.transform, false);
-            Renderer(body, riftSphere, collapseMat != null ? collapseMat : glowMat, false);
-            riftBody = body.transform;
-            var halo = new GameObject("Halo");
-            halo.transform.SetParent(rift.transform, false);
-            Renderer(halo, riftRing, glowMat, false);
-            riftHalo = halo.transform;
-            tendrils.Clear();
-            for (int i = 0; i < TendrilCount; i++)
-            {
-                var go = new GameObject("Tendril");
-                go.transform.SetParent(rift.transform, false);
-                Renderer(go, tendrilMesh, streakMat, false);
-                tendrils.Add(go.transform);
-            }
-        }
-
         float streakScale = 1f;
 
-        void UpdateStreaks(float rift, Vector3 dir, float speed, float intensity, float spread = 260f, float reach = 1f, float width = 1f)
+        void UpdateStreaks(Vector3 dir, float speed, float intensity, float spread = 260f, float reach = 1f, float width = 1f)
         {
             var cam = Camera.main;
             if (cam == null) return;
@@ -629,7 +525,7 @@ namespace Voidward.World
                 ep.velocity = -dir * speed * Random.Range(0.85f, 1.2f);
                 ep.startSize = Random.Range(0.35f, 0.9f) * streakScale * width;
                 ep.startLifetime = 1.6f;
-                ep.startColor = Color.Lerp(Color.Lerp(new Color(0.6f, 0.85f, 1f, 0.5f), new Color(0.85f, 0.7f, 1f, 0.7f), Random.value), new Color(0.75f, 0.3f, 1f, 0.8f), rift * 0.8f) * (0.5f + 0.6f * intensity);
+                ep.startColor = Color.Lerp(new Color(0.6f, 0.85f, 1f, 0.5f), new Color(0.85f, 0.7f, 1f, 0.7f), Random.value) * (0.5f + 0.6f * intensity);
                 streaks.Emit(ep, 1);
             }
         }

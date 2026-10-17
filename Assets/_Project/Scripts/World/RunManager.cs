@@ -24,8 +24,7 @@ namespace Voidward.World
     {
         public static RunManager Instance { get; private set; }
 
-        public const int StartingRespawns = 4;
-        /// <summary>WarpTarget value for the one-way warp to the next galaxy (or home from the last one).</summary>
+        /// <summary>WarpTarget value for the warp to the next galaxy (or home from the last one).</summary>
         public const int WarpNextGalaxy = -1;
         /// <summary>WarpTarget value for skipping a galaxy (#78): straight to the one after the next, for more Exotic Matter.</summary>
         public const int WarpSkipGalaxy = -2;
@@ -38,10 +37,7 @@ namespace Voidward.World
         public NetworkVariable<int> VisitedMask = new NetworkVariable<int>(0);
         public NetworkVariable<float> RunClockBase = new NetworkVariable<float>(0f);
         public NetworkVariable<double> RunClockStart = new NetworkVariable<double>(0);
-        public NetworkVariable<int> RespawnsLeft = new NetworkVariable<int>(StartingRespawns);
         public NetworkVariable<bool> BossActive = new NetworkVariable<bool>(false);
-        /// <summary>The loop of the time loop this run is (1-based, the host's count, #86).</summary>
-        public NetworkVariable<int> Loop = new NetworkVariable<int>(1);
         /// <summary>Asteroid ids (SystemVisuals.RockId) destroyed in the current system.</summary>
         public NetworkList<int> DestroyedAsteroids;
 
@@ -51,13 +47,13 @@ namespace Voidward.World
         readonly Dictionary<int, float> asteroidDamage = new Dictionary<int, float>();
         SystemDirector director;
         RunSummary stats = new RunSummary();
-        /// <summary>Crew logbook of this loop (#86): "[h:mm:ss] text" entries.</summary>
+        /// <summary>Crew logbook of this journey (#86): "[h:mm:ss] text" entries.</summary>
         readonly List<string> log = new List<string>();
         float distanceDone;
         float maxXThisSystem;
         float autoStartTimer = 3f;
         int clearedEnclaves;
-        /// <summary>The home ship Nostos (#49); losing it ends the loop.</summary>
+        /// <summary>The home ship Nostos (#49); at 0 health it is disabled until repaired (#145).</summary>
         ShipCore home;
 
         // ---- client state ----
@@ -255,7 +251,6 @@ namespace Voidward.World
             TickPlayers(dt);
             TickHazards(dt);
             if (WarpFlight.Instance == null || !WarpFlight.Instance.Active.Value) director.Tick(dt);
-            CheckRunOver();
         }
 
         void TickAutoStart()
@@ -268,12 +263,11 @@ namespace Voidward.World
 
         // ================================================================ run lifecycle (server)
 
-        /// <summary>Host: a new loop - fresh seed, the crew wakes up at the wormhole exit in M33.</summary>
+        /// <summary>Host: a new journey - fresh seed, the crew wakes up at the wormhole exit in M33.</summary>
         public void ServerStartRun()
         {
             if (!IsServer || Phase.Value == GamePhase.Playing) return;
-            ResetRunState(Random.Range(1, int.MaxValue), StartingRespawns, 0f);
-            Loop.Value = Meta.Loops + 1;
+            ResetRunState(Random.Range(1, int.MaxValue), 0f);
             foreach (var pawn in PlayerPawn.All) if (pawn != null) pawn.Gear.ResetServer();
             if (WarpDrive.Instance != null) WarpDrive.Instance.ServerReset(0);
             EnterSystem(1, 0, false);
@@ -284,7 +278,7 @@ namespace Voidward.World
             StartClock();
             var def = director.Def;
             AnnounceClientRpc($"{GalaxyTitle(def)}\n{(def != null ? def.Intro : "")}", "jump_gate");
-            ServerLog(Story != null ? Story.LogLoopStart : "", def);
+            ServerLog(Story != null ? Story.LogJourneyStart : "", def);
             ServerWriteSave();
         }
 
@@ -293,9 +287,8 @@ namespace Voidward.World
         {
             if (!IsServer || Phase.Value == GamePhase.Playing) return;
             var save = RunSave.Read();
-            if (save == null) { AnnounceClientRpc("No saved run to continue", "ui_back"); return; }
-            ResetRunState(save.RunSeed, save.RespawnsLeft, save.RunTime);
-            Loop.Value = save.Loop > 0 ? save.Loop : Meta.Loops + 1;
+            if (save == null) { AnnounceClientRpc("No saved journey to continue", "ui_back"); return; }
+            ResetRunState(save.RunSeed, save.RunTime);
             if (save.Log != null) log.AddRange(save.Log);
             clearedEnclaves = save.ClearedEnclaves;
             distanceDone = save.Distance;
@@ -317,7 +310,7 @@ namespace Voidward.World
 
             // The home ship first (the players' ships dock at it), then the players by name; each saved entry is
             // handed out once (two players may share a name). An old save without a working home ship gets a new one.
-            var homeSave = save.Ships.Find(s => s.Class == ShipClass.HomeShip && !s.Derelict);
+            var homeSave = save.Ships.Find(s => s.Class == ShipClass.HomeShip);
             SpawnHomeShip(homeSave);
             var players = new List<PlayerSave>(save.Players);
             var ships = save.Ships.FindAll(s => s.Class != ShipClass.HomeShip);
@@ -333,10 +326,10 @@ namespace Voidward.World
                 SetupPlayer(pawn, slot++, true, ps, ss);
             }
             StartClock();
-            AnnounceClientRpc($"RUN RESUMED - {GalaxyTitle(director.Def)}\n{director.System.Name}", "jump_gate");
+            AnnounceClientRpc($"JOURNEY RESUMED - {GalaxyTitle(director.Def)}\n{director.System.Name}", "jump_gate");
         }
 
-        void ResetRunState(int seed, int respawns, float runTime)
+        void ResetRunState(int seed, float runTime)
         {
             stats = new RunSummary();
             log.Clear();
@@ -344,7 +337,6 @@ namespace Voidward.World
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerResetJumps();
             distanceDone = 0f;
             clearedEnclaves = 0;
-            RespawnsLeft.Value = respawns;
             home = null;
             ClearShips();
             RunSeed.Value = seed;
@@ -366,14 +358,6 @@ namespace Voidward.World
             Phase.Value = GamePhase.Lobby;
         }
 
-        /// <summary>Host: straight from the logbook into the next loop (#86) - the crew wakes at the wormhole exit again.</summary>
-        public void ServerNewLoop()
-        {
-            if (!IsServer || Phase.Value == GamePhase.Playing || Phase.Value == GamePhase.Lobby) return;
-            ClearRun();
-            ServerStartRun();
-        }
-
         void ClearRun()
         {
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
@@ -391,29 +375,23 @@ namespace Voidward.World
             if (rp.Receive.SenderClientId == NetworkManager.ServerClientId) ServerReturnToLobby();
         }
 
-        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-        public void NewLoopServerRpc(RpcParams rp = default)
-        {
-            if (rp.Receive.SenderClientId == NetworkManager.ServerClientId) ServerNewLoop();
-        }
-
         // ================================================================ crew logbook (#86)
 
         static StoryDef Story => ContentCatalog.Instance != null ? ContentCatalog.Instance.Story : null;
 
-        /// <summary>Server: the crew logbook of this loop so far.</summary>
+        /// <summary>Server: the crew logbook of this journey so far.</summary>
         public IReadOnlyList<string> Logbook => log;
 
         /// <summary>
-        /// Server: add an entry to the crew logbook of this loop (StoryDef template, {loop}/{galaxy}/{eta} filled in here)
-        /// and show it to everyone. The logbook ends up on the loop reset / homecoming screen and in the suspend save.
+        /// Server: add an entry to the crew logbook of this journey (StoryDef template, {galaxy}/{eta} filled in here)
+        /// and show it to everyone. The logbook ends up on the homecoming screen and in the save.
         /// </summary>
         public void ServerLog(string template, GalaxyDef galaxy = null, string part = "", string ship = "")
         {
             if (!IsServer || string.IsNullOrEmpty(template)) return;
             if (galaxy == null) galaxy = director != null ? director.Def : null;
             string eta = WarpDrive.Instance != null ? DriveMath.Eta(WarpDrive.Instance.EtaTo(DriveMath.Home)) : "--";
-            string text = StoryDef.Format(template, Loop.Value, galaxy != null ? galaxy.DisplayName : "", eta, part, ship);
+            string text = StoryDef.Format(template, galaxy != null ? galaxy.DisplayName : "", eta, part, ship);
             log.Add($"[{LogClock(RunTime)}] {text}");
             LogbookClientRpc(text);
         }
@@ -428,41 +406,40 @@ namespace Voidward.World
         void LogbookClientRpc(string text) => EventBus.RaiseLogbookEntry(text);
 
         /// <summary>
-        /// Server: the loop ends. A death (crew lost, caught by the Rift) is no game over but the time loop (#86): every
-        /// client plays the collapse, then the logbook; the host starts the next loop from there (ServerNewLoop).
+        /// Server: the journey ends with the homecoming (#74): the closing screen for everyone, the save is deleted.
+        /// There is no game over any more (#145): failing costs loot or a disabled Nostos, never the journey.
         /// </summary>
-        void EndRun(bool victory, string reason, string logTemplate)
+        void ServerHomecoming(string reason, string logTemplate)
         {
             if (Phase.Value != GamePhase.Playing) return;
             ServerLog(logTemplate);
             var drive = WarpDrive.Instance;
-            stats.Loop = Loop.Value;
             stats.DriveTier = drive != null ? drive.TierOf(DriveSlot.Core) : 1;
-            stats.HomeEtaMinutes = victory || drive == null ? 0f : drive.EtaTo(DriveMath.Home);
+            stats.HomeEtaMinutes = 0f;
             stats.Log = string.Join("\n", log);
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
-            stats.Victory = victory;
+            stats.Victory = true;
             stats.EndReason = reason;
             stats.GalaxyReached = GalaxyIndex.Value;
             stats.DistanceTraveled = distanceDone + Mathf.Max(0f, maxXThisSystem - (director.Layout != null ? director.Layout.StartX : 0f));
             stats.RunTimeSeconds = RunTime;
             stats.MemoriesEarned = stats.ComputeMemories();
             RunClockBase.Value = RunTime;
-            Phase.Value = victory ? GamePhase.DemoComplete : GamePhase.GameOver;
-            RunSave.Delete(); // one slot, no reloading after death (and nothing left to resume after the homecoming)
+            Phase.Value = GamePhase.DemoComplete;
+            RunSave.Delete(); // nothing left to resume after the homecoming
             foreach (var p in PlayerPawn.All) if (p != null) { var s = ShipSeat.SeatOf(p.OwnerClientId); if (s) s.Vacate(); }
             RunEndedClientRpc(stats.Victory, stats.EndReason, stats.GalaxyReached, stats.DistanceTraveled, stats.Kills, stats.LootCollected, stats.MemoriesEarned, stats.RunTimeSeconds,
-                stats.Loop, stats.DriveTier, stats.HomeEtaMinutes, stats.Log);
+                stats.DriveTier, stats.HomeEtaMinutes, stats.Log);
         }
 
         [ClientRpc]
-        void RunEndedClientRpc(bool victory, string reason, int galaxy, float dist, int kills, int loot, int dust, float time, int loop, int driveTier, float eta, string logText)
+        void RunEndedClientRpc(bool victory, string reason, int galaxy, float dist, int kills, int loot, int dust, float time, int driveTier, float eta, string logText)
         {
             var s = new RunSummary
             {
                 Victory = victory, EndReason = reason, GalaxyReached = galaxy, DistanceTraveled = dist,
                 Kills = kills, LootCollected = loot, MemoriesEarned = dust, RunTimeSeconds = time,
-                Loop = loop, DriveTier = driveTier, HomeEtaMinutes = eta, Log = logText
+                DriveTier = driveTier, HomeEtaMinutes = eta, Log = logText
             };
             Meta.RecordRun(s);
             Sfx.Engine(false, 0f);
@@ -647,18 +624,10 @@ namespace Voidward.World
         public void ServerArrive(int stop, ShipCore lead = null)
         {
             if (!IsServer || Phase.Value != GamePhase.Playing) return;
-            // The crew outran the Rift (#81) and leaves the warp in the Solar System. Placeholder until the Earth/Moon
-            // approach and landing of #74: the homecoming result.
-            if (stop > GalaxyDef.Count) { EndRun(true, "Homecoming - the crew outran the Rift and made it back to Sol!", Story != null ? Story.LogHomecoming : ""); return; }
+            // The flight home ends in the Solar System. Placeholder until the Earth/Moon approach and landing of #74:
+            // the homecoming result.
+            if (stop > GalaxyDef.Count) { ServerHomecoming("Homecoming - the crew made it back to Sol!", Story != null ? Story.LogHomecoming : ""); return; }
             WarpTo(stop, 0, lead, -1);
-        }
-
-        /// <summary>Server: the Rift caught the bubble on the flight home (#81): the crew falls back into the time loop (#86).</summary>
-        public void ServerRiftCaught()
-        {
-            if (!IsServer || Phase.Value != GamePhase.Playing) return;
-            var st = Story;
-            EndRun(false, st != null ? st.ResetRiftCaught : "Caught by the Rift", st != null ? st.LogRiftCaught : "");
         }
 
         /// <summary>Server: a hop (#80) reached its system: the crew comes out of the jump zone that leads back (#108).</summary>
@@ -685,7 +654,6 @@ namespace Voidward.World
             if (newGalaxy)
             {
                 VisitedMask.Value = 0;
-                RespawnsLeft.Value += Mathf.Max(0, galaxy - GalaxyIndex.Value);
             }
             EnterSystem(galaxy, system, !newGalaxy && IsVisited(system));
             bool seamless = lead != null && lead.IsSpawned;
@@ -777,8 +745,8 @@ namespace Voidward.World
             var s = new RunState
             {
                 RunSeed = RunSeed.Value, Galaxy = GalaxyIndex.Value, System = SystemIndex.Value, VisitedMask = VisitedMask.Value,
-                ClearedEnclaves = clearedEnclaves, RunTime = RunTime, RespawnsLeft = RespawnsLeft.Value,
-                Distance = distanceDone, Kills = stats.Kills, Loot = stats.LootCollected, Loop = Loop.Value, Log = new List<string>(log)
+                ClearedEnclaves = clearedEnclaves, RunTime = RunTime,
+                Distance = distanceDone, Kills = stats.Kills, Loot = stats.LootCollected, Log = new List<string>(log)
             };
             var drive = WarpDrive.Instance;
             if (drive != null)
@@ -800,7 +768,7 @@ namespace Voidward.World
             }
             foreach (var ship in ShipCore.All)
             {
-                if (ship == null || !ship.IsSpawned || !ship.Hull.IsAlive) continue;
+                if (ship == null || !ship.IsSpawned || (!ship.Hull.IsAlive && !ship.IsHome)) continue; // a disabled Nostos is saved too (#145)
                 bool crewShip = ship.IsHome;
                 if (!crewShip && !NetworkManager.ConnectedClients.ContainsKey(ship.OwnerPlayer.Value)) continue;
                 var ss = new ShipSave
@@ -839,6 +807,7 @@ namespace Voidward.World
             ship.RestoreServer(false, false);
             ship.Fuel.Value = save.Fuel;
             ship.Hull.Hp.Value = Mathf.Clamp01(save.Hull01) * ship.Hull.MaxHp.Value;
+            if (ship.IsHome) ship.Derelict.Value = save.Derelict; // a disabled Nostos stays disabled (#145)
         }
 
         // ================================================================ players & ships
@@ -976,12 +945,7 @@ namespace Voidward.World
 
                 if (pawn.IsDown.Value && !pawn.IsLost.Value)
                 {
-                    if (pawn.RespawnAt.Value <= 0f)
-                    {
-                        if (RespawnsLeft.Value <= 0) { pawn.IsLost.Value = true; continue; }
-                        RespawnsLeft.Value--;
-                        pawn.RespawnAt.Value = Time.time + 8f;
-                    }
+                    if (pawn.RespawnAt.Value <= 0f) pawn.RespawnAt.Value = Time.time + 8f;
                     else if (Time.time >= pawn.RespawnAt.Value && TryRespawnPoint(pawn.OwnerClientId, out var pos, out var rot, out int pod))
                     {
                         pawn.RespawnAt.Value = 0f;
@@ -1018,7 +982,7 @@ namespace Voidward.World
         bool TryRespawnPoint(ulong client, out Vector3 pos, out Quaternion rot, out int pod)
         {
             pod = -1;
-            if (home != null && home.IsSpawned && home.CryoPods.Length > 0)
+            if (home != null && home.IsSpawned && !home.Derelict.Value && home.CryoPods.Length > 0)
             {
                 int slot = 0;
                 foreach (var p in PlayerPawn.All) { if (p == null) continue; if (p.OwnerClientId == client) break; slot++; }
@@ -1054,19 +1018,6 @@ namespace Voidward.World
             foreach (var s in ShipCore.All.ToArray())
                 if (s != null && s.IsSpawned) { ShipSeat.VacateAllOn(s); s.NetworkObject.Despawn(true); }
             shipRespawnTimers.Clear();
-        }
-
-        void CheckRunOver()
-        {
-            int active = 0, gone = 0;
-            foreach (var p in PlayerPawn.All)
-            {
-                if (p == null || !p.Active.Value) continue;
-                active++;
-                if (p.IsLost.Value) gone++;
-            }
-            var st = Story;
-            if (active > 0 && gone == active) EndRun(false, st != null ? st.ResetCrewLost : "Crew lost", st != null ? st.LogCrewLost : "");
         }
 
         /// <summary>Solar flare radiation for players in the open.</summary>
@@ -1112,16 +1063,14 @@ namespace Voidward.World
 
         void OnShipDestroyed(ShipCore s)
         {
-            AnnounceClientRpc(s.ShipName.Value + " was destroyed!", "alarm");
+            if (!s.IsHome) AnnounceClientRpc(s.ShipName.Value + " was destroyed!", "alarm");
             if (s != home || !s.IsHome) return;
-            // The home ship is gone (#49): nothing left to fly home in - the time loop resets (#86).
-            home = null;
+            // The home ship is disabled, not gone (#145): no warp, no workbench, no cryo respawn until the crew repairs it.
             var st = Story;
-            if (Phase.Value == GamePhase.Playing)
-            {
-                ServerLog(st != null ? st.LogHomeLost : "", null, "", s.ShipName.Value.ToString());
-                EndRun(false, st != null ? st.ResetHomeLost : "Nostos destroyed", "");
-            }
+            if (Phase.Value != GamePhase.Playing) return;
+            ServerLog(st != null ? st.LogHomeLost : "", null, "", s.ShipName.Value.ToString());
+            AnnounceClientRpc($"{s.ShipName.Value} IS DISABLED\nRepair it at its terminal ({ShipCore.HomeRepairSalvage} Salvage): no warp, workbench or cryo until then", "alarm");
+            ServerWriteSave();
         }
 
         void OnBossDefeated()

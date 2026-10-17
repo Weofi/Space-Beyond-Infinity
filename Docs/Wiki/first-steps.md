@@ -12,11 +12,11 @@ Dein erstes Ziel: die Nostos kennenlernen, mit der Dart einen kurzen Ausflug mac
 
 Im Hauptmenü wählst du Host Game. Allein spielen funktioniert ebenfalls als Host. Für eine gemeinsame Runde kommen die anderen zuerst in deine Lobby.
 
-1. **Mission starten.** Als Host klickst du in der Lobby auf Start Mission beim ersten Start oder auf New Loop bei späteren Durchläufen.
+1. **Mission starten.** Als Host klickst du in der Lobby auf Start Mission. Gibt es schon einen gespeicherten Spielstand, heißt der Knopf New Journey und beginnt eine neue Reise.
 
-2. **Vorhandene Reise fortsetzen.** Wenn ein gespeicherter Run existiert, bietet die Lobby Continue Run an. Das setzt die Reise des Hosts fort.
+2. **Vorhandene Reise fortsetzen.** Wenn ein gespeicherter Spielstand existiert, bietet die Lobby Continue Journey an. Das setzt die Reise des Hosts fort.
 
-**Das solltest du sehen:** Im regulären neuen Run startet ihr bei der Nostos; jede Person sitzt in ihrer angedockten Dart. Ein Intro kann dem Spielbeginn vorausgehen.
+**Das solltest du sehen:** Bei einer neuen Reise startet ihr bei der Nostos; jede Person sitzt in ihrer angedockten Dart. Beim allerersten Spiel läuft vorher ein Intro, das sich überspringen lässt.
 
 ## 2. Erst einmal an Bord umsehen
 

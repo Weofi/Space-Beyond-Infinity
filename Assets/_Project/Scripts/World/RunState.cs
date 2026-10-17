@@ -5,8 +5,8 @@ using Voidward.Core;
 namespace Voidward.World
 {
     /// <summary>
-    /// Suspend save of the running journey (#46): one slot, owned by the host, written on entering a galaxy and when
-    /// the host leaves, deleted when the run ends (death or homecoming). Ship positions are not stored: a resumed
+    /// Save of the running journey (#46): one slot, owned by the host, written on entering a galaxy, on docking at the
+    /// Nostos and when the host leaves, deleted at the homecoming. Ship positions are not stored: a resumed
     /// run starts at the arrival point of the saved system. Players are matched by name; unknown names start fresh.
     /// </summary>
     [Serializable]
@@ -23,6 +23,7 @@ namespace Voidward.World
         /// <summary>Bit i = the Warden enclave of galaxy i+1 was defeated.</summary>
         public int ClearedEnclaves;
         public float RunTime;
+        /// <summary>Unused since #145 (the cryo charges are gone); kept so old saves still load.</summary>
         public int RespawnsLeft;
         public float Distance;
         public int Kills;
@@ -30,7 +31,7 @@ namespace Voidward.World
         /// <summary>Crew warp drive (#78, version 2): tier per DriveSlot (core, nav, cooling, tank) and Exotic Matter in the tank.</summary>
         public int[] DriveTiers;
         public float Exotic;
-        /// <summary>Time loop (#86, version 3): the loop this run is and its crew logbook so far (v2 saves: loop from the host's meta).</summary>
+        /// <summary>Unused since #145 (the time loop is gone); kept so old saves still load.</summary>
         public int Loop;
         // Version 4 (#112): PlayerSave.Credits became Salvage (RunSave.Migrate).
         public List<string> Log = new List<string>();

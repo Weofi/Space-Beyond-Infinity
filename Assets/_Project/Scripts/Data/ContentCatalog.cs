@@ -68,7 +68,7 @@ namespace Voidward.Data
         public Material PlanetMaterial;
         public Material OceanMaterial;
         public Material SkyboxMaterial;
-        public Material CollapseMaterial;   // the Rift chasing the flight home (#81, WarpCorridorView)
+        public Material CollapseMaterial;   // VW_Collapse look: the anomaly of the prologue (#87), unused until then
         public Material AtmosphereMaterial;
         public Material CloudMaterial;
         public Material UnlitMaterial;

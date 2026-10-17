@@ -64,17 +64,17 @@ Hindernisse, Planetennähe, Treffer oder ein Gefecht können den System-Reiseflu
 
 ## Was passiert, wenn ich sterbe?
 
-1. **Kryo-Ladung vorhanden.** Ein gefallener Spieler wacht nach einer kurzen Wartezeit normalerweise in seiner Kryo-Kapsel an Bord der Nostos auf. Dabei wird eine gemeinsame Kryo-Ladung verbraucht. CRYO zeigt den Vorrat.
+1. **Du wachst in der Kryo-Kapsel auf.** Ein gefallener Spieler wacht nach einer kurzen Wartezeit in seiner Kryo-Kapsel an Bord der Nostos auf. Das gilt immer, solange die Nostos in Betrieb ist.
 
 2. **Die eigene Dart ist zerstört.** Nach ungefähr 20 Sekunden wird eine Ersatz-Dart bereitgestellt. Wenn eine Klammer frei ist, wartet sie dort an der Nostos.
 
-3. **Der Run ist verloren.** Sind alle Crewmitglieder endgültig verloren, wird die Nostos zerstört oder holt euch der Rift ein, endet die Reise. Im Logbuch startet der Host mit New Loop den nächsten Durchlauf.
+3. **Die Nostos fällt aus.** Bei 0 Rumpfpunkten ist die Nostos ausgefallen, nicht zerstört: kein Warp, keine Werkbank, kein Kryo-Respawn. Repariere sie an ihrem Terminal (Salvage); alles, was an Bord lagert, bleibt erhalten.
 
-> Die Kryo-Ladungen sind ein begrenzter gemeinsamer Vorrat. Memory fragments und Freischaltungen gehören zum Fortschritt, den du über einzelne Runs hinaus behältst.
+> Einen Neustart der Reise gibt es nicht mehr: Die Zeitschleife ist gestrichen. Wiederbeleben durch Mitspieler und Wracks gescheiterter Landungen kommen noch (Issue 146).
 
 ## Kann ich eine Pause machen?
 
-Der Host speichert die Reise automatisch beim Eintritt in eine Galaxie und beim Verlassen der Sitzung. In der Lobby setzt Continue Run diesen Spielstand fort. Bei einem beendeten Run wird der Fortsetzungs-Spielstand gelöscht.
+Der Host speichert die Reise automatisch beim Eintritt in eine Galaxie, wenn die Nostos ausfällt und beim Verlassen der Sitzung. In der Lobby setzt Continue Journey diesen Spielstand fort. Nach der Heimkehr wird er gelöscht.
 
 > Ein Speichern während einer Warpstrecke setzt die Crew beim Fortsetzen vor diese Warpstrecke zurück. Es ist kein freies Quicksave-System.
 
@@ -86,7 +86,7 @@ Die Anleitungen wurden am 17.10.2026 mit dem lokalen Code und den Projektnotizen
 
 ### Jetzt beschrieben
 
-Erkunden, abbauen, looten, kämpfen, handeln, craften, die Nostos nutzen, den Antrieb verbessern, geflogene Sprünge und der finale Flug mit dem Rift.
+Erkunden, abbauen, looten, kämpfen, handeln, craften, die Nostos nutzen, den Antrieb verbessern, geflogene Sprünge und der finale Flug nach Hause.
 
 ### Noch im Ausbau
 

@@ -33,8 +33,7 @@ Hier tauscht ihr Antriebsteile und ladet Exotic Matter in den gemeinsamen Tank d
 | Ore / Crystal / Scrap | Baumaterialien für Rezepte; Scrap wird auch für Reparaturen genutzt. |
 | Fuel | Normaler Schiffstreibstoff. Im Reiter Ship über Refuel nachfüllen. |
 | Exotic Matter | Treibstoff für den Warp zwischen Galaxien. Im Reiter Warp Drive ausdrücklich in den Tank laden. |
-| Salvage | Währung für Handel und Schiffsservice während des Runs. |
-| Memory fragments | Fortschritt über den einzelnen Run hinaus; im Hangar für Freischaltungen nutzbar. |
+| Salvage | Währung für Handel, Schiffsservice und die Reparatur der Nostos. |
 
 ## So verkürzt du den Heimweg
 
