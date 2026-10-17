@@ -1,8 +1,8 @@
 # Game Design: VOIDWARD
 
-VOIDWARD is a 1-4 player co-op space adventure (vertical slice). A routine moon mission is already on its way back to Earth - the families watch the return live on the news - when an anomaly (a wormhole) swallows the ship; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. One continuous journey: the crew picks targets, flies there, lands and raids them, and turns the loot into a better ship (direction 2026-10-17: no roguelite runs, no time loop). This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
+VOIDWARD is a 1-4 player co-op space adventure (vertical slice). A routine moon mission is already on its way back to Earth - the families watch the return live on the news - when an anomaly (a wormhole) swallows the ship; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. One continuous journey in an open world: the crew flies wherever it wants, lands, mines, salvages and fights, and turns the loot into better ships (direction 2026-10-17: no roguelite runs, no time loop). This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
 
-**Source of truth for gameplay decisions:** this document (it replaces the closed gameplan issue #72; work order: roadmap #53), with the issues #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue and homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones), #128-#132 (missions, expeditions, own ships in warp, drive variants, down/revive and failed raids). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates), it is marked *(legacy)* and will be replaced by the issue that migrates it.
+**Source of truth for gameplay decisions:** this document (it replaces the closed gameplan issue #72; work order: roadmap #53), with the issues #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue and homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones), #128-#132 (scanner and sites, special sites, own ships in warp, drive variants, down/revive and failed landings). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates), it is marked *(legacy)* and will be replaced by the issue that migrates it.
 
 Key dependencies between domains:
 - UI accent colors and HUD styling derive directly from galaxy color palettes defined in Asset Design.
@@ -17,11 +17,11 @@ Key dependencies between domains:
 
 ### Pillars
 1. **The way home is always visible:** the Home ETA shows how long the flight home takes with the current drive. Every new part lowers it measurably.
-2. **Raids are part of the world:** pick a target from the orbital scan or the galaxy map, fly there yourself, land, disembark, raid it (15-25 min), carry the loot back to the ship, lift off and dock at the Nostos. No mission menu, no loading screen, no separate mission mode (direction 2026-10-17).
+2. **Open world:** fly wherever you want, land wherever you want. The scanner shows everything there is (ore deposits, plants, herds, wrecks, nests, ruins, anomalies); the **board computer** highlights what is interesting or needed right now, but never prescribes. Flying there, landing, disembarking, harvesting or fighting and carrying the loot back are all played in the world: no mission menu, no loading screen (direction 2026-10-17).
 3. **Travel is gameplay:** no portals, no travel cutscenes, no warp button: every warp starts seamlessly when the crew flies out of a jump zone (#108). Reaching the next galaxy is a physical warp flight with long empty stretches and obstacles (asteroids, debris, anomalies). The pilot controls the pace (warp throttle); a better drive is really faster, but high speed has to be mastered. Landing and combat handle the same at every tier (#73).
-4. **Progress is your ship:** one continuous journey (campaign save), no runs and no resets. Every raid brings parts, materials and Exotic Matter. Two layers of progression (2026-10-17): **your own crew ship** (personal: modules, weapons, new ship classes up to multi-crew frigates) and **the Nostos** (shared: the hub and quest giver; its upgrades, above all the warp drive, open further areas). Failing a raid costs its loot, never the journey (see "Endings and failure"). The time loop of #86 is dropped (2026-10-17).
+4. **Progress is your ship:** one continuous journey (campaign save), no runs and no resets. Every landing brings ore, parts, materials or Exotic Matter. Two layers of progression (2026-10-17): **your own crew ship** (personal: modules, weapons, new ship classes up to multi-crew frigates) and **the Nostos** (shared: base, scanner platform and jump ship; its upgrades, above all the warp drive, open further areas). A failed landing costs what the landing party carried, never the journey (see "Endings and failure"). The time loop of #86 is dropped (2026-10-17).
 5. **Co-op crew:** everyone flies their own ship by default; multi-seat ships split roles (pilot, gunner, engineer). Land, carry and fight together; revive each other.
-6. **Every galaxy is a mission:** clear goals (fuel for the jump, the galaxy's drive core, optional signals) instead of aimless wandering; each goal is an expedition with a structure.
+6. **A thread through every galaxy:** the board computer keeps the big goals in view (Exotic Matter for the jump, the galaxy's drive core via coordinate fragments) without turning the open world into a mission list.
 
 ### Route (fixed order, content per journey from the seed)
 | # | Galaxy | Distance to Sol | Character | Best drive found there |
@@ -33,7 +33,7 @@ Key dependencies between domains:
 | 5 | Large Magellanic Cloud | 0.16 M ly | Milky Way fills the sky, home of the Wardens, hardest enemies | Home Drive |
 | Goal | Milky Way -> Sol | 0 | finale: flight home (~5 min) and landing | - |
 
-A campaign over several sessions: an evening is two or three raids plus upgrades and travel (per galaxy roughly 4-6 raids, ~8-12 min warp flight to the next). The journey is saved (one save slot per crew: on docking at the Nostos, on every system and galaxy arrival, and when the host leaves).
+A campaign over several sessions: an evening is a few landings and sorties plus upgrades and travel (~8-12 min warp flight to the next galaxy). The journey is saved (one save slot per crew: on docking at the Nostos, on every system and galaxy arrival, and when the host leaves).
 
 ### Home ETA & drive tiers (real flight minutes, balancing in #73)
 | Drive | Found in | -> next galaxy | skip one galaxy | straight home |
@@ -47,26 +47,20 @@ A campaign over several sessions: an evening is two or three raids plus upgrades
 
 Balance as implemented in #78 (`WarpDriveDef` + `GalaxyDef.LegLength/LegFuel`, balanced build): leg time = leg length / core speed (Mk I 1, II 3, III 10, IV 25, V 60, Home 240); next galaxy 10 min with the core found there, skipping ~35-43 min, home: Mk I ~36 h, Mk II ~12 h, Mk III ~3.6 h, Mk IV ~80 min, Mk V ~30 min, Home Drive 5 min. Exotic Matter per leg 8/10/12/14/16, +25 % per skipped galaxy; tanks hold 12/20/30/42/56/75. Times assume a fitting build and good flying; poor navigation/cooling forces braking (intended grind). Skipping a galaxy costs much more flight time and exotic matter. Any drive can theoretically fly home (Mk I ~40 h, achievement "The Long Way").
 
-### Core loop: the raid
-1. **Choose a target** aboard the Nostos, the crew's quest giver: its bridge offers the targets it found (orbital scan, signals, galaxy map) with type, threat and reward ("ice planet, mining outpost, guarded, drive part").
-2. **Fly there:** with the Nostos into the system (jump zone hop, #108), then in the Darts (or a bigger ship) down to the planet. Interceptors, asteroids or a signal can get in the way.
-3. **Land and disembark:** find a landing spot; the parked ship is the retreat point and where the loot goes.
-4. **Raid (15-25 min):** play the site's objective (drill, salvage, ruin, nest, see "Galaxy missions"). The **alert level** rises with time and noise; staying longer is greedier and more dangerous.
-5. **Extract:** carry the loot to the ship, lift off (resets the alert level), fly back and dock.
-6. **Upgrade:** fit parts to your own ship (weapons, engines, shields, modules), build or salvage a better class, and put cores and Exotic Matter into the Nostos -> your ship gets noticeably better, the Nostos reaches further and the Home ETA drops (#50, #55, #113, #131).
-7. **Next:** another target in this galaxy, or the warp to the next galaxy through the **Galactic Rim** once drive and fuel allow it (or skip one through the skip zone, with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
+### Core loop: explore, land, harvest, bring it home
+1. **Scan and pick:** aboard the Nostos or in your own ship, the scanner shows the system's sites in layers (see "Scanner and sites"); the board computer comments and highlights ("strong Exotic signal on the third moon, Warden presence likely", "iron deposit 800 m ahead", "6 units of Exotic Matter missing for the jump"). The crew decides freely where to go.
+2. **Fly there:** with the Nostos into the system (jump zone hop, #108), then in the crew ships down to the planet. Interceptors, asteroids or a signal can get in the way.
+3. **Land and disembark:** find a landing spot; the parked ship is the retreat point and its cargo hold takes the loot.
+4. **On the ground:** mine, harvest, salvage, hunt or take on a special site (ruin, drill site, nest, enclave: these have a structure, #129). The **alert level** rises with time and noise; staying longer is greedier and more dangerous.
+5. **Bring it home:** carry the loot to the ship, lift off (resets the alert level), fly back and dock at the Nostos.
+6. **Upgrade:** fit parts to your own ship (weapons, engines, shields, modules), build or salvage a better class, and put cores, materials and Exotic Matter into the Nostos -> your ship gets noticeably better, the Nostos reaches further and the Home ETA drops (#50, #55, #113, #131).
+7. **Next:** another site in this system, another system, or the warp to the next galaxy through the **Galactic Rim** once drive and fuel allow it (or skip one through the skip zone, with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
 
-### Galaxy missions (#128) and expeditions (#129)
-Every galaxy gives the crew three kinds of goals, shown in the galaxy map and the HUD objective:
-
-| Goal | Kind | Reward |
-|---|---|---|
-| **Fuel for the jump** | required | Exotic Matter for the Galactic Rim (`GalaxyDef.LegFuel`) |
-| **The galaxy's drive core** | main goal | the next core tier (Mk II, III ...), big ETA drop |
-| **Side signals** (wrecks, ruins, nomads, events) | optional | drive parts with variants, weapons, blueprints, Salvage |
-
-- **Drive core hunt:** the core's location is unknown on arrival. 2-3 **coordinate fragments** from different expeditions triangulate it (galaxy map: the search area shrinks per fragment); the last step leads into the Warden enclave or a guarded site (#42).
-- **Signals and scans:** every system holds 1-4 signals. A scan from orbit (or flying close) reveals type, threat and reward; the crew picks where to land instead of wandering.
+### Scanner and sites (#128), board computer (#140), special sites (#129)
+- **Scanner layers:** *common* (ore deposits, crystals, fuel, plants, herds: everywhere, for crafting and repairs), *rewarding* (wrecks, salvage, nests, nomads), *special* (ruins, Warden enclaves, anomalies, the galaxy's drive core). Sites show on the system map, in the HUD and on the planet. Better scanners (Nostos upgrade or a ship module) see further, more precisely and more layers.
+- **Board computer:** the Nostos' onboard AI, narrator and pointer in one. It comments on finds, lore and progress, keeps the big goals in view and highlights what the crew needs right now; it never hands out missions. Its lines are data (`StoryDef`-like), spoken as radio/HUD text.
+- **The galaxy's thread:** Exotic Matter for the jump (`GalaxyDef.LegFuel`) and the **drive core**: its location is unknown on arrival; 2-3 **coordinate fragments** from special sites triangulate it (the search area shrinks on the galaxy map), the last step leads into the Warden enclave or a guarded site (#42).
+- **Free activities need no structure:** mining a deposit or stripping a wreck is just done; only special sites have a start, an objective and an extraction:
 - **Expedition types** (each with start, objective, extraction):
   - **Drill:** place a drill on an Exotic Matter vein, defend it 2-3 min against waves, collect the canister.
   - **Salvage:** cut a wreck open, carry the heavy core/part back to a ship (carrier is slowed and cannot shoot, the others cover; #50).
@@ -75,10 +69,10 @@ Every galaxy gives the crew three kinds of goals, shown in the galaxy map and th
 - **Alert level (per planet):** rises with time, noise (shots, drilling, explosions) and failed objectives -> more and tougher spawns, finally an elite. Lift-off resets it (#45).
 
 ### Ships, classes and progression (#113, #130, decided 2026-10-17)
-- **The Nostos = hub and quest giver (shared progress):** the crew's base in orbit. Its bridge offers the targets (missions/raids), it carries the warp drive, the workbench, the cryo pods and the docking clamps. Upgrading it (warp drive tiers and parts #131, scanner range, workbench/refinery tiers #55, more clamps/hangar) opens further areas: the next galaxy, harder systems, better targets. At 0 health it is disabled until repaired (#132).
+- **The Nostos = base, scanner platform and jump ship (shared progress):** the crew's base in orbit. Its board computer and scanner highlight what is out there (#128, #140); it carries the warp drive, the workbench, the cryo pods and the docking clamps. Upgrading it (warp drive tiers and parts #131, scanner range, workbench/refinery tiers #55, more clamps/hangar, #141) opens further areas: the next galaxy, harder systems, better targets. At 0 health it is disabled until repaired (#132).
 - **Crew ships = personal progress:** every player has their own ship and builds it up: weapons, engines, shields, armour, scanner, utility modules on hardpoints (#50), weapon variety and synergies (#44). Better hulls come from blueprints (#55) or salvaged wrecks.
 - **Ship classes (#113):** Dart (light fighter, 1 seat, start ship) -> heavy fighter (1-2 seats: pilot + gunner) -> multi-crew frigate (pilot, several gunners, engineer) -> later alien hulls with their own mechanics (#51). No freighters: loot fits into each ship's cargo hold; the Mule (cargo hauler) is dropped as a role.
-- **Multi-crew:** players can join a crewmate's bigger ship as gunner or engineer (heat, shields, repairs) instead of flying their own; a raid can mix solo ships and a crewed frigate.
+- **Multi-crew:** players can join a crewmate's bigger ship as gunner or engineer (heat, shields, repairs) instead of flying their own; a sortie can mix solo ships and a crewed frigate.
 - **Warp flight:** the Nostos leads (its drive sets range and pace); every other pilot **flies their own ship inside the bubble** (dodging obstacles, shooting rocks and interceptors) instead of sitting in a fixed formation slot. Gunners in multi-seat ships shoot from their turrets. Leaving the bubble's corridor pulls the ship back (`WarpBubble.Pull`). Unpiloted ships dock at the Nostos (#49).
 
 ### Drive parts with trade-offs (#131)
@@ -103,7 +97,7 @@ System types: planetary system, asteroid/wreck field, anomaly, Warden enclave (g
 ### Endings and failure
 - **Homecoming:** flight home done, Sol reached, Earth approached and landed at the mission's landing site, all flown by the crew; closing shot: the same family and news show as the intro, "The crew of SELENE-4 is back" (#88). The campaign ends there.
 - **Down, not dead (#132):** a player at 0 health goes down with a bleed-out window (~45 s); a crewmate revives them by holding [F] (~4 s). A player who bleeds out wakes in their cryo pod aboard the Nostos.
-- **Failed raid (#132):** the whole landing party down (or the parked ship destroyed with nobody left to revive): everyone wakes in the cryo pods of the Nostos. **The loot of this raid is lost, the ship stays:** the landed ship remains as a wreck at the landing site and can be salvaged by flying back (a second chance at the cargo and the ship's fittings). The journey, the drive and everything stored aboard the Nostos stay.
+- **Failed landing (#132):** the whole landing party down (or the parked ship destroyed with nobody left to revive): everyone wakes in the cryo pods of the Nostos. **What they carried is lost, the ship stays:** the landed ship remains as a wreck at the landing site with its cargo and fittings and can be salvaged by flying back (a second chance). The journey, the drive and everything stored aboard the Nostos stay.
 - **Nostos at 0 health = disabled, not destroyed (#132):** no warp, no workbench, no cryo respawn until the crew repairs it with Salvage (and parts); the crew aboard wakes in the cryo pods, nothing stored aboard is lost.
 - **Story intro (#109, #87, first start only, skippable):** a family at home watches the evening news: "Today the crew of the moon mission SELENE-4 returns to Earth." The camera moves into the live picture on the TV and lands in the cockpit on the return flight (Earth in the window, radio with Mission Control, short playable flight tutorial). An anomaly opens and pulls the ship in; short cut back: the TV shows "SIGNAL LOST". Waking in M33: "Distance to Earth: 2.73 million light-years", the Home ETA appears for the first time.
 - The wormhole is a natural phenomenon, not a villain, and it does not loop time (dropped 2026-10-17). Lore: crew logbook, alien ruins, codex entries (#89).
@@ -127,7 +121,9 @@ German terms are the design language (issues, discussion), English terms are use
 | Galaxie | Galaxy | `GalaxyDef`, `GalaxyIndex` | Sector (`SectorDef`) |
 | System | System | `StarSystemDef`, `SystemIndex` | Sector layout |
 | Galaxie-Karte | Galaxy map | `GalaxyMapView` | Sector route preview |
-| Expedition | Expedition | `Expedition` | - |
+| Expedition (besonderer Ort mit Ablauf) | Expedition | `Expedition` | - |
+| Fundstelle | Site | `ScanSite` | - |
+| Bordcomputer | Board computer | `BoardComputer` | Run logbook ticker |
 | Signal | Signal | `Signal` | - |
 | Koordinaten-Fragment | Coordinate fragment | `CoreFragment` | - |
 | Antriebs-Variante | Drive variant | `DriveVariant` | - |
@@ -169,8 +165,8 @@ Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; 
 - **HUD (core):** Persistent contextual gameplay overlay supporting both on-foot and ship flight contexts.
 - **Pause Menu (core):** Modal overlay pausing single-player or providing an in-game options sheet in co-op. Resume, Settings, Save & Quit to Lobby.
 - **Settings (core):** Tabbed overlay (Audio, Video, Controls). Sliders for Master/Music/SFX; toggles for Fullscreen, V-Sync, Bloom; slider for FOV (70-100); mouse sensitivity slider with Invert Y toggle; full input rebind table.
-- **Raid Failed (core, replaces Loop Reset/Game Over, #132):** short debrief when the landing party is lost: cause, loot lost, where the wreck lies; the crew wakes in the cryo pods.
-- **Homecoming (core, formerly Demo Complete):** Shown after landing on Earth, after the closing news scene. Journey time and summary stats (galaxies, raids, best drive), credits.
+- **Landing Failed (core, replaces Loop Reset/Game Over, #132):** short debrief when the landing party is lost: cause, loot lost, where the wreck lies; the crew wakes in the cryo pods.
+- **Homecoming (core, formerly Demo Complete):** Shown after landing on Earth, after the closing news scene. Journey time and summary stats (galaxies, systems, best drive), credits.
 
 ### HUD Layout Specifications (1080p Reference)
 

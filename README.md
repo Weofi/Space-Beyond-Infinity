@@ -16,12 +16,13 @@ the ship, and the crew wakes up in the **Triangulum Galaxy (M33)** — 2.73 mill
 home. Explore alien planets, mine, loot and fight for drive parts, exotic matter and alien tech,
 upgrade the ship and above all its **warp drive**, and fly galaxy by galaxy through the Local Group
 back to the Milky Way. The **Home ETA** always shows how long the flight home would take with the
-current drive. Pick a target, fly there, land, raid it and bring the loot home to your ship: progress is
-the ship you build up over one continuous journey.
+current drive. An open world: fly wherever you want, land, mine, salvage and fight, and bring the loot
+home; the scanner and the ship's board computer point out what is worth it. Progress is the ships you
+build up over one continuous journey.
 
 Route: M33 → Andromeda (M31) → NGC 6822 → Leo I → Large Magellanic Cloud → home flight to Sol.
-**Direction change (2026-10-17):** no roguelite runs and no time loop any more. Failing a raid costs its
-loot (the landed ship stays as a salvageable wreck), never the journey (#132). The time loop described in
+**Direction change (2026-10-17):** no roguelite runs and no time loop any more. A failed landing costs what
+the landing party carried (the landed ship stays as a salvageable wreck), never the journey (#132). The time loop described in
 section 3 is still what the current build does until #132 replaces it.
 
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
