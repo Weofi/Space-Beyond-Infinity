@@ -19,6 +19,7 @@ namespace Voidward.Data
         public string LogShipLost = "Lost the {ship}.";
         public string LogHomeLost = "The {ship} was disabled in {galaxy}. No warp until it is repaired.";
         public string LogFlightHome = "Left {galaxy} for home.";
+        public string LogLandingFailed = "The landing party was lost. The {ship} is a wreck on the ground.";
         public string LogHomecoming = "Home. Sol is outside the window.";
 
         public static string Format(string template, string galaxy = "", string eta = "", string part = "", string ship = "") =>

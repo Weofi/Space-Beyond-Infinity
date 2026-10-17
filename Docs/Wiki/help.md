@@ -64,13 +64,17 @@ Hindernisse, Planetennähe, Treffer oder ein Gefecht können den System-Reiseflu
 
 ## Was passiert, wenn ich sterbe?
 
-1. **Du wachst in der Kryo-Kapsel auf.** Ein gefallener Spieler wacht nach einer kurzen Wartezeit in seiner Kryo-Kapsel an Bord der Nostos auf. Das gilt immer, solange die Nostos in Betrieb ist.
+1. **Du gehst zu Boden.** Bei 0 Leben liegst du am Boden und blutest etwa 45 Sekunden aus. Ein Mitspieler in deiner Nähe hält F gedrückt (etwa 4 Sekunden) und holt dich mit 40 % Leben zurück. Solange er hält, blutest du nicht weiter.
 
-2. **Die eigene Dart ist zerstört.** Nach ungefähr 20 Sekunden wird eine Ersatz-Dart bereitgestellt. Wenn eine Klammer frei ist, wartet sie dort an der Nostos.
+2. **Du wachst in der Kryo-Kapsel auf.** Blutest du aus, wachst du nach einer kurzen Wartezeit in deiner Kryo-Kapsel an Bord der Nostos auf, solange sie in Betrieb ist.
 
-3. **Die Nostos fällt aus.** Bei 0 Rumpfpunkten ist die Nostos ausgefallen, nicht zerstört: kein Warp, keine Werkbank, kein Kryo-Respawn. Repariere sie an ihrem Terminal (Salvage); alles, was an Bord lagert, bleibt erhalten.
+3. **Die ganze Landegruppe ist am Boden.** Dann ist die Landung gescheitert: Was ihr im Rucksack hattet, ist weg (Salvage und getragene Ausrüstung bleiben). Alle wachen in der Kryo-Bucht auf. Dein gelandetes Schiff bleibt als Wrack am Landeplatz liegen, mit Fracht; du bekommst nach etwa 20 Sekunden eine Ersatz-Dart. Das Wrack kannst du reparieren, solange ihr im System bleibt.
 
-> Einen Neustart der Reise gibt es nicht mehr: Die Zeitschleife ist gestrichen. Wiederbeleben durch Mitspieler und Wracks gescheiterter Landungen kommen noch (Issue 146).
+4. **Die eigene Dart ist zerstört.** Nach ungefähr 20 Sekunden wird eine Ersatz-Dart bereitgestellt. Wenn eine Klammer frei ist, wartet sie dort an der Nostos.
+
+5. **Die Nostos fällt aus.** Bei 0 Rumpfpunkten ist die Nostos ausgefallen, nicht zerstört: kein Warp, keine Werkbank, kein Kryo-Respawn. Repariere sie an ihrem Terminal (Salvage); alles, was an Bord lagert, bleibt erhalten.
+
+> Einen Neustart der Reise gibt es nicht mehr: Die Zeitschleife ist gestrichen. Wiederbelebt wirst du von Mitspielern. Ist die ganze Landegruppe am Boden, ist die Landung gescheitert.
 
 ## Kann ich eine Pause machen?
 

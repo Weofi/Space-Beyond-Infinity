@@ -707,10 +707,12 @@ namespace Voidward.UI
             string text = "";
             if (pawn.IsDown.Value)
             {
-                float t = pawn.RespawnAt.Value - Time.time;
-                text = t > 0f
-                    ? $"YOU DIED\n<size=50%><color=#CBD5E1>Waking in the cryo bay in {HudKit.Num(Mathf.CeilToInt(t).ToString())}s</color></size>"
-                    : "YOU DIED\n<size=50%><color=#CBD5E1>Waiting for a ship to respawn at...</color></size>";
+                if (pawn.BleedLeft.Value > 0f)
+                {
+                    string revive = pawn.ReviveFrac.Value > 0.02f ? $"   |   REVIVING {HudKit.Num(Mathf.RoundToInt(pawn.ReviveFrac.Value * 100f).ToString())}%" : "";
+                    text = $"YOU ARE DOWN\n<size=50%><color=#CBD5E1>Bleeding out in {HudKit.Num(Mathf.CeilToInt(pawn.BleedLeft.Value).ToString())}s - a crewmate can revive you{revive}</color></size>";
+                }
+                else text = "YOU WERE LOST\n<size=50%><color=#CBD5E1>Waking in the cryo bay...</color></size>";
             }
             deathPlate.gameObject.SetActive(text.Length > 0);
             deathText.text = text;

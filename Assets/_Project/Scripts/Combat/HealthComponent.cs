@@ -153,11 +153,11 @@ namespace Voidward.Combat
             Hp.Value = Mathf.Min(MaxHp.Value, Hp.Value + amount);
         }
 
-        /// <summary>Server: bring back to full health (respawn).</summary>
-        public void ReviveServer()
+        /// <summary>Server: bring back to `fraction` of the maximum (1 = full health, respawn; less = revived by a crewmate, #146).</summary>
+        public void ReviveServer(float fraction = 1f)
         {
             if (!IsServer) return;
-            Hp.Value = MaxHp.Value;
+            Hp.Value = Mathf.Max(1f, MaxHp.Value * Mathf.Clamp01(fraction));
         }
 
         [ClientRpc]
