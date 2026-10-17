@@ -179,3 +179,14 @@ def export_fbx(obj, path):
         axis_forward='-Z', axis_up='Y', bake_space_transform=True,
         use_mesh_modifiers=True, mesh_smooth_type='OFF', add_leaf_bones=False,
         colors_type='SRGB', prioritize_active_color=True)
+
+
+def load_palette(path=None):
+    """Shared low-poly palette (#120): {name: (r, g, b) sRGB 0..1} from Assets/_Project/Art/Palette.json, plus the glow names."""
+    import json
+    import os
+    if path is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Assets", "_Project", "Art", "Palette.json")
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return {k: srgb(v) for k, v in data["colors"].items()}, set(data.get("glow", []))
