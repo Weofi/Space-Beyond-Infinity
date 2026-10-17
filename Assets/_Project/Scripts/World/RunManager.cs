@@ -115,6 +115,7 @@ namespace Voidward.World
                 CombatEvents.Died += OnSomethingDied;
                 LootStats.Collected += OnLootCollected;
                 ShipCore.ServerDestroyed += OnShipDestroyed;
+                ShipCore.ServerDocked += OnShipDocked;
                 BossBrain.ServerDefeated += OnBossDefeated;
                 if (SessionManager.Instance != null)
                 {
@@ -139,6 +140,7 @@ namespace Voidward.World
                 CombatEvents.Died -= OnSomethingDied;
                 LootStats.Collected -= OnLootCollected;
                 ShipCore.ServerDestroyed -= OnShipDestroyed;
+                ShipCore.ServerDocked -= OnShipDocked;
                 BossBrain.ServerDefeated -= OnBossDefeated;
                 if (SessionManager.Instance != null)
                 {
@@ -1060,6 +1062,16 @@ namespace Voidward.World
         }
 
         void OnLootCollected(ulong client, int amount) => stats.LootCollected += amount;
+
+        float lastDockSave = -999f;
+
+        /// <summary>A ship docked at the Nostos (#145): the journey is saved, at most every 30 s (a warp's veil docks every ship at once).</summary>
+        void OnShipDocked(ShipCore s)
+        {
+            if (Phase.Value != GamePhase.Playing || Time.time - lastDockSave < 30f) return;
+            lastDockSave = Time.time;
+            ServerWriteSave();
+        }
 
         void OnShipDestroyed(ShipCore s)
         {

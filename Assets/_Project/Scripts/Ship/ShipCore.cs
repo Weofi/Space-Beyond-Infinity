@@ -99,11 +99,13 @@ namespace Voidward.Ship
         }
         /// <summary>Server: a ship was destroyed (before despawn).</summary>
         public static event Action<ShipCore> ServerDestroyed;
+        /// <summary>Server: a ship docked at the home ship (#145: the journey is saved then).</summary>
+        public static event Action<ShipCore> ServerDocked;
         /// <summary>Every client: stats recomputed.</summary>
         public event Action StatsChanged;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { All.Clear(); ServerDestroyed = null; ShieldBrokenClient = null; }
+        static void ResetStatics() { All.Clear(); ServerDestroyed = null; ServerDocked = null; ShieldBrokenClient = null; }
 
         float lastHitTime = -100f;
         float throttle;
@@ -652,6 +654,7 @@ namespace Voidward.Ship
             DockedTo.Value = home.NetworkObjectId;
             var c = home.Clamps[index].transform;
             GetComponent<NetTeleport>().ServerTeleport(c.position, c.rotation);
+            ServerDocked?.Invoke(this);
             return true;
         }
 
