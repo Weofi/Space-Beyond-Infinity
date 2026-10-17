@@ -33,7 +33,7 @@ Key dependencies between domains:
 | 5 | Large Magellanic Cloud | 0.16 M ly | Milky Way fills the sky, home of the Wardens, hardest enemies | Home Drive |
 | Goal | Milky Way -> Sol | 0 | finale: flight home (~5 min) and landing | - |
 
-A campaign over several sessions: an evening is a few landings and sorties plus upgrades and travel (~8-12 min warp flight to the next galaxy). The journey is saved (one save slot per crew: on docking at the Nostos, on every system and galaxy arrival, and when the host leaves).
+A campaign over several sessions: an evening is a few landings and sorties plus upgrades and travel (~8-12 min warp flight to the next galaxy). The journey is saved on docking at the Nostos, on every system and galaxy arrival, and when the host leaves. **The journey belongs to the crew, not the host (#144):** every crew member keeps a copy and can host it; personal things (own ship, inventory, equipment) are stored per player ID, shared things (Nostos, world state, finds) for the crew; an absent player's ship stays docked and locked at its clamp, new players get a starter Dart.
 
 ### Home ETA & drive tiers (real flight minutes, balancing in #73)
 | Drive | Found in | -> next galaxy | skip one galaxy | straight home |
@@ -54,11 +54,11 @@ Balance as implemented in #78 (`WarpDriveDef` + `GalaxyDef.LegLength/LegFuel`, b
 4. **On the ground:** mine, harvest, salvage, hunt or take on a special site (ruin, drill site, nest, enclave: these have a structure, #129). The **alert level** rises with time and noise; staying longer is greedier and more dangerous.
 5. **Bring it home:** carry the loot to the ship, lift off (resets the alert level), fly back and dock at the Nostos.
 6. **Upgrade:** fit parts to your own ship (weapons, engines, shields, modules), build or salvage a better class, and put cores, materials and Exotic Matter into the Nostos -> your ship gets noticeably better, the Nostos reaches further and the Home ETA drops (#50, #55, #113, #131).
-7. **Next:** another site in this system, another system, or the warp to the next galaxy through the **Galactic Rim** once drive and fuel allow it (or skip one through the skip zone, with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
+7. **Next:** another site in this system, another system, or the warp to the next galaxy through the **Galactic Rim** once drive and fuel allow it (or skip one through the skip zone, with lots of fuel). Nothing is one-way (2026-10-17): systems can be revisited, and a **back zone** next to the Galactic Rim warps to the previous galaxy (same cost in time and Exotic Matter as forward, #142); mined, looted and wrecked sites stay as they were, common deposits refill over time.
 
 ### Scanner and sites (#128), board computer (#140), special sites (#129)
 - **Scanner layers:** *common* (ore deposits, crystals, fuel, plants, herds: everywhere, for crafting and repairs), *rewarding* (wrecks, salvage, nests, nomads), *special* (ruins, Warden enclaves, anomalies, the galaxy's drive core). Sites show on the system map, in the HUD and on the planet. Better scanners (Nostos upgrade or a ship module) see further, more precisely and more layers.
-- **Board computer:** the Nostos' onboard AI, narrator and pointer in one. It comments on finds, lore and progress, keeps the big goals in view and highlights what the crew needs right now; it never hands out missions. Its lines are data (`StoryDef`-like), spoken as radio/HUD text.
+- **Board computer (#140):** the Nostos' onboard AI, narrator and pointer in one. It comments on finds, lore and progress, keeps the big goals in view and highlights what the crew needs right now; it never hands out missions. **Tone: sarcastic but never annoying, and always helpful** (dry remarks, the useful information comes first; cooldowns so it does not chatter). It was already aboard on the moon mission. Its lines are data (`StoryDef`-like), shown as radio/HUD text.
 - **The galaxy's thread:** Exotic Matter for the jump (`GalaxyDef.LegFuel`) and the **drive core**: its location is unknown on arrival; 2-3 **coordinate fragments** from special sites triangulate it (the search area shrinks on the galaxy map), the last step leads into the Warden enclave or a guarded site (#42).
 - **Free activities need no structure:** mining a deposit or stripping a wreck is just done; only special sites have a start, an objective and an extraction:
 - **Expedition types** (each with start, objective, extraction):
@@ -70,7 +70,7 @@ Balance as implemented in #78 (`WarpDriveDef` + `GalaxyDef.LegLength/LegFuel`, b
 
 ### Ships, classes and progression (#113, #130, decided 2026-10-17)
 - **The Nostos = base, scanner platform and jump ship (shared progress):** the crew's base in orbit. Its board computer and scanner highlight what is out there (#128, #140); it carries the warp drive, the workbench, the cryo pods and the docking clamps. Upgrading it (warp drive tiers and parts #131, scanner range, workbench/refinery tiers #55, more clamps/hangar, #141) opens further areas: the next galaxy, harder systems, better targets. At 0 health it is disabled until repaired (#132).
-- **Crew ships = personal progress:** every player has their own ship and builds it up: weapons, engines, shields, armour, scanner, utility modules on hardpoints (#50), weapon variety and synergies (#44). Better hulls come from blueprints (#55) or salvaged wrecks.
+- **Crew ships = personal progress:** every player has their own ship and builds it up: weapons, engines, shields, armour, scanner, modules on hardpoints (#50), weapon variety and synergies (#44). Every ship has one or more open **utility module slots** (#143) for tools such as a **mining laser** or **automated mining drones**: a fighter can fly to a planet and mine with its drones, so there is no dedicated mining ship. Better hulls come from blueprints (#55) or salvaged wrecks.
 - **Ship classes (#113):** Dart (light fighter, 1 seat, start ship) -> heavy fighter (1-2 seats: pilot + gunner) -> multi-crew frigate (pilot, several gunners, engineer) -> later alien hulls with their own mechanics (#51). No freighters: loot fits into each ship's cargo hold; the Mule (cargo hauler) is dropped as a role.
 - **Multi-crew:** players can join a crewmate's bigger ship as gunner or engineer (heat, shields, repairs) instead of flying their own; a sortie can mix solo ships and a crewed frigate.
 - **Warp flight:** the Nostos leads (its drive sets range and pace); every other pilot **flies their own ship inside the bubble** (dodging obstacles, shooting rocks and interceptors) instead of sitting in a fixed formation slot. Gunners in multi-seat ships shoot from their turrets. Leaving the bubble's corridor pulls the ship back (`WarpBubble.Pull`). Unpiloted ships dock at the Nostos (#49).
@@ -106,8 +106,8 @@ System types: planetary system, asteroid/wreck field, anomaly, Warden enclave (g
 ### Enemies: nature and aliens only
 No pirates, no humans. Fauna (#39) is neutral to predatory and guards nests and resources. Each galaxy has its own alien ecosystem (#51: swarm, crystal beings, void creatures ...). The **Wardens** are an ancient biomechanical species hoarding warp cores and tech; one enclave per galaxy guards the best drive core (#42). Optional trade with neutral alien nomads for salvage.
 
-### Logbook and codex (#47, to be redefined)
-No meta progression between runs (there are no runs). The logbook stays as the crew's journal and codex (scanned fauna, aliens, plants, ruins, galaxies); unlocks come from blueprints found during the journey. Difficulty options instead of wormhole tiers.
+### Logbook, codex and the character (#47, #58)
+No meta progression between runs (there are no runs) and no skill tree (#59 dropped). The logbook stays as the crew's journal and codex (scanned fauna, aliens, plants, ruins, galaxies); unlocks come from blueprints found during the journey. The **character** grows only through **equipment** (#58): suits, helmets, tools, weapons and gadgets found or crafted on the way. Difficulty options instead of wormhole tiers.
 
 ### Glossary (UI and code)
 German terms are the design language (issues, discussion), English terms are used in the UI and in code. Existing code keeps its old names until the issue that migrates the system renames it; new code uses the new names.
