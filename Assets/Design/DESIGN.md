@@ -2,7 +2,7 @@
 
 VOIDWARD is a 1-4 player co-op space adventure (vertical slice). A routine moon mission is already on its way back to Earth - the families watch the return live on the news - when an anomaly (a wormhole) swallows the ship; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. One continuous journey in an open world: the crew flies wherever it wants, lands, mines, salvages and fights, and turns the loot into better ships (direction 2026-10-17: no roguelite runs, no time loop). This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
 
-**Source of truth for gameplay decisions:** this document (it replaces the closed gameplan issue #72; work order: roadmap #53), with the issues #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue and homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones), #128-#132 (scanner and sites, special sites, own ships in warp, drive variants, down/revive and failed landings). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates), it is marked *(legacy)* and will be replaced by the issue that migrates it.
+**Source of truth for gameplay decisions:** this document (it replaces the closed gameplan issue #72; work order: roadmap #53), with the issues #46 (journey structure & galaxies), #73 (warp drive & warp flight), #74 (prologue and homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones), #128-#132 (scanner and sites, special sites, own ships in warp, drive variants, down/revive and failed landings). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates), it is marked *(legacy)* and will be replaced by the issue that migrates it.
 
 Key dependencies between domains:
 - UI accent colors and HUD styling derive directly from galaxy color palettes defined in Asset Design.
@@ -123,7 +123,7 @@ German terms are the design language (issues, discussion), English terms are use
 | Galaxie-Karte | Galaxy map | `GalaxyMapView` | Sector route preview |
 | Expedition (besonderer Ort mit Ablauf) | Expedition | `Expedition` | - |
 | Fundstelle | Site | `ScanSite` | - |
-| Bordcomputer | Board computer | `BoardComputer` | Run logbook ticker |
+| Bordcomputer | Board computer | `BoardComputer` | Logbook ticker, loop radio |
 | Signal | Signal | `Signal` | - |
 | Koordinaten-Fragment | Coordinate fragment | `CoreFragment` | - |
 | Antriebs-Variante | Drive variant | `DriveVariant` | - |
@@ -182,13 +182,7 @@ Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; 
   - Active selection state: Border expands to 2px with bright Cyan glow `#38BDF8`, slot background lifts to `#1E293B`.
   - Slot numerals: 12pt bold tabular digit pinned to top-left corner (`#94A3B8`). Tool/item icon centered (32 x 32px). Quantity badge pinned to bottom-right (14pt bold `#F8FAFC`).
 - **Home ETA & Alert Level (Top-Center) (core):** Replaces the Collapse meter. Home ETA readout (e.g. `HOME ETA 2H 31M`, tabular, ticks down with a gold flash whenever a fitted part lowers it), current galaxy + system name, and the system alert level as a 5-step meter (teal -> amber -> red). The Rift meter below is only shown in the finale.
-- **The Collapse Threat Meter *(legacy, becomes the Rift meter in the finale)* (Top-Center: Anchor (Center, 1036px)) (core):**
-  - Primary tension anchor: 440 x 28px horizontal meter framed in `#0E1420EE`.
-  - Background track: Dark void purple `#180D2E`.
-  - Threat fill: Deep gradient from Menacing Violet `#7C3AED` to Void Crimson `#DC2626`.
-  - Pips: Left pip represents the advancing Collapse event horizon; middle pip represents the player fleet ship; right pip represents the sector Jump Gate.
-  - Distance readout: 20pt bold tabular numerals centered directly below the bar (e.g., `COLLAPSE: 1,840m`).
-  - Distance threshold tinting: Safe (>1500m) muted teal `#2DD4BF`, Caution (800-1500m) amber `#FBBF24`, Danger (<800m) flashing red `#EF4444` at 2.5 Hz.
+- **The Collapse/Rift Threat Meter** *(dropped 2026-10-17 with the Rift; the HUD code goes in #132)*.
 - **Compass & Waypoint Strip (Top-Center: Anchor (Center, 984px)) (core):**
   - Horizontal bearing strip: 500 x 22px. Subtle degree ticks with cardinal points (N, E, S, W) in 12pt bold `#94A3B8`.
   - Embedded dynamic markers: warp target / objective (Golden Ring icon `#F59E0B`), active player pings (colored chevrons), landed ship beacon (Cyan ship icon `#38BDF8`).
@@ -228,8 +222,7 @@ Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; 
   - Oxygen: `#06B6D4` (pure cyan) | Depleted: `#08232ACC`
   - Fuel / Thrust: `#FBBF24` (warm solar amber) | Depleted: `#2B1F05CC`
   - Danger / Alert / Hostile: `#EF4444` (bright coral red) | Critical: `#7F1D1D`
-  - Memory Fragments (Meta, formerly Stardust): `#C084FC` (pastel neon violet)
-  - Salvage (Run, formerly Credits): `#FCD34D` (soft golden pyrite)
+  - Salvage (currency, formerly Credits): `#FCD34D` (soft golden pyrite)
   - Exotic Matter (warp fuel): `#C4A5FF` / item tint violet (#78; teal is already the HUD meter accent)
 - **Sector UI Accent Triads *(legacy, to be redefined per galaxy in #46)*:**
   - **Sector 1 (Verdant Drift):** Primary Mint `#34D399`, Secondary Teal `#0F766E`, Accent Sunlight `#FBBF24`.
@@ -270,7 +263,7 @@ Direction since 2026-10-17 (#120, rules #121): **low poly, flat-shaded with a sh
 #### Shared palette (sRGB, design values)
 | Group | Colours |
 |---|---|
-| Human tech hulls (Dart, Mule, Nostos, station) | hull light `#C9CED4`, hull mid `#8A9199`, hull dark `#424850`, trim `#262A30`, accent orange `#E07A2E`, warning yellow `#E8B53A` |
+| Human tech hulls (Dart, heavy fighter, frigate, Nostos, station) | hull light `#C9CED4`, hull mid `#8A9199`, hull dark `#424850`, trim `#262A30`, accent orange `#E07A2E`, warning yellow `#E8B53A` |
 | Glass and screens | canopy glass `#1B2532`, screen base `#0F1A22` |
 | Emission | cyan `#4FD8FF`, engine orange `#FF9A3C`, warning red `#FF4D4D` |
 | Crew | suit `#D8DBDF`, joints/gear `#3A3F46`, visor `#162030` + crew colour on the visor rim (#60) |
@@ -289,7 +282,7 @@ The palette becomes data (a palette asset the builders read) with the first asse
   - Cockpit: glass roof + windscreen on the cockpit block; the pilot sits in a tub sunk into the hull (Kenney chair, Kenney console as dashboard with the six live screens, side stick + throttle as own objects).
   - Visual Features: one big exhaust in the stern cowl behind the cockpit, nose cannon mouth.
   - Palette: hull greys with orange accent panels (palette `accent`), cyan/orange glow.
-- **Mule (Cargo Hauler) (core):** low poly since #122: Quaternius "Spitfire" (CC0) recoloured; the Fab "DROPSHIP R35" (#97) stays as fallback.
+- **Mule *(dropped as a role 2026-10-17: no freighters; the model may become the heavy fighter, #113)*:** low poly since #122: Quaternius "Spitfire" (CC0) recoloured; the Fab "DROPSHIP R35" (#97) stays as fallback.
   - Silhouette: tall body at the stern, a long flat nose boom, stub wings out to two stacked engine pods per side.
   - Scale: 13.0m length, 18.2m width (engine pods), 5.3m height.
   - Cockpit: the raised glass wedge on the body's front, the same low-poly tub and fittings as the Dart. Cargo terminal at the stern.
@@ -416,7 +409,7 @@ VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impac
 | **Shield Depletion** | core | Heavy | Omnidirectional camera shudder 0.1m, decay 200ms | — | — | Full shield dome shatters into fading hexagonal glass shards | High-voltage electric crackle + sudden muffled low-pass filter | Sustained double buzz | High-priority danger signal warning player that hull is exposed |
 | **Hull Damage Taken** | core | Heavy | Hard directional shake toward incoming fire, decay 300ms | — | — | Screen-space crimson vignette flash, cockpit warning sirens flash red | Metallic hull tear + urgent two-tone alarm klaxon | Heavy jolt | Instantly directs player spatial awareness to the threat vector |
 | **Low Oxygen (<20%)** | core | Critical | Subtle rhythmic camera pulse synced to heartbeat | — | — | Tunnel-vision black/cyan vignette constricting at 1.0 Hz | Deep muffled biological heartbeat + heavy labored breathing | Throbbing low-frequency pulse | Evokes claustrophobia and urgent survival panic |
-| **Rift Proximity (finale; legacy: Collapse <800m)**| core | Critical | Persistent low-amplitude micro-tremor, intensity scales | — | — | Horizon blackens with violet electrical tendrils, screen edges warp | Deep subterranean 40Hz void rumble + cosmic static hiss | Continuous low hum | Relentless physical pressure during the escape home |
+| **Rift Proximity** *(dropped 2026-10-17)* | core | Critical | Persistent low-amplitude micro-tremor, intensity scales | — | — | Horizon blackens with violet electrical tendrils, screen edges warp | Deep subterranean 40Hz void rumble + cosmic static hiss | Continuous low hum | Relentless physical pressure during the escape home |
 | **Ship Planetary Landing** | core | Medium | Vertical bounce 0.15m downward, rebound settle 350ms | — | Landing struts compress 30%, slowly expand | Radial ring of surface dust particles billows outward | Deep cushioned pneumatic thud + gravel crunch | Solid low thud | Communicates the physical mass and touchdown stability of the vessel |
 | **Warp Engage (legacy: Jump Gate activation)** | core | Critical | Violent camera shake ramping over 4s to maximum | 0.05s freeze frame on transition | Ship vibrates violently, then streaks forward | Warp field flares to pure white lavender | Rising turbine crescendo snapping into absolute silence | Maximum rumble ramping to sudden cut | Climactic departure for the next galaxy |
 | **Station Seat Enter/Exit** | core | Light | Smooth camera blend into cockpit perspective (250ms) | — | Player hands grip controls | Diegetic console boots up, glowing vector readouts ignite | Heavy pneumatic chair latch + cockpit boot chime | Light click | Establishes transition between player pawn and ship pilot agency |
@@ -458,7 +451,7 @@ VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impac
 - **Alarm Taxonomy (Strict Sensory Separation):**
   - *Low Oxygen Alarm:* Rhythmic biological double-thud heartbeat (1.0 Hz, 80Hz center) coupled with player breathing and a gentle high-register vital monitor blip. Non-mechanical, purely physiological.
   - *Hull Critical Alarm (<25% HP):* High-urgency mechanical two-tone klaxon (780Hz alternating with 960Hz at 3.0 Hz cadence). Plays directly through cockpit speakers with an assertive stereo pan.
-  - *Rift Proximity Warning (finale; legacy Collapse <800m):* Ominous low-frequency seismic hum (35-55Hz) that vibrates continuously, punctuated by intermittent electrical crackle and rising metallic groaning.
+  - *Rift Proximity Warning (dropped 2026-10-17):* Ominous low-frequency seismic hum (35-55Hz) that vibrates continuously, punctuated by intermittent electrical crackle and rising metallic groaning.
   - *Shield Depleted Alert:* Single descending electrical zap (1200Hz down to 200Hz over 180ms) followed by an urgent buzz, signalling immediate vulnerability.
 - **Weapon & Impact Sound Design:**
   - *Mining Laser / Pick:* High-clarity ceramic "clink" with subtle harmonic ring. Randomized pitch variance (±12%) on every stroke to prevent acoustic fatigue.
@@ -470,7 +463,7 @@ VOIDWARD marries punchy, arcade-responsive action controls (snappy mining, impac
   - *Button Confirm / Engage:* Crisp tactile switch thud with a slight warm harmonic chime (520Hz, 45ms).
   - *Cancel / Backout:* Descending muted wood-click (480Hz down to 240Hz, 30ms).
   - *Loot Collect / Cha-Ching:* Two-note bright bell arpeggio (C6 to G6, 80ms) evoking positive arcade gratification.
-  - *Memory Fragment Accrual (formerly Stardust):* Ascending multi-tonal crystal cascade (3 notes, 120ms total).
+  - *Memory Fragment Accrual (dropped with the meta currency, #47):* Ascending multi-tonal crystal cascade (3 notes, 120ms total).
 
 ### Co-op Communication Affordances (Ping System)
 
