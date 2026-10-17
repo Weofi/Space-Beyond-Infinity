@@ -263,6 +263,7 @@ namespace Voidward.EditorTools
 
         static GameObject SavePrefab(GameObject go, bool network = true)
         {
+            if (previewOnly) return go;
             string path = PrefabDir + "/" + go.name + ".prefab";
             // Overwriting an existing NetworkObject prefab can leave GlobalObjectIdHash at 0; always create fresh.
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) AssetDatabase.DeleteAsset(path);
@@ -1064,6 +1065,8 @@ namespace Voidward.EditorTools
 
         static GameObject BuildDart()
         {
+            var lowPoly = LowPolyMesh("Ship_Dart_LP");
+            if (lowPoly != null) return BuildLowPolyDart(lowPoly);
             var fab = FabShipMesh();
             if (fab != null) return BuildFabDart(fab);
             var go = ShipRoot("Ship_Dart", ShipClass.Dart, 2000f, 4, 2);

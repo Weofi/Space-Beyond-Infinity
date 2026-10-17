@@ -26,10 +26,12 @@ SRC = os.path.join(ROOT, "Tools", "Blender", "Sources", "Quaternius")
 OUT = os.path.join(ROOT, "Assets", "_Project", "Art", "Models", "Ships", "LowPoly")
 PAL, GLOW = vw.load_palette()
 
-# canopy box in source units (Blender coords after the glTF import, nose = -Y): faces inside it that are dark = glass
+# canopy: either a box in source units (Blender coords after the glTF import, nose = -Y) whose dark faces are glass, or
+# glass_box = a box in Unity ship coordinates (after scaling) whose faces looking up or forward become glass
 SHIPS = {
-    "Dart": dict(src="Striker", out="Ship_Dart_LP", length=15.0,
-                 canopy=((-0.9, 0.9), (-3.6, -0.2), (-0.1, 1.3))),
+    # the Omen has no canopy of its own: the cockpit block in front of the stern cowl gets a glass roof and windscreen
+    "Dart": dict(src="Omen", out="Ship_Dart_LP", length=15.0, canopy=None,
+                 glass_box=((-1.05, 1.05), (0.45, 1.6), (-4.25, -2.2))),
     "Mule": dict(src="Spitfire", out="Ship_Mule_LP", length=13.0,
                  canopy=((-0.75, 0.75), (-1.2, 0.6), (0.0, 1.1))),
     "Nostos": dict(src="Imperial", out="Ship_Nostos_LP", length=54.0,
@@ -127,9 +129,6 @@ def build(key, cfg, preview):
             c = p.center
             if x0 <= c.x <= x1 and y0 <= c.y <= y1 and z0 <= c.z <= z1 and names[i] in ("hull_dark", "trim") and p.normal.z > -0.3:
                 glass.append(i)
-    gl = set(glass)
-    for i in gl:
-        names[i] = "glass"
 
     # scale to length (Y) and centre on the bounds
     bb = [Vector(c) for c in obj.bound_box]
@@ -140,6 +139,16 @@ def build(key, cfg, preview):
     for v in me.vertices:
         v.co = (v.co - ctr) * k
     me.update()
+    if cfg.get("glass_box"):
+        (x0, x1), (y0, y1), (z0, z1) = cfg["glass_box"]
+        for i, p in enumerate(me.polygons):
+            u = to_unity(p.center)
+            # Unity up = Blender +Z, Unity forward = Blender -Y
+            if x0 <= u[0] <= x1 and y0 <= u[1] <= y1 and z0 <= u[2] <= z1 and (p.normal.z > 0.45 or -p.normal.y > 0.45):
+                glass.append(i)
+    gl = set(glass)
+    for i in gl:
+        names[i] = "glass"
     write_contract(obj, names, {"glass": 0.9, "accent": 0.35, "hull_light": 0.3, "hull_mid": 0.3, "hull_dark": 0.25, "trim": 0.2})
 
     tris = sum(len(p.vertices) - 2 for p in me.polygons)
