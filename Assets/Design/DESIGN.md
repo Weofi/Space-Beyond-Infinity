@@ -19,7 +19,7 @@ Key dependencies between domains:
 1. **The way home is always visible:** the Home ETA shows how long the flight home takes with the current drive. Every new part lowers it measurably.
 2. **Raids are part of the world:** pick a target from the orbital scan or the galaxy map, fly there yourself, land, disembark, raid it (15-25 min), carry the loot back to the ship, lift off and dock at the Nostos. No mission menu, no loading screen, no separate mission mode (direction 2026-10-17).
 3. **Travel is gameplay:** no portals, no travel cutscenes, no warp button: every warp starts seamlessly when the crew flies out of a jump zone (#108). Reaching the next galaxy is a physical warp flight with long empty stretches and obstacles (asteroids, debris, anomalies). The pilot controls the pace (warp throttle); a better drive is really faster, but high speed has to be mastered. Landing and combat handle the same at every tier (#73).
-4. **Progress is your ship:** one continuous journey (campaign save), no runs and no resets. Every raid brings parts, materials and Exotic Matter; upgrading the Nostos, the Darts and above all the warp drive is the progression. Failing a raid costs its loot, never the journey (see "Endings and failure"). The time loop of #86 is dropped (2026-10-17).
+4. **Progress is your ship:** one continuous journey (campaign save), no runs and no resets. Every raid brings parts, materials and Exotic Matter. Two layers of progression (2026-10-17): **your own crew ship** (personal: modules, weapons, new ship classes up to multi-crew frigates) and **the Nostos** (shared: the hub and quest giver; its upgrades, above all the warp drive, open further areas). Failing a raid costs its loot, never the journey (see "Endings and failure"). The time loop of #86 is dropped (2026-10-17).
 5. **Co-op crew:** everyone flies their own ship by default; multi-seat ships split roles (pilot, gunner, engineer). Land, carry and fight together; revive each other.
 6. **Every galaxy is a mission:** clear goals (fuel for the jump, the galaxy's drive core, optional signals) instead of aimless wandering; each goal is an expedition with a structure.
 
@@ -48,12 +48,12 @@ A campaign over several sessions: an evening is two or three raids plus upgrades
 Balance as implemented in #78 (`WarpDriveDef` + `GalaxyDef.LegLength/LegFuel`, balanced build): leg time = leg length / core speed (Mk I 1, II 3, III 10, IV 25, V 60, Home 240); next galaxy 10 min with the core found there, skipping ~35-43 min, home: Mk I ~36 h, Mk II ~12 h, Mk III ~3.6 h, Mk IV ~80 min, Mk V ~30 min, Home Drive 5 min. Exotic Matter per leg 8/10/12/14/16, +25 % per skipped galaxy; tanks hold 12/20/30/42/56/75. Times assume a fitting build and good flying; poor navigation/cooling forces braking (intended grind). Skipping a galaxy costs much more flight time and exotic matter. Any drive can theoretically fly home (Mk I ~40 h, achievement "The Long Way").
 
 ### Core loop: the raid
-1. **Choose a target** aboard the Nostos: orbital scan or galaxy map show sites with type, threat and reward ("ice planet, mining outpost, guarded, drive part").
+1. **Choose a target** aboard the Nostos, the crew's quest giver: its bridge offers the targets it found (orbital scan, signals, galaxy map) with type, threat and reward ("ice planet, mining outpost, guarded, drive part").
 2. **Fly there:** with the Nostos into the system (jump zone hop, #108), then in the Darts (or a bigger ship) down to the planet. Interceptors, asteroids or a signal can get in the way.
 3. **Land and disembark:** find a landing spot; the parked ship is the retreat point and where the loot goes.
 4. **Raid (15-25 min):** play the site's objective (drill, salvage, ruin, nest, see "Galaxy missions"). The **alert level** rises with time and noise; staying longer is greedier and more dangerous.
 5. **Extract:** carry the loot to the ship, lift off (resets the alert level), fly back and dock.
-6. **Upgrade:** fit parts, craft, tune the drive -> the ship gets noticeably better and the Home ETA drops (#50, #55, #131).
+6. **Upgrade:** fit parts to your own ship (weapons, engines, shields, modules), build or salvage a better class, and put cores and Exotic Matter into the Nostos -> your ship gets noticeably better, the Nostos reaches further and the Home ETA drops (#50, #55, #113, #131).
 7. **Next:** another target in this galaxy, or the warp to the next galaxy through the **Galactic Rim** once drive and fuel allow it (or skip one through the skip zone, with lots of fuel). Galaxy changes are one-way; systems inside a galaxy can be revisited.
 
 ### Galaxy missions (#128) and expeditions (#129)
@@ -74,10 +74,12 @@ Every galaxy gives the crew three kinds of goals, shown in the galaxy map and th
   - **Nest / event / nomads:** shorter optional sites (#52, #39).
 - **Alert level (per planet):** rises with time, noise (shots, drilling, explosions) and failed objectives -> more and tougher spawns, finally an elite. Lift-off resets it (#45).
 
-### Ships and crew roles (#130)
-- **Default: every player flies their own ship** (Dart, one seat). Landing, combat and warp work solo or as a wing.
-- **Multi-seat ships** (Mule, Ark, later Nostos #49): one pilot, the others take turrets (gunner) or the engineer station (heat, shields, repairs).
-- **Warp flight:** the lead pilot sets the pace (throttle, cruise, drop-outs); every other pilot **flies their own ship inside the bubble** (dodging obstacles, shooting rocks and interceptors) instead of sitting in a fixed formation slot. Gunners in multi-seat ships shoot from their turrets. Leaving the bubble's corridor pulls the ship back (`WarpBubble.Pull`).
+### Ships, classes and progression (#113, #130, decided 2026-10-17)
+- **The Nostos = hub and quest giver (shared progress):** the crew's base in orbit. Its bridge offers the targets (missions/raids), it carries the warp drive, the workbench, the cryo pods and the docking clamps. Upgrading it (warp drive tiers and parts #131, scanner range, workbench/refinery tiers #55, more clamps/hangar) opens further areas: the next galaxy, harder systems, better targets. At 0 health it is disabled until repaired (#132).
+- **Crew ships = personal progress:** every player has their own ship and builds it up: weapons, engines, shields, armour, scanner, utility modules on hardpoints (#50), weapon variety and synergies (#44). Better hulls come from blueprints (#55) or salvaged wrecks.
+- **Ship classes (#113):** Dart (light fighter, 1 seat, start ship) -> heavy fighter (1-2 seats: pilot + gunner) -> multi-crew frigate (pilot, several gunners, engineer) -> later alien hulls with their own mechanics (#51). No freighters: loot fits into each ship's cargo hold; the Mule (cargo hauler) is dropped as a role.
+- **Multi-crew:** players can join a crewmate's bigger ship as gunner or engineer (heat, shields, repairs) instead of flying their own; a raid can mix solo ships and a crewed frigate.
+- **Warp flight:** the Nostos leads (its drive sets range and pace); every other pilot **flies their own ship inside the bubble** (dodging obstacles, shooting rocks and interceptors) instead of sitting in a fixed formation slot. Gunners in multi-seat ships shoot from their turrets. Leaving the bubble's corridor pulls the ship back (`WarpBubble.Pull`). Unpiloted ships dock at the Nostos (#49).
 
 ### Drive parts with trade-offs (#131)
 Each slot (Core, Navigation, Cooling, Tank) keeps its **tier** (Mk I-V, Home) and gets an optional **variant** with an upside and a downside, plus a rarity. Examples:
