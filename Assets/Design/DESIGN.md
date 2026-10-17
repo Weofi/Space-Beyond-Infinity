@@ -8,7 +8,7 @@ Key dependencies between domains:
 - UI accent colors and HUD styling derive directly from galaxy color palettes defined in Asset Design.
 - Diegetic cockpit dashboards and holographic station consoles bridge physical Asset Design and tactile UI interaction.
 - The Home ETA is the central progress readout: every fitted part lowers it visibly (HUD, galaxy map, home ship dashboard).
-- System pressure comes from the alien alert level (HUD meter, music threat, spawns); the Rift (former Collapse) only drives the finale.
+- System pressure comes from the alien alert level (HUD meter, music threat, spawns); the Rift is dropped (2026-10-17).
 - Every element is tagged as either `(core)` for the lean playable vertical slice or `(optional)` for secondary expansion.
 
 ---
@@ -102,10 +102,10 @@ System types: planetary system, asteroid/wreck field, anomaly, Warden enclave (g
 - **Homecoming:** flight home done, Sol reached, Earth approached and landed at the mission's landing site, all flown by the crew; closing shot: the same family and news show as the intro, "The crew of SELENE-4 is back" (#88). The campaign ends there.
 - **Down, not dead (#132):** a player at 0 health goes down with a bleed-out window (~45 s); a crewmate revives them by holding [F] (~4 s). A player who bleeds out wakes in their cryo pod aboard the Nostos.
 - **Failed raid (#132):** the whole landing party down (or the parked ship destroyed with nobody left to revive): everyone wakes in the cryo pods of the Nostos. **The loot of this raid is lost, the ship stays:** the landed ship remains as a wreck at the landing site and can be salvaged by flying back (a second chance at the cargo and the ship's fittings). The journey, the drive and everything stored aboard the Nostos stay.
-- **Nostos destroyed:** the crew wakes in the escape pods at the last docking position; the Nostos is badly damaged (heavy repair costs), not lost. Details in #132.
+- **Nostos destroyed:** open (#132).
 - **Story intro (#109, #87, first start only, skippable):** a family at home watches the evening news: "Today the crew of the moon mission SELENE-4 returns to Earth." The camera moves into the live picture on the TV and lands in the cockpit on the return flight (Earth in the window, radio with Mission Control, short playable flight tutorial). An anomaly opens and pulls the ship in; short cut back: the TV shows "SIGNAL LOST". Waking in M33: "Distance to Earth: 2.73 million light-years", the Home ETA appears for the first time.
 - The wormhole is a natural phenomenon, not a villain, and it does not loop time (dropped 2026-10-17). Lore: crew logbook, alien ruins, codex entries (#89).
-- **The Rift** (former Collapse): the climax of the finale (flight home = escape from the Rift) and a rare hazard. What being caught means without the loop is open (#132).
+- **The Rift is dropped** (2026-10-17, with the time loop): the flight home is the longest warp flight with the densest hazards, no chaser. The Rift code from #81 is removed in #132.
 
 ### Enemies: nature and aliens only
 No pirates, no humans. Fauna (#39) is neutral to predatory and guards nests and resources. Each galaxy has its own alien ecosystem (#51: swarm, crystal beings, void creatures ...). The **Wardens** are an ancient biomechanical species hoarding warp cores and tech; one enclave per galaxy guards the best drive core (#42). Optional trade with neutral alien nomads for salvage.
@@ -133,7 +133,7 @@ German terms are the design language (issues, discussion), English terms are use
 | Bergungsgut | Salvage | `Salvage` | Credits |
 | Exotische Materie | Exotic matter | `ExoticMatter` | Energy Cells (as travel resource) |
 | Waechter | Wardens | `Warden` | The Warden (single boss) |
-| Riss | The Rift | `Rift` | The Collapse |
+| Riss *(dropped 2026-10-17, code removed in #132)* | The Rift | `Rift` | The Collapse |
 | Schleife *(dropped 2026-10-17, code removed in #132)* | Loop | `Loop`, `LoopIndex` | Run (meta view) |
 | Erinnerungsfragmente *(meta currency, dropped with the loop; #47 decides)* | Memory fragments | `Memories` | Stardust |
 | Logbuch | Logbook | `Logbook` | Hangar |
