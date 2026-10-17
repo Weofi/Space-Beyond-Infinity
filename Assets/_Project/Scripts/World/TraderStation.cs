@@ -86,8 +86,8 @@ namespace Voidward.World
             }
         }
 
-        public static int BuyPrice(ItemDef d) => Mathf.Max(1, d.CreditValue);
-        public static int SellPrice(ItemDef d) => Mathf.Max(1, Mathf.RoundToInt(d.CreditValue * SellRatio));
+        public static int BuyPrice(ItemDef d) => Mathf.Max(1, d.SalvageValue);
+        public static int SellPrice(ItemDef d) => Mathf.Max(1, Mathf.RoundToInt(d.SalvageValue * SellRatio));
 
         bool InRange(NetInventory inv) =>
             inv != null && (Vector3.Distance(inv.transform.position, transform.position) < UseRange);
@@ -100,9 +100,9 @@ namespace Voidward.World
             if (!InRange(inv) || stockIndex < 0 || stockIndex >= Stock.Count) return;
             var d = Stock[stockIndex];
             int price = BuyPrice(d);
-            if (inv.Credits.Value < price) { Feedback(c, "Not enough Credits", "ui_back"); return; }
+            if (inv.Salvage.Value < price) { Feedback(c, "Not enough Salvage", "ui_back"); return; }
             if (inv.SpaceFor(d.Id) < 1) { Feedback(c, "Inventory full", "ui_back"); return; }
-            inv.Credits.Value -= price;
+            inv.Salvage.Value -= price;
             inv.Add(d.Id, 1);
             Feedback(c, "Bought " + d.DisplayName, "trade");
         }
@@ -119,7 +119,7 @@ namespace Voidward.World
             int n = all ? st.Count : 1;
             if (!inv.Remove(d.Id, n)) return;
             int gain = SellPrice(d) * n;
-            inv.Credits.Value += gain;
+            inv.Salvage.Value += gain;
             Feedback(c, $"Sold {n}x {d.DisplayName} (+{gain})", "trade");
         }
 
@@ -133,8 +133,8 @@ namespace Voidward.World
             if (ship == null || Vector3.Distance(ship.transform.position, transform.position) > 300f)
                 ship = ShipCore.Nearest(transform.position, 300f);
             if (ship == null) { Feedback(c, "Bring a ship close to the station", "ui_back"); return; }
-            if (inv.Credits.Value < ServiceCost) { Feedback(c, "Not enough Credits", "ui_back"); return; }
-            inv.Credits.Value -= ServiceCost;
+            if (inv.Salvage.Value < ServiceCost) { Feedback(c, "Not enough Salvage", "ui_back"); return; }
+            inv.Salvage.Value -= ServiceCost;
             ship.RestoreServer(true, true);
             Feedback(c, $"{ship.ShipName.Value} repaired & refueled", "heal");
         }

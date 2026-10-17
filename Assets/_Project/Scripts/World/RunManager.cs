@@ -378,7 +378,7 @@ namespace Voidward.World
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerAbort();
             director.Clear();
             ClearShips();
-            foreach (var p in PlayerPawn.All) if (p != null) { p.SetActiveServer(false); p.Inventory.ClearAll(); p.Inventory.Credits.Value = 0; }
+            foreach (var p in PlayerPawn.All) if (p != null) { p.SetActiveServer(false); p.Inventory.ClearAll(); p.Inventory.Salvage.Value = 0; }
             RunSeed.Value = 0;
             BossActive.Value = false;
             if (WarpFlight.Instance != null) WarpFlight.Instance.ServerResetJumps();
@@ -445,12 +445,12 @@ namespace Voidward.World
             stats.GalaxyReached = GalaxyIndex.Value;
             stats.DistanceTraveled = distanceDone + Mathf.Max(0f, maxXThisSystem - (director.Layout != null ? director.Layout.StartX : 0f));
             stats.RunTimeSeconds = RunTime;
-            stats.StardustEarned = stats.ComputeStardust();
+            stats.MemoriesEarned = stats.ComputeMemories();
             RunClockBase.Value = RunTime;
             Phase.Value = victory ? GamePhase.DemoComplete : GamePhase.GameOver;
             RunSave.Delete(); // one slot, no reloading after death (and nothing left to resume after the homecoming)
             foreach (var p in PlayerPawn.All) if (p != null) { var s = ShipSeat.SeatOf(p.OwnerClientId); if (s) s.Vacate(); }
-            RunEndedClientRpc(stats.Victory, stats.EndReason, stats.GalaxyReached, stats.DistanceTraveled, stats.Kills, stats.LootCollected, stats.StardustEarned, stats.RunTimeSeconds,
+            RunEndedClientRpc(stats.Victory, stats.EndReason, stats.GalaxyReached, stats.DistanceTraveled, stats.Kills, stats.LootCollected, stats.MemoriesEarned, stats.RunTimeSeconds,
                 stats.Loop, stats.DriveTier, stats.HomeEtaMinutes, stats.Log);
         }
 
@@ -460,7 +460,7 @@ namespace Voidward.World
             var s = new RunSummary
             {
                 Victory = victory, EndReason = reason, GalaxyReached = galaxy, DistanceTraveled = dist,
-                Kills = kills, LootCollected = loot, StardustEarned = dust, RunTimeSeconds = time,
+                Kills = kills, LootCollected = loot, MemoriesEarned = dust, RunTimeSeconds = time,
                 Loop = loop, DriveTier = driveTier, HomeEtaMinutes = eta, Log = logText
             };
             Meta.RecordRun(s);
@@ -793,7 +793,7 @@ namespace Voidward.World
                 if (pawn == null || !pawn.Active.Value) continue;
                 var ps = new PlayerSave
                 {
-                    Name = NameOf(pawn.OwnerClientId), Credits = pawn.Inventory.Credits.Value, Items = SaveItems(pawn.Inventory),
+                    Name = NameOf(pawn.OwnerClientId), Salvage = pawn.Inventory.Salvage.Value, Items = SaveItems(pawn.Inventory),
                     Suit = pawn.Gear.SuitTier.Value, Oxygen = pawn.Gear.OxygenTier.Value, Jetpack = pawn.Gear.JetpackTier.Value,
                     Drill = pawn.Gear.DrillTier.Value, Rifle = pawn.Gear.HasRifle.Value, BonusHp = pawn.Gear.BonusHp.Value, BonusOxygen = pawn.Gear.BonusOxygen.Value
                 };
@@ -856,7 +856,7 @@ namespace Voidward.World
             pawn.Gear.ResetServer();
             if (save != null)
             {
-                pawn.Inventory.Credits.Value = save.Credits;
+                pawn.Inventory.Salvage.Value = save.Salvage;
                 LoadItems(pawn.Inventory, save.Items);
                 pawn.Gear.SuitTier.Value = save.Suit; pawn.Gear.OxygenTier.Value = save.Oxygen;
                 pawn.Gear.JetpackTier.Value = save.Jetpack; pawn.Gear.DrillTier.Value = save.Drill;
@@ -864,10 +864,10 @@ namespace Voidward.World
             }
             else
             {
-                pawn.Inventory.Credits.Value = 80;
+                pawn.Inventory.Salvage.Value = 80;
                 if (lo.Has("reinforced_suit")) pawn.Gear.BonusHp.Value = 30f;
                 if (lo.Has("deep_lungs")) pawn.Gear.BonusOxygen.Value = 0.4f;
-                if (lo.Has("head_start")) pawn.Inventory.Credits.Value += 150;
+                if (lo.Has("head_start")) pawn.Inventory.Salvage.Value += 150;
                 if (lo.Has("spare_cells")) pawn.Inventory.Add(WarpDrive.ExoticId, 2);
                 if (lo.Has("salvager")) { pawn.Inventory.Add("scrap", 10); pawn.Inventory.Add("fuel", 5); }
                 if (lo.Has("rifle_start")) pawn.Gear.HasRifle.Value = true;
@@ -1126,7 +1126,7 @@ namespace Voidward.World
 
         static readonly string[] CheatNames =
         {
-            "God Mode (server) on/off", "Give resources + credits", "Warp to next system", "Spawn enemy near me",
+            "God Mode (server) on/off", "Give resources + salvage", "Warp to next system", "Spawn enemy near me",
             "Warp to next galaxy", "Wake a Warden near me", "Trigger random event", "Refill my ship"
         };
 
@@ -1163,7 +1163,7 @@ namespace Voidward.World
                     if (pawn == null) return;
                     foreach (var r in new[] { "ore", "crystal", "scrap", "fuel" }) pawn.Inventory.Add(r, 20);
                     pawn.Inventory.Add(WarpDrive.ExoticId, 20);
-                    pawn.Inventory.Credits.Value += 500;
+                    pawn.Inventory.Salvage.Value += 500;
                     break;
                 case 2:
                     ServerWarp((SystemIndex.Value + 1) % Plan.Systems.Length);

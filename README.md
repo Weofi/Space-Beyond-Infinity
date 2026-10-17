@@ -183,7 +183,7 @@ the system edge to the next system, or through the **Galactic Rim** of the outer
   offline, radiation in the open).
 * **Suspend save:** the host's run is saved when entering a galaxy and when leaving the session; *Continue
   Run* in the lobby resumes it (players are matched by name). The save is deleted when the run ends.
-* **Meta progression**: every run awards *Stardust* (distance, kills, galaxies, homecoming).
+* **Meta progression**: every run awards *Memory fragments* (distance, kills, galaxies, homecoming).
   Spend it in the **Hangar** on perks, the Mule ship and starting modules (saved locally).
   (Becomes memory fragments / the Logbook, #47.)
 
@@ -210,7 +210,7 @@ the system edge to the next system, or through the **Galactic Rim** of the outer
 | Pause | Esc | Esc |
 | Debug cheats | F1 | F1 |
 
-**F1 cheats** (host-authoritative): god mode, give resources + credits, warp to the next system, spawn enemy,
+**F1 cheats** (host-authoritative): god mode, give resources + salvage, warp to the next system, spawn enemy,
 warp to the next galaxy, wake a Warden nearby, trigger an event, refill ship. FPS counter included.
 
 ---
@@ -232,7 +232,7 @@ warp to the next galaxy, wake a Warden nearby, trigger an event, refill ship. FP
 * **Modules (23):** Engine Mk I–III (+Ark drive), Laser Mk I–III, Missile Pod Mk I–II,
   Flak Mk I–II, Shield Mk I–III, Hull Mk I–III, Cargo Mk I–II, Scanner Mk I–II, Fuel Tank Mk I–II.
 * **Gear (9):** Suit Mk II/III, Oxygen Tank Mk II/III, Jetpack Mk II/III, Drill Mk II/III, Pulse Rifle.
-* **Resources:** Ore, Crystal, Scrap, Fuel, Exotic Matter, Credits. 17 crafting recipes.
+* **Resources:** Ore, Crystal, Scrap, Fuel, Exotic Matter, Salvage (run currency). 17 crafting recipes.
 * **Warp drive parts (24):** Warp Core / Nav Computer / Cooling / Exotic Tank, each Mk I-V plus tier 6 (Home Drive core, Warden parts).
 * **Galaxies:** Triangulum (M33) → Andromeda (M31) → Barnard's Galaxy (NGC 6822) → Leo I → Large
   Magellanic Cloud → home, each with its own palette, biome pool, enemy mix and difficulty/loot tier,
@@ -260,7 +260,7 @@ Assets/_Project/
     World/        RunManager (run flow, galaxies/systems, warp, suspend save, stats), GalaxyGenerator (seeded
                   galaxy plans), SystemDirector (system content, spawns, events, Warden enclave), SystemLayout,
                   SystemVisuals (client-local asteroids/palette/journey sky), RunState/RunSave, TraderStation
-    Progression/  Meta (Stardust, perks, loadout, local save)
+    Progression/  Meta (Memory fragments, perks, loadout, local save)
     UI/           code-built uGUI/TMP screens (menu, lobby, hangar, settings, HUD, inventory, trade…)
   Editor/         ContentBuilder (data, materials), PrefabBuilder (meshes, prefabs), SceneBuilder
   Shaders/        ToonFlat (flat/toon), Planet, Ocean, Atmosphere (scattering), Clouds, NebulaSkybox,

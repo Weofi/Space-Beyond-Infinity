@@ -98,7 +98,7 @@ namespace Voidward.Dev
                 if (DevTest.LabRoot != null) { DevShots.Shot(name, DevTest.LabCam); DevTest.Log(name + " decals " + DevTest.DecalCount); }
                 else DevTest.Screen(name);
                 // Replicated run state for host/client comparisons (#78: the crew warp drive).
-                if (Voidward.World.RunManager.Instance != null) DevTest.Log($"{name} galaxy {GameState.GalaxyIndex} system {Voidward.World.RunManager.Instance.SystemIndex.Value} drive {DevTest.DriveInfo} | warp {DevTest.WarpInfo} | ships {DevTest.ShipsCruise} | crew {DevTest.CrewInfo}");
+                if (Voidward.World.RunManager.Instance != null) DevTest.Log($"{name} galaxy {GameState.GalaxyIndex} system {Voidward.World.RunManager.Instance.SystemIndex.Value} drive {DevTest.DriveInfo} | warp {DevTest.WarpInfo} | ships {DevTest.ShipsCruise} | crew {DevTest.CrewInfo} | salvage {DevTest.SalvageInfo}");
             }
         }
     }

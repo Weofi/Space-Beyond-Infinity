@@ -6,7 +6,7 @@ namespace Voidward.Core
     /// <summary>High-level game flow state (local, per client).</summary>
     public enum GamePhase { Boot, MainMenu, Lobby, Hangar, Playing, Paused, GameOver, DemoComplete }
 
-    /// <summary>Mineable / lootable resource types. Credits are tracked separately as currency.</summary>
+    /// <summary>Mineable / lootable resource types. Salvage is tracked separately as the run currency.</summary>
     public enum ResourceType { Ore, Crystal, Scrap, Fuel, ExoticMatter }
 
     public enum ItemKind { Resource, Module, Consumable, Gear, DriveComponent }

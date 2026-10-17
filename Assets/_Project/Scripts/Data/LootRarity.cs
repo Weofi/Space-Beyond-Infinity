@@ -6,7 +6,7 @@ namespace Voidward.Data
     public enum Rarity { Common, Uncommon, Rare, Epic }
 
     /// <summary>
-    /// Loot rarity (#43), derived from an item's credit value so it needs no extra data: raw resources are Common,
+    /// Loot rarity (#43), derived from an item's salvage value so it needs no extra data: raw resources are Common,
     /// cells / consumables Uncommon, Mk II gear and modules Rare, Mk III and better Epic. Drives the pickup
     /// colour, light beam, sparkle and sound.
     /// </summary>
@@ -15,7 +15,7 @@ namespace Voidward.Data
         public static Rarity Of(ItemDef d)
         {
             if (d == null) return Rarity.Common;
-            int v = d.CreditValue;
+            int v = d.SalvageValue;
             if (d.Kind == ItemKind.Gear && d.GearTier >= 3) return Rarity.Epic;
             if (v >= 250) return Rarity.Epic;
             if (v >= 100) return Rarity.Rare;

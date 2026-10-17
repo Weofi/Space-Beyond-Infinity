@@ -2,7 +2,7 @@
 
 VOIDWARD is a 1-4 player co-op space roguelite vertical slice. A routine moon mission is already on its way back to Earth - the families watch the return live on the news - when an anomaly (a wormhole) swallows the ship; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. Death sends the crew back to the wormhole exit in a time loop, memories intact. This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
 
-**Source of truth for gameplay decisions:** GitHub issue #72 (gameplan), with #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue, loop, homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates, Stardust), it is marked *(legacy)* and will be replaced by the issue that migrates it.
+**Source of truth for gameplay decisions:** GitHub issue #72 (gameplan), with #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue, loop, homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates), it is marked *(legacy)* and will be replaced by the issue that migrates it.
 
 Key dependencies between domains:
 - UI accent colors and HUD styling derive directly from galaxy color palettes defined in Asset Design.

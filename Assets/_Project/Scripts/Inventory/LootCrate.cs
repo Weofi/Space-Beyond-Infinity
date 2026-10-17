@@ -51,20 +51,20 @@ namespace Voidward.Inventory
                 if (part != null) results.Add(new KeyValuePair<ItemDef, int>(part, 1));
             }
 
-            int credits = Random.Range(10, 30) * t;
-            inv.Credits.Value += credits;
+            int salvage = Random.Range(10, 30) * t;
+            inv.Salvage.Value += salvage;
             Vector3 up = transform.up;
             foreach (var kv in results)
                 WorldPickup.SpawnServer(kv.Key.Id, kv.Value, transform.position + up * 1.2f + Random.insideUnitSphere);
-            OpenedClientRpc(transform.position, rp.Receive.SenderClientId, credits);
+            OpenedClientRpc(transform.position, rp.Receive.SenderClientId, salvage);
         }
 
         [ClientRpc]
-        void OpenedClientRpc(Vector3 pos, ulong who, int credits)
+        void OpenedClientRpc(Vector3 pos, ulong who, int salvage)
         {
             Sfx.Play("crate", pos);
             Vfx.PickupSparkle(pos + transform.up, new Color(1f, 0.85f, 0.4f));
-            if (NetworkManager.LocalClientId == who) EventBus.RaiseNotification($"+{credits} Credits");
+            if (NetworkManager.LocalClientId == who) EventBus.RaiseNotification($"+{salvage} Salvage");
         }
 
         public static LootCrate SpawnServer(Vector3 pos, Quaternion rot, int tier)

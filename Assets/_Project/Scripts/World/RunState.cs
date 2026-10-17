@@ -12,7 +12,7 @@ namespace Voidward.World
     [Serializable]
     public class RunState
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
 
         public int Version = CurrentVersion;
         public int RunSeed;
@@ -32,6 +32,7 @@ namespace Voidward.World
         public float Exotic;
         /// <summary>Time loop (#86, version 3): the loop this run is and its crew logbook so far (v2 saves: loop from the host's meta).</summary>
         public int Loop;
+        // Version 4 (#112): PlayerSave.Credits became Salvage (RunSave.Migrate).
         public List<string> Log = new List<string>();
         public List<PlayerSave> Players = new List<PlayerSave>();
         public List<ShipSave> Ships = new List<ShipSave>();
@@ -48,7 +49,7 @@ namespace Voidward.World
     public class PlayerSave
     {
         public string Name;
-        public int Credits;
+        public int Salvage;
         public List<ItemSave> Items = new List<ItemSave>();
         public int Suit = 1, Oxygen = 1, Jetpack = 1, Drill = 1;
         public bool Rifle;

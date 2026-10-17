@@ -396,7 +396,7 @@ namespace Voidward.Core
             clips["spawn"] = Make("spawn", 0.5f, (t, u, r) => Sin(Mathf.Lerp(200f, 700f, u), t) * 0.25f * Env(u, 0.05f));
             clips["boss_roar"] = Make("boss_roar", 2.5f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.03f); return (Sq(Mathf.Lerp(55f, 40f, u) + Sin(5f, t) * 6f, t) * 0.25f + lp * 1.2f) * Env(u, 0.1f); }, 6);
             clips["boss_shot"] = Make("boss_shot", 0.4f, (t, u, r) => Sin(Mathf.Lerp(300f, 80f, u), t) * 0.5f * Env(u, 0.01f));
-            clips["stardust"] = Make("stardust", 0.8f, (t, u, r) => (Sin(1568f, t) + Sin(2093f, t) * Sin(4f, t)) * 0.15f * Env(u, 0.02f));
+            clips["memories"] = Make("memories", 0.8f, (t, u, r) => (Sin(1568f, t) + Sin(2093f, t) * Sin(4f, t)) * 0.15f * Env(u, 0.02f));
             clips["atmo_entry"] = Make("atmo_entry", 2f, (t, u, r) => { lp = Mathf.Lerp(lp, Noise(r), 0.02f + u * 0.1f); return lp * 2f * Mathf.Sin(Mathf.PI * u); }, 7);
             clips["crate"] = Make("crate", 0.25f, (t, u, r) => (Noise(r) * 0.3f + Sin(160f, t) * 0.5f) * Env(u, 0.003f));
             clips["seat"] = Make("seat", 0.3f, (t, u, r) => (Sin(220f, t) * 0.3f + Sin(330f, t) * 0.2f * (u > 0.5f ? 1 : 0)) * Env(u, 0.01f));

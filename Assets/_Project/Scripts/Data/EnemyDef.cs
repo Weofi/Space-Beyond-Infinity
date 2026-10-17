@@ -24,7 +24,8 @@ namespace Voidward.Data
         public float PursuitRange;
         [Tooltip("Below this HP fraction the enemy may flee.")]
         public float FleeThreshold;
-        public int StardustKills = 1;
+        [Tooltip("Salvage weight of a kill (x 6 x galaxy tier goes to the killer).")]
+        public int KillReward = 1;
         public LootTable Loot;
         public float Scale = 1f;
         [Tooltip("Preferred spawn distance band around the corridor (world gen hint).")]

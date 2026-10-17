@@ -569,7 +569,7 @@ namespace Voidward.UI
             return new Shot
             {
                 Title = "Trader station",
-                Body = "Buy Exotic Matter, drive parts, modules and fuel, sell what you find and repair your ship. Credits come from salvage and loot.",
+                Body = "Buy Exotic Matter, drive parts, modules and fuel, sell what you find and repair your ship. Salvage comes from wrecks, crates and kills.",
                 Label = "TRADER STATION", Highlight = c,
                 Duration = 4.5f,
                 FromPos = c + Quaternion.AngleAxis(30f, Vector3.up) * toAnchor * 120f + Vector3.up * 30f,

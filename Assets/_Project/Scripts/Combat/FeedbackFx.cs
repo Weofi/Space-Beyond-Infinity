@@ -307,11 +307,11 @@ namespace Voidward.Combat
         /// <summary>A perk was unlocked (hangar): rising fanfare. The UI plays the matching card burst.</summary>
         public static void PerkUnlocked() => Sfx.PlayUI("unlock", 1f);
 
-        /// <summary>Results screen Stardust count-up: one tick per step (pitch climbs with progress 0..1).</summary>
-        public static void StardustTick(float progress01) => Sfx.Play2D("blip", 0.5f, 1.4f + progress01 * 0.8f);
+        /// <summary>Results screen Memories count-up: one tick per step (pitch climbs with progress 0..1).</summary>
+        public static void MemoriesTick(float progress01) => Sfx.Play2D("blip", 0.5f, 1.4f + progress01 * 0.8f);
 
         /// <summary>Count-up finished: chime, plus a sparkle burst in the UI.</summary>
-        public static void StardustDone(int amount) => Sfx.PlayUI(amount > 0 ? "stardust" : "ui_back", 1f);
+        public static void MemoriesDone(int amount) => Sfx.PlayUI(amount > 0 ? "memories" : "ui_back", 1f);
 
         /// <summary>Local, visual-only hit-stop (camera + effects hold). Scaled by the player setting.</summary>
         public static void HitStop(float seconds)

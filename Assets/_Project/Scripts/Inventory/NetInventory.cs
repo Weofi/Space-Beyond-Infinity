@@ -34,19 +34,19 @@ namespace Voidward.Inventory
     /// <summary>
     /// Server-authoritative grid inventory (players and ship cargo). Slots are a NetworkList so
     /// every client renders the grid; all mutations go through the server.
-    /// Players additionally hold Credits.
+    /// Players additionally hold Salvage (the run currency).
     /// </summary>
     public class NetInventory : NetworkBehaviour
     {
         public int Width = 6;
         public int Height = 4;
-        [Tooltip("Player inventories carry credits; ship cargo does not.")]
+        [Tooltip("Player inventories carry salvage; ship cargo does not.")]
         public bool IsPlayerInventory = true;
 
         public NetworkList<ItemStack> Slots;
-        public NetworkVariable<int> Credits = new NetworkVariable<int>(0);
+        public NetworkVariable<int> Salvage = new NetworkVariable<int>(0);
 
-        /// <summary>Every client: slots or credits changed.</summary>
+        /// <summary>Every client: slots or salvage changed.</summary>
         public event Action Changed;
         /// <summary>Server: a slot's item was "used" (consumables/gear). Return true if consumed.</summary>
         public Func<ItemDef, bool> UseHandler;
@@ -68,19 +68,19 @@ namespace Voidward.Inventory
         {
             if (IsServer && Slots.Count == 0) Resize(Width * Height);
             Slots.OnListChanged += OnListChanged;
-            Credits.OnValueChanged += OnCreditsChanged;
+            Salvage.OnValueChanged += OnSalvageChanged;
             all.Add(this);
         }
 
         public override void OnNetworkDespawn()
         {
             Slots.OnListChanged -= OnListChanged;
-            Credits.OnValueChanged -= OnCreditsChanged;
+            Salvage.OnValueChanged -= OnSalvageChanged;
             all.Remove(this);
         }
 
         void OnListChanged(NetworkListEvent<ItemStack> e) => Changed?.Invoke();
-        void OnCreditsChanged(int a, int b) => Changed?.Invoke();
+        void OnSalvageChanged(int a, int b) => Changed?.Invoke();
 
         /// <summary>Server: grow/shrink slot count (cargo modules). Shrinking drops nothing — overflow slots stay until emptied.</summary>
         public void Resize(int count)

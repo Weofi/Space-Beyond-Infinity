@@ -37,7 +37,7 @@ namespace Voidward.Data
 
         [Header("Economy")]
         public bool Purchasable;
-        public int CreditCost = 0;
+        public int SalvageCost = 0;
 
         [Header("Starting loadout (module item ids, may be empty)")]
         public string[] StartingModuleItemIds = { "module_engine_mk1", "module_weapon_laser_mk1" };

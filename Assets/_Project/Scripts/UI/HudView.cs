@@ -84,7 +84,7 @@ namespace Voidward.UI
 
         // cards
         readonly TextMeshProUGUI objHeader, objText, objHint;
-        readonly TextMeshProUGUI sectorTitle, sectorName, respawnText, creditsText;
+        readonly TextMeshProUGUI sectorTitle, sectorName, respawnText, salvageText;
 
         // overlays
         readonly TextMeshProUGUI jumpText, deathText, o2Warn;
@@ -345,10 +345,10 @@ namespace Voidward.UI
             UIKit.Place(respIcon.rectTransform, new Vector2(0, 0), new Vector2(14, 10), new Vector2(24, 26), new Vector2(0, 0));
             respawnText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Left, HudKit.TextHead, FontStyles.Bold);
             UIKit.Place(respawnText.rectTransform, new Vector2(0, 0), new Vector2(42, 10), new Vector2(150, 26), new Vector2(0, 0));
-            var credIcon = UIKit.IconText(sec, Icons.Credits, 20, HudKit.Hex(0xFCD34D));
+            var credIcon = UIKit.IconText(sec, Icons.Salvage, 20, HudKit.Hex(0xFCD34D));
             UIKit.Place(credIcon.rectTransform, new Vector2(1, 0), new Vector2(-16, 10), new Vector2(24, 26), new Vector2(1, 0));
-            creditsText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Right, HudKit.Hex(0xFCD34D), FontStyles.Bold);
-            UIKit.Place(creditsText.rectTransform, new Vector2(1, 0), new Vector2(-44, 10), new Vector2(150, 26), new Vector2(1, 0));
+            salvageText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Right, HudKit.Hex(0xFCD34D), FontStyles.Bold);
+            UIKit.Place(salvageText.rectTransform, new Vector2(1, 0), new Vector2(-44, 10), new Vector2(150, 26), new Vector2(1, 0));
 
             // ---------------------------------------------------------- toasts (top-right, below the sector card)
             toastLayer = UIKit.Rect(root, "Toasts");
@@ -520,7 +520,7 @@ namespace Voidward.UI
                 UpdateHotbar(pawn);
                 UpdateCentre(pawn);
                 UpdateShip(pawn);
-                creditsText.text = HudKit.Num(HudKit.F(pawn.Inventory.Credits.Value, "N0"));
+                salvageText.text = HudKit.Num(HudKit.F(pawn.Inventory.Salvage.Value, "N0"));
                 UpdateDeath(pawn);
             }
 

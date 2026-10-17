@@ -15,7 +15,7 @@ namespace Voidward.Data
         [Tooltip("Only for Kind=Resource.")]
         public ResourceType Resource;
         public int MaxStack = 99;
-        public int CreditValue = 5;
+        public int SalvageValue = 5;
         [Tooltip("Accent colour for item names and fallback swatches.")]
         public Color Tint = Color.white;
         [Tooltip("Generated (ContentBuilder item art): UI icon rendered from Model.")]
