@@ -347,7 +347,7 @@ namespace Voidward.AI
             if (info.ByPlayer)
             {
                 var inv = NetInventory.ForClient(info.SourceClientId);
-                if (inv != null) inv.Credits.Value += Mathf.RoundToInt((def != null ? def.StardustKills : 1) * 6 * tier);
+                if (inv != null) inv.Salvage.Value += Mathf.RoundToInt((def != null ? def.KillReward : 1) * 6 * tier);
             }
             DeathClientRpc(transform.position, def != null && def.IsSpace);
             NetworkObject.Despawn(true);

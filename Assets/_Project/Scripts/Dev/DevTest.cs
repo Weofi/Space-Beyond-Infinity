@@ -702,6 +702,18 @@ namespace Voidward.Dev
             }
         }
 
+        /// <summary>Run currency per pawn as this peer sees it (#112): "0:80 1:105".</summary>
+        public static string SalvageInfo
+        {
+            get
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var p in PlayerPawn.All)
+                    if (p != null) sb.Append(sb.Length > 0 ? " " : "").Append(p.OwnerClientId).Append(':').Append(p.Inventory.Salvage.Value);
+                return sb.ToString();
+            }
+        }
+
         /// <summary>
         /// Crew bodies as this peer sees them (#95): "owner:mode/tool/used speed state" per pawn, e.g.
         /// "0:Ground/1/0 4.2 Move 1:seat Pilot Sit" (seated pawns show their seat body's state).
@@ -1051,18 +1063,18 @@ namespace Voidward.Dev
         public static string MusicState => $"threat {Threat.Level:0.00} boss {Threat.BossNear} | combat {AudioManager.CombatMix:0.00} bossMix {AudioManager.BossMix:0.00}";
         public static void LogMusic(string tag) => Log("music " + tag + " " + MusicState);
 
-        /// <summary>Local meta save: add Stardust (perk unlock tests in the Hangar). Call BackupMeta first: this is the real save.</summary>
-        public static void AddStardust(int amount) { Meta.Data.Stardust += amount; Meta.Save(); }
+        /// <summary>Local meta save: add Memories (perk unlock tests in the Hangar). Call BackupMeta first: this is the real save.</summary>
+        public static void AddMemories(int amount) { Meta.Data.Memories += amount; Meta.Save(); }
 
         static string metaBackup;
-        /// <summary>Snapshot the local meta save (Stardust, perks) before a test that changes it; RestoreMeta puts it back.</summary>
+        /// <summary>Snapshot the local meta save (Memories, perks) before a test that changes it; RestoreMeta puts it back.</summary>
         public static void BackupMeta() => metaBackup = JsonUtility.ToJson(Meta.Data);
         public static void RestoreMeta()
         {
             if (string.IsNullOrEmpty(metaBackup)) { Log("RestoreMeta: no backup"); return; }
             JsonUtility.FromJsonOverwrite(metaBackup, Meta.Data);
             Meta.Save();
-            Log("meta restored (stardust " + Meta.Data.Stardust + ")");
+            Log("meta restored (memories " + Meta.Data.Memories + ")");
         }
 
         // ------------------------------------------------------------------ planet survey (#70)

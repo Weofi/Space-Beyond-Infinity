@@ -596,7 +596,7 @@ namespace Voidward.UI
         public const string Store = "\uea12";
         public const string Warning = "\ue002";
         public const string Pin = "\ue55f";
-        public const string Credits = "\uf041";
+        public const string Salvage = "\uf041";
         public const string Respawn = "\ue863";
         public const string Speed = "\ue9e4";
         public const string Target = "\ue1b3";
@@ -605,6 +605,6 @@ namespace Voidward.UI
         public const string Diamond = "\uead5";
 
         public const string All = Rocket + Join + Hangar + Settings + Quit + Group + Invite + Back + Play + Refresh + Swap + Close + Pause + Replay + Flight + Star + Lan + Person
-            + Heart + Air + Bolt + Fuel + Shield + Wrench + Ship + Gate + Store + Warning + Pin + Credits + Respawn + Speed + Target + Danger + Explore + Diamond;
+            + Heart + Air + Bolt + Fuel + Shield + Wrench + Ship + Gate + Store + Warning + Pin + Salvage + Respawn + Speed + Target + Danger + Explore + Diamond;
     }
 }

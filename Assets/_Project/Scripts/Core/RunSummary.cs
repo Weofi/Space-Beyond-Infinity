@@ -2,7 +2,7 @@ using System;
 
 namespace Voidward.Core
 {
-    /// <summary>Stats collected during a run, shown on the loop reset / homecoming screen and converted to Stardust.</summary>
+    /// <summary>Stats collected during a run, shown on the loop reset / homecoming screen and converted to Memory fragments.</summary>
     [Serializable]
     public class RunSummary
     {
@@ -12,7 +12,7 @@ namespace Voidward.Core
         public float DistanceTraveled;
         public int Kills;
         public int LootCollected;
-        public int StardustEarned;
+        public int MemoriesEarned;
         public float RunTimeSeconds;
         /// <summary>The loop this run was (1-based, #86).</summary>
         public int Loop = 1;
@@ -23,8 +23,8 @@ namespace Voidward.Core
         /// <summary>Crew logbook of this loop, one "[h:mm:ss] text" entry per line.</summary>
         public string Log = "";
 
-        /// <summary>Stardust conversion: the meta currency earned by this run.</summary>
-        public int ComputeStardust()
+        /// <summary>Memory fragments: the meta currency earned by this run.</summary>
+        public int ComputeMemories()
         {
             float dust = DistanceTraveled * 0.005f + Kills * 2f + (GalaxyReached - 1) * 40f + (Victory ? 150f : 0f);
             return UnityEngine.Mathf.Max(0, UnityEngine.Mathf.RoundToInt(dust));

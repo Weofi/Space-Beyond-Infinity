@@ -279,7 +279,7 @@ namespace Voidward.EditorTools
             ModuleDef M(string id, string name, ModuleSlot slot, int tier, int value, Color tint, string desc, System.Action<ModuleDef> set)
             {
                 var m = Asset<ModuleDef>($"{DataDir}/Modules/{id}.asset");
-                m.Id = id; m.DisplayName = name; m.Slot = slot; m.Tier = tier; m.CreditValue = value; m.Tint = tint; m.Description = desc;
+                m.Id = id; m.DisplayName = name; m.Slot = slot; m.Tier = tier; m.SalvageValue = value; m.Tint = tint; m.Description = desc;
                 m.ThrustMult = 1f; m.TurnMult = 1f; m.BoostMult = 1f; m.WeaponDamageMult = 1f; m.FireRateMult = 1f; m.ShieldMaxAdd = 0; m.ShieldRegenAdd = 0;
                 m.HullMaxAdd = 0; m.CargoSlotsAdd = 0; m.ScannerRangeAdd = 0; m.FuelEfficiencyMult = 1f; m.FuelTankAdd = 0; m.Weapon = WeaponKind.None;
                 m.AimAssistAdd = 0; m.ExtraProjectiles = 0; m.HitboxMult = 1f;
@@ -330,7 +330,7 @@ namespace Voidward.EditorTools
         static ItemDef Item(string id, string name, ItemKind kind, int value, Color tint, string desc, int stack = 99)
         {
             var it = Asset<ItemDef>($"{DataDir}/Items/{id}.asset");
-            it.Id = id; it.DisplayName = name; it.Kind = kind; it.CreditValue = value; it.Tint = tint; it.Description = desc; it.MaxStack = stack;
+            it.Id = id; it.DisplayName = name; it.Kind = kind; it.SalvageValue = value; it.Tint = tint; it.Description = desc; it.MaxStack = stack;
             it.Module = null; it.Drive = null; it.Gear = GearKind.None; it.GearTier = 1; it.HealAmount = 0; it.SoldAtTrader = true;
             items[id] = it;
             return it;
@@ -366,7 +366,7 @@ namespace Voidward.EditorTools
 
             foreach (var (id, m) in moduleDefs)
             {
-                var it = Item(id, m.DisplayName, ItemKind.Module, m.CreditValue, m.Tint, m.Description, 1);
+                var it = Item(id, m.DisplayName, ItemKind.Module, m.SalvageValue, m.Tint, m.Description, 1);
                 it.Module = m;
                 if (id == "module_engine_ark" || m.Tier == 1 && (id.Contains("engine") || id.Contains("laser"))) it.SoldAtTrader = false;
             }
@@ -500,7 +500,7 @@ namespace Voidward.EditorTools
             {
                 var e = Asset<EnemyDef>($"{DataDir}/Enemies/Enemy_{k}.asset");
                 e.Kind = k; e.DisplayName = name; e.IsSpace = space; e.MaxHp = hp; e.MoveSpeed = speed; e.TurnSpeed = turn; e.Damage = dmg;
-                e.AttackRange = range; e.AttackCooldown = cd; e.AggroRange = aggro; e.FleeThreshold = flee; e.StardustKills = dust;
+                e.AttackRange = range; e.AttackCooldown = cd; e.AggroRange = aggro; e.FleeThreshold = flee; e.KillReward = dust;
                 e.Loot = lootId != null ? loot[lootId] : null; e.Scale = scale;
                 list.Add(e);
                 return e;

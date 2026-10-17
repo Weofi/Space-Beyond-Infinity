@@ -7,7 +7,7 @@ namespace Voidward.Core
     /// All clips are procedurally synthesized; ids are stable strings (see README/audio dev).
     /// Known ids: "laser","laser_ship","missile","flak","explosion","explosion_big","hit",
     /// "shield_hit","pickup","mine","craft","trade","ui_click","ui_back","ui_hover","alarm","low_oxygen",
-    /// "heal","jump_gate","jump_charge","landing","thud","ping","spawn","boss_roar","stardust",
+    /// "heal","jump_gate","jump_charge","landing","thud","ping","spawn","boss_roar","memories",
     /// "intro_swell","whoosh","radio","blip","highlight","rumble","hitmarker","hit_crit","kill",
     /// "loot_pop","loot_land","loot_land_rare","pickup_uncommon","pickup_rare","pickup_epic","unlock".
     /// Weapon ids ("laser","laser_ship","rifle","missile","flak") are layered: _core + _tail + _mech.

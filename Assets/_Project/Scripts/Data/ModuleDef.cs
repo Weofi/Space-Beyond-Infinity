@@ -15,7 +15,7 @@ namespace Voidward.Data
         [TextArea] public string Description = "";
         public ModuleSlot Slot = ModuleSlot.Engine;
         [Range(1, 3)] public int Tier = 1;
-        public int CreditValue = 100;
+        public int SalvageValue = 100;
         public Color Tint = Color.cyan;
 
         [Header("Stat modifiers (1 = no change for multipliers)")]
