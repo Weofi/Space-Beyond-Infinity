@@ -26,7 +26,7 @@ namespace Voidward.Networking
         public NetworkVariable<int> Kills = new NetworkVariable<int>(
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
-        public NetworkVariable<int> Stardust = new NetworkVariable<int>(
+        public NetworkVariable<int> Memories = new NetworkVariable<int>(
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         /// <summary>Crew colour slot (#60, <see cref="CrewPalette"/>), assigned by the server on spawn.</summary>
@@ -98,7 +98,7 @@ namespace Voidward.Networking
         public void AddKillServerRpc() => Kills.Value++;
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-        public void AddStardustServerRpc(int amount) => Stardust.Value += amount;
+        public void AddMemoriesServerRpc(int amount) => Memories.Value += amount;
 
         /// <summary>Server-side helper: assign the ship this player owns.</summary>
         public void SetShipServer(ulong shipNetId)

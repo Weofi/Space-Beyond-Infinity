@@ -30,7 +30,7 @@ namespace Voidward.Data
         public GameObject PlanetPrefab;
         public GameObject ShipDart;
         public GameObject ShipMule;
-        public GameObject ShipArk;
+        public GameObject ShipHome;
         public GameObject EnemyPirateFighter;
         public GameObject EnemyDrone;
         public GameObject EnemyGunship;
@@ -51,7 +51,6 @@ namespace Voidward.Data
         public GameObject FlakBurst;
         public GameObject SpitProjectile;
         public GameObject Meteor;
-        public GameObject DerelictArk;
         public GameObject GameDirector;
         public GameObject Wreck;
 
@@ -162,7 +161,7 @@ namespace Voidward.Data
             {
                 case ShipClass.Dart: return c.ShipDart;
                 case ShipClass.Mule: return c.ShipMule;
-                case ShipClass.Ark: return c.ShipArk;
+                case ShipClass.HomeShip: return c.ShipHome;
                 default: return null;
             }
         }

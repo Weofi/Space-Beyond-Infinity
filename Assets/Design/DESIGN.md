@@ -2,7 +2,7 @@
 
 VOIDWARD is a 1-4 player co-op space roguelite vertical slice. A routine moon mission is already on its way back to Earth - the families watch the return live on the news - when an anomaly (a wormhole) swallows the ship; the crew wakes up in the Triangulum Galaxy (M33) and has to find its way home through the Local Group: explore and loot alien planets, upgrade the ship and its warp drive, and fly galaxy by galaxy back to the Milky Way. Death sends the crew back to the wormhole exit in a time loop, memories intact. This document defines the gameplan and the design specifications across UI Design, Asset Design, and Game Feedback.
 
-**Source of truth for gameplay decisions:** GitHub issue #72 (gameplan), with #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue, loop, homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates, Stardust), it is marked *(legacy)* and will be replaced by the issue that migrates it.
+**Source of truth for gameplay decisions:** GitHub issue #72 (gameplan), with #46 (run structure & galaxies), #73 (warp drive & warp flight), #74 (prologue, loop, homecoming; story intro #109), #49 (home ship), #108 (seamless warps through jump zones). Where a spec below still describes the old loop (Collapse chase through 3 sectors, Jump Gates, Warden boss, pirates), it is marked *(legacy)* and will be replaced by the issue that migrates it.
 
 Key dependencies between domains:
 - UI accent colors and HUD styling derive directly from galaxy color palettes defined in Asset Design.
@@ -92,7 +92,7 @@ German terms are the design language (issues, discussion), English terms are use
 | Schleife | Loop | `Loop`, `LoopIndex` | Run (meta view) |
 | Erinnerungsfragmente | Memory fragments | `Memories` | Stardust |
 | Logbuch der Schleife | Logbook | `Logbook` | Hangar |
-| Heimatschiff | Home ship | `HomeShip` | Ark |
+| Heimatschiff | Home ship | `HomeShip` (`ShipClass.HomeShip`) | Ark |
 | Heimkehr | Homecoming | `Homecoming` | Demo Complete / victory |
 | Kryo-Kapsel | Cryo pod | `CryoPod` | Team respawns |
 
@@ -100,7 +100,7 @@ Note for UI text: TMP is ASCII-only, so on-screen German would need "ae/oe/ue"; 
 
 ### Names
 - **Mission:** *SELENE-4*, a routine lunar supply and survey mission.
-- **Home ship:** *Nostos* (Greek for "homecoming"), the mission's long-range transport; the Ark hull becomes the Nostos (#49).
+- **Home ship:** *Nostos* (Greek for "homecoming"), the mission's long-range transport; built from the Ark hull (#49).
 - **Crew callsigns** (player slots 1-4, matching ping colors): *Vega* (P1, blue), *Lyra* (P2, green), *Altair* (P3, yellow), *Deneb* (P4, magenta) - stars of the Summer Triangle and its neighbourhood, visible from home. Steam/player names stay visible next to them.
 
 ---
@@ -235,15 +235,17 @@ Direction since #91: **asset-based, detailed PBR sci-fi**. The procedural "styli
   - Cockpit: the upper nose is a smoked glass canopy; the pilot sits under it on a raised deck with the Dart's fittings (chair, consoles, side stick + throttle, dashboard with live screens). Cargo terminal at the ramp.
   - Visual Features: Four engine nozzles on the pods, chin laser under the nose, orange spine and pod armour.
   - Palette: Black and gunmetal plating with orange accents, cyan engine glow.
-- **Ark (Multi-Station Co-op Frigate, later the home ship Nostos) (core):** asset since #97 (Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci).
-  - Silhouette: Long hauler with a tall forward cab (bridge), a row of cargo pods on the spine, four engine nacelles on front and rear wings.
-  - Scale: 36.0m length, 24.9m width (wings), 8.0m height.
-  - Walkable Interior Architecture (one deck, Gravity Volumes):
-    1. *Bridge (cab):* raised pilot platform behind the wide front window (Dart fittings), flak turret station at the rear left; flak turret on the cab roof.
-    2. *Corridor (fuselage, 3 m wide):* fabricator and cargo lockers on the right wall, structural frames, light panels, pipe runs.
-    3. *Engineering nook (stern):* engineer console, laser turret station; laser turret on the tail.
-    4. *Airlock (left flank):* door between the wings with a boarding ramp down to the ground; hull access panel beside it.
-  - Derelict: the same ship, scorched and dark (no glow), red flickering emergency light inside until power is restored.
+- **Nostos (home ship, multi-station co-op transport) (core, #49):** the Ark hull of #97 (Sketchfab "SPACESHIP - CARGO" by Kerem Kavalci) at 1.5 x, interior from the "Sci-Fi Corridor - Revisited 2019" kit (Mesh Masters), cryo pods "Cryo LOD0" (Nikitos & 3130). The crew's ship from the first minute: it carries the warp drive (it leads every warp; parts and Exotic Matter are handled aboard), the cryo pods and the Darts; destroyed = the loop resets.
+  - Silhouette: Long hauler with a tall forward cab (bridge), a row of cargo racks on the spine, four engine nacelles on front and rear wings, a Dart docked on each wing.
+  - Scale: 54.0m length, 37.3m width (wings), 12.0m height.
+  - Walkable Interior Architecture (one deck at y -2.33, Gravity Volumes), stern to bow:
+    1. *Engine room:* the warp core (drive terminal: parts + Exotic Matter), engineer console (left), aft gunner station (right); laser turret on the tail.
+    2. *Cargo hall (corridor kit, 4.4 m wide):* airlock in the left flank with a boarding ramp, fabricator and cargo terminal (right), four hatches up to the docking clamps.
+    3. *Cryo bay:* four pods (one per player slot) - a fallen crew member who is not revived wakes here (costs a cryo charge).
+    4. *Bridge (cab):* raised pilot platform with a ramp behind the wide front window (Dart fittings, live screens), forward gunner station at the rear left; flak turret on the cab roof.
+  - Docking clamps: four, on the wing tops. Darts dock for every warp flight (automatically under the bubble's veil) or when a pilot eases into a free clamp (< 16 m, < 14 m/s); holding thrust launches them. Leaving the seat of a docked Dart puts the pilot at its hatch inside; the hatch boards it again.
+  - Landing: heavy - the descent is capped (6 m/s, easing to a crawl) and it only sets down on ground flatter than 14 deg (it hovers with a warning above steeper ground). Hardpoints for #50 are data on its `ShipDef`.
+  - Derelict look (unused in the loop): the same ship, scorched and dark (no glow), red flickering emergency light inside.
   - Palette: Gunmetal plating with tan trim, cyan glow; slate interior panels with cyan light strips and orange warning lights.
 - **Cockpit Dashboard Conventions (core):**
   - Diegetic instrumentation: Angled, detailed dashboard consoles positioned within player field of view.

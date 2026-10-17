@@ -10,8 +10,8 @@ namespace Voidward.Progression
     [Serializable]
     public class MetaSave
     {
-        public int Stardust;
-        public int TotalStardust;
+        public int Memories;
+        public int TotalMemories;
         public int Runs;
         public int Victories;
         public int BestSector;
@@ -50,7 +50,7 @@ namespace Voidward.Progression
         }
     }
 
-    /// <summary>Meta progression API: Stardust, perk unlocks, ship variant selection.</summary>
+    /// <summary>Meta progression API: Memories, perk unlocks, ship variant selection.</summary>
     public static class Meta
     {
         public const string MuleLicense = "mule_license";
@@ -60,7 +60,7 @@ namespace Voidward.Progression
         {
             new PerkDef(0, "reinforced_suit", "Reinforced Suit", 60, "+30 max health on foot."),
             new PerkDef(1, "deep_lungs", "Deep Lungs", 50, "+40% oxygen capacity."),
-            new PerkDef(2, "head_start", "Head Start", 40, "Start each run with +150 Credits."),
+            new PerkDef(2, "head_start", "Head Start", 40, "Start each run with +150 Salvage."),
             new PerkDef(3, "spare_cells", "Spare Exotics", 80, "Start with 2 Exotic Matter for the warp drive."),
             new PerkDef(4, MuleLicense, "Mule Hauler License", 100, "Unlocks the Mule: a tough cargo hauler with laser + flak and a big hold."),
             new PerkDef(5, "laser_mk2", "Prototype Laser", 120, "Start with a Laser Mk II installed."),
@@ -75,12 +75,16 @@ namespace Voidward.Progression
         {
             get
             {
-                if (data == null) data = SaveSystem.Load<MetaSave>(SaveKey);
+                if (data == null) data = SaveSystem.Load<MetaSave>(SaveKey, Migrate);
                 return data;
             }
         }
 
         public static event Action Changed;
+
+        /// <summary>Saves from before #112 call the meta currency Stardust: keep the value as Memories.</summary>
+        static string Migrate(string json) =>
+            json.Contains("\"Memories\"") ? json : json.Replace("\"Stardust\":", "\"Memories\":").Replace("\"TotalStardust\":", "\"TotalMemories\":");
 
         public static void Save()
         {
@@ -100,8 +104,8 @@ namespace Voidward.Progression
         public static bool TryUnlock(string id)
         {
             var p = Perk(id);
-            if (p == null || IsUnlocked(id) || Data.Stardust < p.Cost) return false;
-            Data.Stardust -= p.Cost;
+            if (p == null || IsUnlocked(id) || Data.Memories < p.Cost) return false;
+            Data.Memories -= p.Cost;
             Data.Unlocked.Add(id);
             if (id != MuleLicense) Data.Equipped.Add(id);
             Save();
@@ -137,8 +141,8 @@ namespace Voidward.Progression
         {
             Data.Runs++;
             if (s.Victory) Data.Victories++;
-            Data.Stardust += s.StardustEarned;
-            Data.TotalStardust += s.StardustEarned;
+            Data.Memories += s.MemoriesEarned;
+            Data.TotalMemories += s.MemoriesEarned;
             Data.BestSector = Mathf.Max(Data.BestSector, s.GalaxyReached); // best galaxy (field name kept for save compatibility)
             Data.BestDistance = Mathf.Max(Data.BestDistance, s.DistanceTraveled);
             // Closest a failed loop got to home (a homecoming counts in Victories).

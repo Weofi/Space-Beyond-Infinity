@@ -84,7 +84,7 @@ namespace Voidward.UI
 
         // cards
         readonly TextMeshProUGUI objHeader, objText, objHint;
-        readonly TextMeshProUGUI sectorTitle, sectorName, respawnText, creditsText;
+        readonly TextMeshProUGUI sectorTitle, sectorName, respawnText, salvageText;
 
         // overlays
         readonly TextMeshProUGUI jumpText, deathText, o2Warn;
@@ -100,7 +100,7 @@ namespace Voidward.UI
         readonly CrewHud crew;
 
         // world markers
-        readonly HudMarker stationMarker, arkMarker, shipMarker;
+        readonly HudMarker stationMarker, homeMarker, shipMarker;
         readonly HudMarker[] bossMarkers = new HudMarker[4];
         readonly List<HudMarker> pingMarkers = new List<HudMarker>();
         readonly List<HudMarker> siteMarkers = new List<HudMarker>();
@@ -132,7 +132,7 @@ namespace Voidward.UI
             UIKit.Stretch(markerLayer);
             damageArcs = new DamageIndicator(root);
             stationMarker = new HudMarker(markerLayer);
-            arkMarker = new HudMarker(markerLayer);
+            homeMarker = new HudMarker(markerLayer);
             shipMarker = new HudMarker(markerLayer);
             for (int i = 0; i < bossMarkers.Length; i++) bossMarkers[i] = new HudMarker(markerLayer);
             numbers = new DamageNumbers(markerLayer);
@@ -345,10 +345,10 @@ namespace Voidward.UI
             UIKit.Place(respIcon.rectTransform, new Vector2(0, 0), new Vector2(14, 10), new Vector2(24, 26), new Vector2(0, 0));
             respawnText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Left, HudKit.TextHead, FontStyles.Bold);
             UIKit.Place(respawnText.rectTransform, new Vector2(0, 0), new Vector2(42, 10), new Vector2(150, 26), new Vector2(0, 0));
-            var credIcon = UIKit.IconText(sec, Icons.Credits, 20, HudKit.Hex(0xFCD34D));
+            var credIcon = UIKit.IconText(sec, Icons.Salvage, 20, HudKit.Hex(0xFCD34D));
             UIKit.Place(credIcon.rectTransform, new Vector2(1, 0), new Vector2(-16, 10), new Vector2(24, 26), new Vector2(1, 0));
-            creditsText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Right, HudKit.Hex(0xFCD34D), FontStyles.Bold);
-            UIKit.Place(creditsText.rectTransform, new Vector2(1, 0), new Vector2(-44, 10), new Vector2(150, 26), new Vector2(1, 0));
+            salvageText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Right, HudKit.Hex(0xFCD34D), FontStyles.Bold);
+            UIKit.Place(salvageText.rectTransform, new Vector2(1, 0), new Vector2(-44, 10), new Vector2(150, 26), new Vector2(1, 0));
 
             // ---------------------------------------------------------- toasts (top-right, below the sector card)
             toastLayer = UIKit.Rect(root, "Toasts");
@@ -520,7 +520,7 @@ namespace Voidward.UI
                 UpdateHotbar(pawn);
                 UpdateCentre(pawn);
                 UpdateShip(pawn);
-                creditsText.text = HudKit.Num(HudKit.F(pawn.Inventory.Credits.Value, "N0"));
+                salvageText.text = HudKit.Num(HudKit.F(pawn.Inventory.Salvage.Value, "N0"));
                 UpdateDeath(pawn);
             }
 
@@ -542,7 +542,7 @@ namespace Voidward.UI
                     sectorTitle.text = $"GALAXY {rm.GalaxyIndex.Value}/{GalaxyDef.Count}  -  SYSTEM {rm.SystemIndex.Value + 1}/{(plan != null ? plan.Systems.Length : 0)}";
                     sectorName.text = sys != null ? sys.Name : "";
                 }
-                respawnText.text = HudKit.Num(rm.RespawnsLeft.Value.ToString()) + " <size=70%><color=#94A3B8>RESPAWNS</color></size>";
+                respawnText.text = HudKit.Num(rm.RespawnsLeft.Value.ToString()) + " <size=70%><color=#94A3B8>CRYO</color></size>";
                 string flightMsg = WarpMessage() ?? JumpMessage(pawn);
                 jumpPlate.gameObject.SetActive(flightMsg != null);
                 if (flightMsg != null) jumpText.text = flightMsg;
@@ -718,7 +718,7 @@ namespace Voidward.UI
                 float t = pawn.RespawnAt.Value - Time.time;
                 var rm0 = RunManager.Instance;
                 text = t > 0f
-                    ? $"YOU DIED\n<size=50%><color=#CBD5E1>Respawning in {HudKit.Num(Mathf.CeilToInt(t).ToString())}s   |   team respawns left: {(rm0 != null ? rm0.RespawnsLeft.Value : 0)}</color></size>"
+                    ? $"YOU DIED\n<size=50%><color=#CBD5E1>Waking in the cryo bay in {HudKit.Num(Mathf.CeilToInt(t).ToString())}s   |   cryo charges left: {(rm0 != null ? rm0.RespawnsLeft.Value : 0)}</color></size>"
                     : "YOU DIED\n<size=50%><color=#CBD5E1>Waiting for a ship to respawn at...</color></size>";
             }
             deathPlate.gameObject.SetActive(text.Length > 0);
@@ -957,12 +957,13 @@ namespace Voidward.UI
         {
             var st = TraderStation.Instance;
             stationMarker.Place(cam, markerLayer, st != null ? st.transform.position : (Vector3?)null, Icons.Store, "STATION", HudKit.Fuel, false);
-            var ark = FindArk();
-            arkMarker.Place(cam, markerLayer, ark != null ? ark.transform.position + ark.transform.up * 8f : (Vector3?)null, Icons.Rocket,
-                ark != null && ark.Derelict.Value ? "DERELICT ARK" : "ARK", UIKit.Accent2, false);
+            var home = ShipCore.Home;
+            bool inHome = home != null && pawn != null && (pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Ship == home || Vector3.Distance(home.transform.position, pawn.transform.position) < 30f);
+            homeMarker.Place(cam, markerLayer, home != null && !inHome ? home.transform.position + home.transform.up * 10f : (Vector3?)null, Icons.Rocket,
+                home != null ? home.ShipName.Value.ToString().ToUpperInvariant() : "", UIKit.Accent2, false);
 
             var own = OwnShip(pawn);
-            bool aboard = own != null && pawn != null && (pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Ship == own || Vector3.Distance(own.transform.position, pawn.transform.position) < 14f);
+            bool aboard = own != null && pawn != null && (pawn.CurrentShipSeat != null && pawn.CurrentShipSeat.Ship == own || Vector3.Distance(own.transform.position, pawn.transform.position) < 14f || own.Docked && inHome);
             shipMarker.Place(cam, markerLayer, own != null && !aboard ? own.transform.position + own.transform.up * 3f : (Vector3?)null, Icons.Ship, "YOUR SHIP", HudKit.Shield, true);
 
             UpdateBossMarkers(cam);
@@ -995,12 +996,6 @@ namespace Voidward.UI
                 string label = z.Label.ToUpperInvariant() + (held ? "  (" + JumpZones.BlockText(block, JumpZones.CrewMissing) + ")" : "");
                 jumpMarkers[i].Place(cam, markerLayer, z.Center, glyph, label, held ? Color.Lerp(z.Color, HudKit.Danger, 0.6f) : z.Color, z.Kind != JumpKind.Hop, 0.9f);
             }
-        }
-
-        static ShipCore FindArk()
-        {
-            foreach (var s in ShipCore.All) if (s != null && s.Class == ShipClass.Ark) return s;
-            return null;
         }
 
         static ShipCore OwnShip(PlayerPawn pawn) => pawn != null ? ShipCore.OwnedBy(pawn.OwnerClientId) : null;
@@ -1096,8 +1091,8 @@ namespace Voidward.UI
             var marks = new List<(string id, string glyph, Vector3 pos, Color c)>();
             var st = TraderStation.Instance;
             if (st != null) marks.Add(("station", Icons.Store, st.transform.position, HudKit.Fuel));
-            var ark = FindArk();
-            if (ark != null) marks.Add(("ark", Icons.Rocket, ark.transform.position, UIKit.Accent2));
+            var home = ShipCore.Home;
+            if (home != null) marks.Add(("home", Icons.Rocket, home.transform.position, UIKit.Accent2));
             var own = OwnShip(pawn);
             if (own != null && (pawn == null || pawn.CurrentShipSeat == null || pawn.CurrentShipSeat.Ship != own))
                 marks.Add(("ship", Icons.Ship, own.transform.position, HudKit.Shield));

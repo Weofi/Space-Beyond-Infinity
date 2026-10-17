@@ -92,7 +92,7 @@ namespace Voidward.UI
             if (!dirty) return;
             dirty = false;
             for (int i = 0; i < TabCount; i++) UIKit.SetButtonColor(tabs[i], (int)tab == i ? UIKit.Primary : UIKit.Secondary);
-            header.text = $"{pawn.Inventory.Credits.Value} credits   <size=70%><color=#b0b0d0>{(ship != null ? "Ship in range: " + ship.ShipName.Value : "No ship in range")}</color></size>";
+            header.text = $"{pawn.Inventory.Salvage.Value} salvage   <size=70%><color=#b0b0d0>{(ship != null ? "Ship in range: " + ship.ShipName.Value : "No ship in range")}</color></size>";
             Object.Destroy(body.gameObject);
             body = UIKit.Rect(panel, "Body");
             body.SetSiblingIndex(1);
@@ -239,7 +239,7 @@ namespace Voidward.UI
             var d = st.Def;
             if (d == null) { details.text = "Click an item to select it. Click another backpack slot to move/stack it. Tab closes."; return; }
             string extra = d.Module != null ? "\n" + d.Module.StatsSummary().Replace("\n", "  |  ") : "";
-            details.text = $"<b><color={UIKit.Hex(d.Tint)}>{d.DisplayName}</color></b>  x{st.Count}   <size=80%>value {d.CreditValue} cr</size>\n{d.Description}{extra}";
+            details.text = $"<b><color={UIKit.Hex(d.Tint)}>{d.DisplayName}</color></b>  x{st.Count}   <size=80%>value {d.SalvageValue} salvage</size>\n{d.Description}{extra}";
         }
 
         // ------------------------------------------------------------ ship tab
@@ -307,7 +307,7 @@ namespace Voidward.UI
                 count++;
             }
             if (count == 0) UIKit.Text(list, "No modules - find them in crates, buy them at stations or craft them.", 20, TextAlignmentOptions.Left, UIKit.TextDim);
-            details.text = "Modules change your ship's stats immediately. Weapons: Laser (fast), Missiles (homing), Flak (area). Targeting CPUs widen aim assist; Weapon Mods add shots, hit radius or fire rate. Big ships like the Ark have more slots for crew stations.";
+            details.text = "Modules change your ship's stats immediately. Weapons: Laser (fast), Missiles (homing), Flak (area). Targeting CPUs widen aim assist; Weapon Mods add shots, hit radius or fire rate. Big ships like the Nostos have more slots for crew stations.";
         }
 
         // ------------------------------------------------------------ warp drive tab (#78)

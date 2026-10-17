@@ -115,7 +115,7 @@ namespace Voidward.UI
         {
             LastSummary = s;
             CloseModals();
-            if (s.Victory) { Show(Screen.Results); Sfx.PlayUI("stardust"); return; }
+            if (s.Victory) { Show(Screen.Results); Sfx.PlayUI("memories"); return; }
             // A death is the time loop (#86): the Rift closes the picture first, then the logbook opens.
             Sfx.PlayUI("alarm");
             loop.Collapse(s, () => { if (GameState.Phase == GamePhase.GameOver) Show(Screen.Results); });

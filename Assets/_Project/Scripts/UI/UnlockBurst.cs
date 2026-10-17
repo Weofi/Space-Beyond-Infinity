@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace Voidward.UI
 {
     /// <summary>
-    /// UI celebration (#43) for perk unlocks and the Stardust reward: the target punches in scale, a glow flashes
+    /// UI celebration (#43) for perk unlocks and the Memories reward: the target punches in scale, a glow flashes
     /// over it and sparkles burst out along its length. Runs on unscaled time and removes itself when done.
     /// strength 0..1 = Reward effects setting (0 = only a short glow).
     /// </summary>

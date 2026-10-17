@@ -387,6 +387,9 @@ namespace Voidward.World
 
         ulong PickLead(ShipCore preferred)
         {
+            // The home ship carries the warp drive (#49): it leads every warp while it exists.
+            var home = ShipCore.Home;
+            if (home != null) return home.NetworkObjectId;
             if (preferred != null && preferred.IsSpawned) return preferred.NetworkObjectId;
             foreach (var seat in ShipSeat.All)
                 if (seat != null && seat.Role == StationRole.Pilot && seat.IsOccupied && seat.Ship != null && !seat.Ship.Derelict.Value) return seat.Ship.NetworkObjectId;
@@ -407,10 +410,11 @@ namespace Voidward.World
             var rot = Quaternion.LookRotation(WarpBubble.Axis);
             var positions = new Dictionary<ShipCore, Vector3>();
             var others = new List<ShipCore>();
-            foreach (var s in ShipCore.All) if (s != null && s.IsSpawned && s != lead) others.Add(s);
+            ServerDockForWarp(lead);
+            foreach (var s in ShipCore.All) if (s != null && s.IsSpawned && s != lead && !s.Docked) others.Add(s);
             others.Sort((a, b) => a.NetworkObjectId.CompareTo(b.NetworkObjectId));
             if (lead != null) positions[lead] = Vector3.zero;
-            for (int i = 0; i < others.Count; i++) positions[others[i]] = WarpBubble.FormationOffset(i + 1, others[i].Class == ShipClass.Ark);
+            for (int i = 0; i < others.Count; i++) positions[others[i]] = WarpBubble.FormationOffset(i + 1, others[i].IsHome);
             foreach (var kv in positions)
             {
                 kv.Key.GetComponent<NetTeleport>().ServerTeleport(kv.Value, rot);
@@ -421,6 +425,7 @@ namespace Voidward.World
                 if (pawn == null || !pawn.Active.Value || pawn.IsDown.Value || ShipSeat.SeatOf(pawn.OwnerClientId) != null) continue;
                 if (GravityVolume.At(pawn.transform.position) != null) continue; // carried by the interior it stands in
                 var own = ShipCore.OwnedBy(pawn.OwnerClientId);
+                if (own != null && own.Docked) own = lead;
                 Vector3 p = own != null && positions.TryGetValue(own, out var sp) ? sp + Vector3.up * 9f : new Vector3(-20f, 12f, 0f) + Random.insideUnitSphere * 6f;
                 pawn.GetComponent<NetTeleport>().ServerTeleport(p, rot);
             }

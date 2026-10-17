@@ -30,14 +30,14 @@ namespace Voidward.UI
         TextMeshProUGUI lobbyPlayers, lobbyInfo;
         Button startButton, continueButton, inviteButton, copyIdButton;
         // hangar
-        TextMeshProUGUI stardustLabel;
+        TextMeshProUGUI memoriesLabel;
         RectTransform perkList;
         Button dartButton, muleButton;
         // results
-        TextMeshProUGUI resultsTitle, resultsBody, resultsStardust, resultsLog;
-        // Results Stardust count-up (#43): starts after a short beat, ticks up, bursts when done.
-        int stardustTarget, stardustShown, stardustTotal;
-        float stardustStart = -1f, stardustNextTick;
+        TextMeshProUGUI resultsTitle, resultsBody, resultsMemories, resultsLog;
+        // Results Memories count-up (#43): starts after a short beat, ticks up, bursts when done.
+        int memoriesTarget, memoriesShown, memoriesTotal;
+        float memoriesStart = -1f, memoriesNextTick;
         string celebratePerk;
         Button resultsLobby, resultsNewLoop;
         // connecting
@@ -326,7 +326,7 @@ namespace Voidward.UI
             lobbyPlayers = UIKit.Text(listBg, "", 30);
             UIKit.Stretch(lobbyPlayers.rectTransform, 24, 24, 16, 16);
 
-            var tip = UIKit.Text(w, "Route home: <b>M33 > M31 > NGC 6822 > Leo I > LMC > Milky Way</b>\nEvery player flies their own ship. Find the derelict <b>Ark</b> to crew a big ship together.", 22, TextAlignmentOptions.Center, UIKit.Accent2);
+            var tip = UIKit.Text(w, "Route home: <b>M33 > M31 > NGC 6822 > Leo I > LMC > Milky Way</b>\nThe crew flies the <b>Nostos</b> home together; every player has a Dart docked at it.", 22, TextAlignmentOptions.Center, UIKit.Accent2);
             UIKit.LayoutElement(tip.gameObject, -1, 60);
 
             var row = UIKit.Row(w, 64);
@@ -356,7 +356,7 @@ namespace Voidward.UI
             string info = steam
                 ? "Steam lobby - invite friends via the button or the Steam overlay (Shift+Tab)." + (lobbyId != 0 ? $"\nLobby ID: <b>{lobbyId}</b>" : "")
                 : $"Direct IP - others join with <b>{LocalIp()}</b> : {TransportConfig.Port}";
-            lobbyInfo.text = info + $"\nLoop <b>{Meta.Loops + 1}</b>   Ship: <b>{Meta.SelectedShip}</b>   Stardust: <b>{Meta.Data.Stardust}</b>";
+            lobbyInfo.text = info + $"\nLoop <b>{Meta.Loops + 1}</b>   Ship: <b>{Meta.SelectedShip}</b>   Memory fragments: <b>{Meta.Data.Memories}</b>";
             startButton.interactable = nm.IsHost;
             UIKit.SetLabel(startButton, nm.IsHost ? (Meta.Loops == 0 && !RunSave.Exists ? "Start Mission" : "New Loop") : "Waiting for host...");
             continueButton.gameObject.SetActive(nm.IsHost && RunSave.Exists);
@@ -391,13 +391,13 @@ namespace Voidward.UI
         void BuildHangar(Transform root)
         {
             var w = Window(root, Screen.Hangar, new Vector2(1100, 900), "HANGAR");
-            stardustLabel = UIKit.Text(w, "", 30, TextAlignmentOptions.Center, UIKit.Warn);
-            UIKit.LayoutElement(stardustLabel.gameObject, -1, 44);
+            memoriesLabel = UIKit.Text(w, "", 30, TextAlignmentOptions.Center, UIKit.Warn);
+            UIKit.LayoutElement(memoriesLabel.gameObject, -1, 44);
             var shipRow = UIKit.Row(w, 64);
             shipRow.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
             dartButton = UIKit.Button(shipRow, "Dart", () => { Meta.SelectedShip = ShipClass.Dart; RefreshHangar(); }, 64, UIKit.Primary, 26, Icons.Flight);
             muleButton = UIKit.Button(shipRow, "Mule", () => { Meta.SelectedShip = ShipClass.Mule; RefreshHangar(); }, 64, UIKit.Primary, 26, Icons.Rocket);
-            UIKit.Text(w, "Perks (unlock with Stardust, toggle to equip for the next run)", 22, TextAlignmentOptions.Center, UIKit.TextDim);
+            UIKit.Text(w, "Perks (unlock with Memory fragments, toggle to equip for the next run)", 22, TextAlignmentOptions.Center, UIKit.TextDim);
             perkList = UIKit.Scroll(w, 520);
             UIKit.Button(w, "Back", ui.Back, 56, UIKit.Secondary, 26, Icons.Back);
         }
@@ -405,7 +405,7 @@ namespace Voidward.UI
         void RefreshHangar()
         {
             var d = Meta.Data;
-            stardustLabel.text = $"* {d.Stardust} Stardust *   <size=70%><color=#b0b0d0>Runs {d.Runs}  |  Homecomings {d.Victories}  |  Best galaxy {d.BestSector}/5</color></size>";
+            memoriesLabel.text = $"* {d.Memories} Memory fragments *   <size=70%><color=#b0b0d0>Runs {d.Runs}  |  Homecomings {d.Victories}  |  Best galaxy {d.BestSector}/5</color></size>";
             bool mule = Meta.IsUnlocked(Meta.MuleLicense);
             UIKit.SetLabel(dartButton, (Meta.SelectedShip == ShipClass.Dart ? "> " : "") + "Dart - agile fighter");
             UIKit.SetLabel(muleButton, mule ? (Meta.SelectedShip == ShipClass.Mule ? "> " : "") + "Mule - tough hauler" : "Mule (locked)");
@@ -430,7 +430,7 @@ namespace Voidward.UI
                         else Sfx.PlayUI("ui_back");
                         RefreshHangar();
                     }, 56, UIKit.Warn, 22);
-                    b.interactable = d.Stardust >= p.Cost;
+                    b.interactable = d.Memories >= p.Cost;
                     UIKit.LayoutElement(b.gameObject, 220, 56);
                 }
                 else if (p.Id == Meta.MuleLicense)
@@ -445,7 +445,7 @@ namespace Voidward.UI
                 {
                     celebratePerk = null;
                     UnlockBurst.Play(row, UIKit.Warn, FeedbackFx.RewardFx);
-                    UnlockBurst.Play(stardustLabel.rectTransform, UIKit.Warn, FeedbackFx.RewardFx * 0.5f);
+                    UnlockBurst.Play(memoriesLabel.rectTransform, UIKit.Warn, FeedbackFx.RewardFx * 0.5f);
                 }
             }
         }
@@ -537,7 +537,7 @@ namespace Voidward.UI
 
         void BuildResults(Transform root)
         {
-            // The logbook of the loop (#86): cause, stats, the crew's log entries, Stardust; the host starts the next loop.
+            // The logbook of the loop (#86): cause, stats, the crew's log entries, Memories; the host starts the next loop.
             var w = Window(root, Screen.Results, new Vector2(1180, 900), "");
             resultsTitle = UIKit.Text(w, "", 52, TextAlignmentOptions.Center, UIKit.TextColor, FontStyles.Bold);
             resultsTitle.fontSharedMaterial = UIKit.ShadowMaterial;
@@ -550,8 +550,8 @@ namespace Voidward.UI
             var log = UIKit.Scroll(w, 300);
             resultsLog = UIKit.Text(log, "", 22, TextAlignmentOptions.TopLeft, UIKit.TextColor);
             resultsLog.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            resultsStardust = UIKit.Text(w, "", 28, TextAlignmentOptions.Center);
-            UIKit.LayoutElement(resultsStardust.gameObject, -1, 96);
+            resultsMemories = UIKit.Text(w, "", 28, TextAlignmentOptions.Center);
+            UIKit.LayoutElement(resultsMemories.gameObject, -1, 96);
             var row = UIKit.Row(w, 64);
             row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
             resultsNewLoop = UIKit.Button(row, "New Loop", () => RunManager.Instance?.NewLoopServerRpc(), 64, UIKit.Good, 26, Icons.Play);
@@ -563,7 +563,7 @@ namespace Voidward.UI
         void RefreshResults()
         {
             var s = ui.LastSummary;
-            if (s == null) { resultsTitle.text = "LOGBOOK"; resultsBody.text = ""; resultsLog.text = ""; resultsStardust.text = ""; stardustStart = -1f; return; }
+            if (s == null) { resultsTitle.text = "LOGBOOK"; resultsBody.text = ""; resultsLog.text = ""; resultsMemories.text = ""; memoriesStart = -1f; return; }
             resultsTitle.text = s.Victory
                 ? $"HOMECOMING - LOOP {s.Loop}\n<size=55%><color=#ffd8a0>" + s.EndReason + "</color></size>"
                 : $"LOOP {s.Loop} - THE LOOP RESETS\n<size=55%><color=#C9A8FF>" + s.EndReason + "</color></size>";
@@ -575,11 +575,11 @@ namespace Voidward.UI
                 $"Run time <b>{HudView.Clock(s.RunTimeSeconds)}</b>     Distance <b>{s.DistanceTraveled / 1000f:0.0} km</b>     Enemies <b>{s.Kills}</b>     Loot <b>{s.LootCollected}</b>\n" +
                 $"<size=80%><color=#b0b0d0>Loops so far: {Meta.Loops}   Homecomings: {Meta.Data.Victories}</color></size>";
             resultsLog.text = string.IsNullOrEmpty(s.Log) ? "<color=#b0b0d0>No entries.</color>" : LogText(s.Log);
-            stardustTarget = Mathf.Max(0, s.StardustEarned);
-            stardustTotal = Meta.Data.Stardust;
-            stardustShown = 0;
-            stardustStart = Time.unscaledTime + 0.7f;
-            SetStardustText();
+            memoriesTarget = Mathf.Max(0, s.MemoriesEarned);
+            memoriesTotal = Meta.Data.Memories;
+            memoriesShown = 0;
+            memoriesStart = Time.unscaledTime + 0.7f;
+            SetMemoriesText();
             var nm = NetworkManager.Singleton;
             bool host = nm != null && nm.IsHost;
             resultsLobby.interactable = host;
@@ -601,32 +601,32 @@ namespace Voidward.UI
             return sb.ToString().TrimEnd();
         }
 
-        void SetStardustText()
+        void SetMemoriesText()
         {
-            resultsStardust.text = $"<color=#ffd070><size=120%>+{stardustShown} Stardust</size></color>\n" +
-                $"<size=75%><color=#b0b0d0>Total: {stardustTotal - stardustTarget + stardustShown} - spend it in the Hangar</color></size>";
+            resultsMemories.text = $"<color=#ffd070><size=120%>+{memoriesShown} Memory fragments</size></color>\n" +
+                $"<size=75%><color=#b0b0d0>Total: {memoriesTotal - memoriesTarget + memoriesShown} - spend it in the Hangar</color></size>";
         }
 
-        /// <summary>Results: count the earned Stardust up with rising ticks, then chime + burst.</summary>
-        void TickStardust()
+        /// <summary>Results: count the earned Memories up with rising ticks, then chime + burst.</summary>
+        void TickMemories()
         {
-            if (stardustStart < 0f || Time.unscaledTime < stardustStart) return;
-            float dur = Mathf.Clamp(0.4f + stardustTarget * 0.012f, 0.4f, 1.8f);
-            float k = Mathf.Clamp01((Time.unscaledTime - stardustStart) / dur);
-            int shown = Mathf.RoundToInt(stardustTarget * (1f - (1f - k) * (1f - k)));
-            if (shown != stardustShown)
+            if (memoriesStart < 0f || Time.unscaledTime < memoriesStart) return;
+            float dur = Mathf.Clamp(0.4f + memoriesTarget * 0.012f, 0.4f, 1.8f);
+            float k = Mathf.Clamp01((Time.unscaledTime - memoriesStart) / dur);
+            int shown = Mathf.RoundToInt(memoriesTarget * (1f - (1f - k) * (1f - k)));
+            if (shown != memoriesShown)
             {
-                stardustShown = shown;
-                SetStardustText();
-                if (Time.unscaledTime >= stardustNextTick) { stardustNextTick = Time.unscaledTime + 0.045f; FeedbackFx.StardustTick(k); }
+                memoriesShown = shown;
+                SetMemoriesText();
+                if (Time.unscaledTime >= memoriesNextTick) { memoriesNextTick = Time.unscaledTime + 0.045f; FeedbackFx.MemoriesTick(k); }
             }
             if (k >= 1f)
             {
-                stardustStart = -1f;
-                stardustShown = stardustTarget;
-                SetStardustText();
-                FeedbackFx.StardustDone(stardustTarget);
-                if (stardustTarget > 0) UnlockBurst.Play(resultsStardust.rectTransform, UIKit.Warn, FeedbackFx.RewardFx);
+                memoriesStart = -1f;
+                memoriesShown = memoriesTarget;
+                SetMemoriesText();
+                FeedbackFx.MemoriesDone(memoriesTarget);
+                if (memoriesTarget > 0) UnlockBurst.Play(resultsMemories.rectTransform, UIKit.Warn, FeedbackFx.RewardFx);
             }
         }
 
@@ -635,7 +635,7 @@ namespace Voidward.UI
         public void Update()
         {
             var s = ui.Current;
-            if (s == Screen.Results) TickStardust();
+            if (s == Screen.Results) TickMemories();
             if (s == Screen.Lobby)
             {
                 lobbyRefresh -= Time.unscaledDeltaTime;

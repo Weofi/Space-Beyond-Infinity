@@ -13,6 +13,7 @@ namespace Voidward.Ship
     /// (owner authority) interpolates the result on everyone else.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
+    [DefaultExecutionOrder(-60)] // a docked ship snaps onto its clamp before the seated pawns follow their seats (-50)
     public class ShipFlight : NetworkBehaviour
     {
         public float Mass = 2000f;
@@ -100,6 +101,7 @@ namespace Voidward.Ship
             bool piloted = inputAge < 0.25f;
             var s = core.Stats;
 
+            if (core.Docked) { EndCruise(null, false); DockStep(piloted, dt); return; }
             if (WarpBubble.Flying) { EndCruise(null, false); WarpStep(piloted && !core.Derelict.Value, s, dt); return; }
 
             Vector3 g = GravitySource.GravityAtPoint(rb.position);
@@ -110,6 +112,7 @@ namespace Voidward.Ship
 
             if (arrivePending && !WarpBubble.Active) ApplyArrival(piloted, s);
             else if (arrivePending && Time.time > arriveUntil) arrivePending = false;
+            if (piloted && !WarpBubble.Active && cruise == CruiseMode.Off) TryDock(dt);
             if (!piloted || core.Derelict.Value || WarpBubble.Active) EndCruise(null, false);
             else if (CruiseStep(s, dt)) { JumpZoneHold(dt); return; }
             JumpZoneHold(dt);
@@ -133,6 +136,7 @@ namespace Voidward.Ship
                 // Landing assist: near a surface with little rotation input, level to the surface normal.
                 if (src != null && Altitude < LandingAssistAltitude && Mathf.Abs(angularIn.x) + Mathf.Abs(angularIn.z) < 0.1f)
                     LevelTo(src.UpAt(rb.position), 2.5f, dt);
+                if (src != null && core.Def != null && core.Def.HeavyLanding) HeavyLanding(src, dt);
 
                 float cap = s.MaxSpeed * (boost ? 1.6f : 1f);
                 float spd = rb.linearVelocity.magnitude;
@@ -467,7 +471,7 @@ namespace Voidward.Ship
             {
                 if (warpLead == null || !warpLead.IsSpawned || warpLead.NetworkObjectId != WarpBubble.LeadShip) warpLead = FindLead();
                 Vector3 anchor = warpLead != null ? warpLead.transform.position : Vector3.zero;
-                Vector3 goal = anchor + WarpBubble.FormationOffset(FormationSlot(), core.Class == ShipClass.Ark);
+                Vector3 goal = anchor + WarpBubble.FormationOffset(FormationSlot(), core.IsHome);
                 target = Vector3.ClampMagnitude((goal - pos) * 2.5f, 260f);
             }
             rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, target, 1f - Mathf.Exp(-5f * dt));
@@ -492,6 +496,115 @@ namespace Voidward.Ship
             foreach (var o in ShipCore.All)
                 if (o != null && o != core && o.NetworkObjectId != WarpBubble.LeadShip && o.NetworkObjectId < core.NetworkObjectId) slot++;
             return slot;
+        }
+
+        // ------------------------------------------------------------ heavy landing (#49)
+
+        /// <summary>Height (m) above the ground below which a heavy ship's descent is capped and the ground checked.</summary>
+        const float HeavyLandingAltitude = 120f;
+        /// <summary>Height (m, ship centre above the ground) a heavy ship holds over ground too steep to land on.</summary>
+        const float SteepHover = 10f;
+        float slopeNoticeAt = -99f;
+
+        /// <summary>The ground slope (degrees) under a point, from three ground samples around it (`span` m apart).</summary>
+        static float GroundSlope(GravitySource src, Vector3 at, Vector3 right, Vector3 fwd, float span)
+        {
+            Vector3 a = src.GroundPoint(at + right * span), b = src.GroundPoint(at - right * span * 0.5f + fwd * span), c = src.GroundPoint(at - right * span * 0.5f - fwd * span);
+            Vector3 n = Vector3.Cross(b - a, c - a).normalized;
+            Vector3 up = src.UpAt(at);
+            if (Vector3.Dot(n, up) < 0f) n = -n;
+            return Vector3.Angle(n, up);
+        }
+
+        /// <summary>
+        /// A heavy ship (the home ship) sets down slowly and only on flat ground: close to the surface its descent is
+        /// capped (ShipDef.MaxDescentSpeed, easing to a crawl at touchdown), and over ground steeper than
+        /// MaxLandingSlope the thrusters hold it up with a warning.
+        /// </summary>
+        void HeavyLanding(GravitySource src, float dt)
+        {
+            if (Altitude > HeavyLandingAltitude) return;
+            Vector3 up = src.UpAt(rb.position);
+            float down = -Vector3.Dot(rb.linearVelocity, up);
+            float cap = Mathf.Lerp(1.2f, core.Def.MaxDescentSpeed, Mathf.Clamp01(Altitude / 40f));
+            float slope = GroundSlope(src, rb.position, transform.right, Vector3.ProjectOnPlane(transform.forward, up).normalized, Radius);
+            bool steep = slope > core.Def.MaxLandingSlope;
+            float floor = steep ? SteepHover : 0f;   // hover above steep ground: no touchdown there
+            if (steep && Altitude < floor) rb.linearVelocity += up * (floor - Altitude) * 2f * dt + up * Mathf.Max(0f, down) * Mathf.Clamp01(8f * dt);
+            else if (down > cap) rb.linearVelocity += up * (down - cap) * Mathf.Clamp01(6f * dt);
+            if (steep && Altitude < floor + 10f && inputAge < 0.25f && Time.time - slopeNoticeAt > 4f)
+            {
+                slopeNoticeAt = Time.time;
+                EventBus.RaiseNotification($"GROUND TOO STEEP ({slope:0} deg) - find flat ground to land");
+                Sfx.PlayUI("ui_back");
+            }
+        }
+
+        // ------------------------------------------------------------ docking (#49)
+
+        float launchHold, dockCheckAt;
+
+        /// <summary>
+        /// Docked at a clamp of the home ship: the authority keeps the ship on the clamp (no physics, no collision);
+        /// the pilot launches by holding thrust (W / up) for a moment - not while the warp bubble carries the crew.
+        /// </summary>
+        void DockStep(bool piloted, float dt)
+        {
+            core.ReportThrottle(0f);
+            var c = core.Clamp;
+            if (c == null) return; // home ship not spawned here yet
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.position = c.transform.position;
+            rb.rotation = c.transform.rotation;
+            bool push = piloted && (linearIn.z > 0.5f || linearIn.y > 0.5f) && !WarpBubble.Active;
+            launchHold = push ? launchHold + dt : 0f;
+            if (launchHold > 0.6f)
+            {
+                launchHold = -2f; // one request; the server's answer arrives as the dock state
+                core.RequestUndockServerRpc();
+            }
+        }
+
+        /// <summary>Every peer: the docked ship sits exactly on its clamp in the rendered frame (the clamp moves with the home ship).</summary>
+        void LateUpdate()
+        {
+            if (!IsSpawned || core == null || !core.Docked) return;
+            var c = core.Clamp;
+            if (c != null) transform.SetPositionAndRotation(c.transform.position, c.transform.rotation);
+        }
+
+        /// <summary>Server -> authority: the ship left its clamp; it drops clear of the home ship with the home ship's motion.</summary>
+        [Rpc(SendTo.Owner)]
+        public void LaunchFromDockRpc(Vector3 up)
+        {
+            var home = ShipCore.Home;
+            Vector3 v = home != null && home.Flight != null ? home.Flight.Velocity : Vector3.zero;
+            rb.linearVelocity = v + up * 12f + transform.forward * 6f;
+            launchHold = 0f;
+            dockCheckAt = Time.time + 4f; // no re-capture while it clears the clamp
+            EventBus.RaiseNotification("Launched");
+            Sfx.PlayUI("jump_charge");
+        }
+
+        /// <summary>Authority of a piloted small ship: eased slowly into a free clamp of the home ship, the clamp grabs it.</summary>
+        void TryDock(float dt)
+        {
+            if (core.IsHome || Time.time < dockCheckAt) return;
+            dockCheckAt = Time.time + 0.25f;
+            var home = ShipCore.Home;
+            if (home == null || home.Clamps.Length == 0) return;
+            Vector3 rel = rb.linearVelocity - (home.Flight != null ? home.Flight.Velocity : Vector3.zero);
+            if (rel.magnitude > DockClamp.CaptureSpeed) return;
+            for (int i = 0; i < home.Clamps.Length; i++)
+            {
+                var c = home.Clamps[i];
+                if (c.Docked != null || Vector3.Distance(rb.position, c.transform.position) > DockClamp.CaptureRange) continue;
+                if (Vector3.Angle(transform.forward, c.transform.forward) > 60f) continue; // nose roughly along the clamp
+                core.RequestDockServerRpc(i);
+                dockCheckAt = Time.time + 1.5f;
+                return;
+            }
         }
 
         void LevelTo(Vector3 up, float strength, float dt)

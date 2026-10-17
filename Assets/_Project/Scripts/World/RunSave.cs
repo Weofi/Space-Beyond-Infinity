@@ -21,10 +21,13 @@ namespace Voidward.World
         public static RunState Read()
         {
             if (!Exists) return null;
-            var s = SaveSystem.Load<RunState>(Key);
+            var s = SaveSystem.Load<RunState>(Key, Migrate);
             if (s == null || s.RunSeed == 0 || s.Version < 1 || s.Version > RunState.CurrentVersion) return null; // v1 (before #78) has no drive: Mk I
             return s;
         }
+
+        /// <summary>Versions before 4 (#112) store the run currency as Credits: keep the value as Salvage.</summary>
+        static string Migrate(string json) => json.Contains("\"Salvage\"") ? json : json.Replace("\"Credits\":", "\"Salvage\":");
 
         public static void Delete()
         {

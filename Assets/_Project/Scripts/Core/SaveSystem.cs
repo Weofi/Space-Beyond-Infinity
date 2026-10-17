@@ -22,14 +22,19 @@ namespace Voidward.Core
             }
         }
 
-        public static T Load<T>(string key) where T : new()
+        public static T Load<T>(string key) where T : new() => Load<T>(key, null);
+
+        /// <summary>Load with a migration step on the raw JSON (renamed fields of older saves).</summary>
+        public static T Load<T>(string key, Func<string, string> migrate) where T : new()
         {
             try
             {
                 string p = PathFor(key);
                 if (File.Exists(p))
                 {
-                    var val = JsonUtility.FromJson<T>(File.ReadAllText(p));
+                    string json = File.ReadAllText(p);
+                    if (migrate != null) json = migrate(json);
+                    var val = JsonUtility.FromJson<T>(json);
                     if (val != null) return val;
                 }
             }

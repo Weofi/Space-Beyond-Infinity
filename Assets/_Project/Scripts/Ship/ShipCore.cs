@@ -63,6 +63,19 @@ namespace Voidward.Ship
         public NetworkVariable<Vector3> Power = new NetworkVariable<Vector3>(Vector3.one);
         public NetworkVariable<FixedString64Bytes> ShipName = new NetworkVariable<FixedString64Bytes>("Ship");
         public NetworkList<FixedString64Bytes> Modules;
+        /// <summary>The home ship this ship is docked at (#49), NoShip = flying free.</summary>
+        public NetworkVariable<ulong> DockedTo = new NetworkVariable<ulong>(NoShip);
+        /// <summary>The clamp of the home ship it is docked at (DockClamp.Index).</summary>
+        public NetworkVariable<int> DockIndex = new NetworkVariable<int>(-1);
+
+        public const ulong NoShip = ulong.MaxValue;
+        /// <summary>The home ship (#49): the crew's mission ship, carries the warp drive, cryo pods and docking clamps.</summary>
+        public bool IsHome => Class == ShipClass.HomeShip;
+        /// <summary>Docking clamps of a home ship, by index (empty on small ships).</summary>
+        public DockClamp[] Clamps { get; private set; } = new DockClamp[0];
+        /// <summary>Cryo pods of a home ship, by player slot (empty on small ships).</summary>
+        public CryoPod[] CryoPods { get; private set; } = new CryoPod[0];
+        public bool Docked => DockedTo.Value != NoShip;
 
         public ShipDef Def { get; private set; }
         public ShipStats Stats { get; private set; }
@@ -74,6 +87,16 @@ namespace Voidward.Ship
         bool? cockpitScreens;
 
         public static readonly List<ShipCore> All = new List<ShipCore>();
+
+        /// <summary>The spawned home ship (any peer), or null.</summary>
+        public static ShipCore Home
+        {
+            get
+            {
+                foreach (var s in All) if (s != null && s.IsSpawned && s.IsHome) return s;
+                return null;
+            }
+        }
         /// <summary>Server: a ship was destroyed (before despawn).</summary>
         public static event Action<ShipCore> ServerDestroyed;
         /// <summary>Every client: stats recomputed.</summary>
@@ -95,6 +118,12 @@ namespace Voidward.Ship
             Cargo = GetComponent<NetInventory>();
             Flight = GetComponent<ShipFlight>();
             Def = ContentCatalog.GetShip(Class);
+            var clamps = GetComponentsInChildren<DockClamp>(true);
+            Array.Sort(clamps, (a, b) => a.Index.CompareTo(b.Index));
+            Clamps = clamps;
+            var pods = GetComponentsInChildren<CryoPod>(true);
+            Array.Sort(pods, (a, b) => a.Index.CompareTo(b.Index));
+            CryoPods = pods;
         }
 
         public override void OnNetworkSpawn()
@@ -115,6 +144,8 @@ namespace Voidward.Ship
             Modules.OnListChanged += OnModulesChanged;
             Power.OnValueChanged += OnPowerChanged;
             Shield.OnValueChanged += OnShieldChanged;
+            DockedTo.OnValueChanged += OnDockChanged;
+            OnDockChanged(NoShip, DockedTo.Value);
             Recompute();
             if (IsServer)
             {
@@ -134,6 +165,7 @@ namespace Voidward.Ship
             Modules.OnListChanged -= OnModulesChanged;
             Power.OnValueChanged -= OnPowerChanged;
             Shield.OnValueChanged -= OnShieldChanged;
+            DockedTo.OnValueChanged -= OnDockChanged;
             if (IsServer) Hull.Died -= OnDied;
             Fabricators.Unregister(FabricatorPoint);
             All.Remove(this);
@@ -258,6 +290,8 @@ namespace Voidward.Ship
         {
             ServerDestroyed?.Invoke(this);
             ShipSeat.VacateAllOn(this);
+            if (Docked) ServerUndock(false);
+            foreach (var s in All.ToArray()) if (s != null && s.DockedTo.Value == NetworkObjectId) s.ServerUndock(false);
             // Spill part of the cargo.
             if (Cargo != null)
             {
@@ -268,7 +302,7 @@ namespace Voidward.Ship
                         WorldPickup.SpawnServer(st.Id.ToString(), Mathf.Max(1, st.Count / 2), transform.position + UnityEngine.Random.insideUnitSphere * 6f);
                 }
             }
-            ExplodeClientRpc(transform.position, Class == ShipClass.Ark ? 25f : 10f);
+            ExplodeClientRpc(transform.position, IsHome ? 30f : 10f);
             NetworkObject.Despawn(true);
         }
 
@@ -450,7 +484,7 @@ namespace Voidward.Ship
         public void InstallFromInventoryServerRpc(int invSlot, bool preferB, RpcParams rp = default)
         {
             ulong c = rp.Receive.SenderClientId;
-            if (!SenderNear(c, 30f + (Class == ShipClass.Ark ? 25f : 0f))) return;
+            if (!SenderNear(c, 30f + (IsHome ? 30f : 0f))) return;
             var inv = NetInventory.ForClient(c);
             if (inv == null || invSlot < 0 || invSlot >= inv.Slots.Count) return;
             var st = inv.Slots[invSlot];
@@ -532,8 +566,7 @@ namespace Voidward.Ship
             Derelict.Value = false;
             Hull.Heal(Hull.MaxHp.Value);
             Fuel.Value = Stats.MaxFuel;
-            ShipName.Value = "Ark (crew)";
-            AnnounceClientRpc("The Ark is online! Crew it together: Pilot, Turrets, Engineer.");
+            AnnounceClientRpc($"{ShipName.Value} is online! Crew it together: Pilot, Turrets, Engineer.");
         }
 
         [ClientRpc]
@@ -558,6 +591,89 @@ namespace Voidward.Ship
             if (hull) Hull.Heal(Hull.MaxHp.Value);
             if (fuel) Fuel.Value = Stats.MaxFuel;
             Shield.Value = Stats.MaxShield;
+        }
+
+        // ------------------------------------------------------------ docking (#49)
+
+        /// <summary>The clamp this ship is docked at (any peer), or null.</summary>
+        public DockClamp Clamp
+        {
+            get
+            {
+                if (!Docked) return null;
+                foreach (var s in All)
+                    if (s != null && s.IsSpawned && s.NetworkObjectId == DockedTo.Value)
+                        return DockIndex.Value >= 0 && DockIndex.Value < s.Clamps.Length ? s.Clamps[DockIndex.Value] : null;
+                return null;
+            }
+        }
+
+        /// <summary>A free clamp of this home ship (`preferred` when free, else the lowest index), -1 = all taken.</summary>
+        public int FreeClamp(int preferred = -1)
+        {
+            if (preferred >= 0 && preferred < Clamps.Length && Clamps[preferred].Docked == null) return preferred;
+            for (int i = 0; i < Clamps.Length; i++) if (Clamps[i].Docked == null) return i;
+            return -1;
+        }
+
+        /// <summary>Server: dock at clamp `index` of `home` (snaps the ship onto it; its transform authority keeps it there).</summary>
+        public bool ServerDock(ShipCore home, int index)
+        {
+            if (!IsServer || home == null || home == this || IsHome || index < 0 || index >= home.Clamps.Length) return false;
+            var other = home.Clamps[index].Docked;
+            if (other != null && other != this) return false;
+            DockIndex.Value = index;
+            DockedTo.Value = home.NetworkObjectId;
+            var c = home.Clamps[index].transform;
+            GetComponent<NetTeleport>().ServerTeleport(c.position, c.rotation);
+            return true;
+        }
+
+        /// <summary>Server: leave the clamp (launch = a push out along the clamp's up).</summary>
+        public void ServerUndock(bool launch)
+        {
+            if (!IsServer || !Docked) return;
+            var c = Clamp;
+            DockedTo.Value = NoShip;
+            DockIndex.Value = -1;
+            if (launch && c != null && Flight != null) Flight.LaunchFromDockRpc(c.transform.up);
+        }
+
+        /// <summary>Authority of a piloted ship: it eased into a free clamp of the home ship.</summary>
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        public void RequestDockServerRpc(int index, RpcParams rp = default)
+        {
+            if (Docked || rp.Receive.SenderClientId != NetworkObject.OwnerClientId) return;
+            var home = Home;
+            if (home == null || index < 0 || index >= home.Clamps.Length) return;
+            if (Vector3.Distance(transform.position, home.Clamps[index].transform.position) > DockClamp.CaptureRange * 1.5f) return;
+            if (ServerDock(home, index)) ServiceClientRpc("seat", $"Docked at the {home.ShipName.Value} - hold [W] to launch", rp.Receive.SenderClientId);
+        }
+
+        /// <summary>Pilot: launch from the clamp (not while the warp bubble carries the crew).</summary>
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        public void RequestUndockServerRpc(RpcParams rp = default)
+        {
+            var seat = ShipSeat.SeatOf(rp.Receive.SenderClientId);
+            if (!Docked || seat == null || seat.Ship != this || seat.Role != StationRole.Pilot || WarpBubble.Active) return;
+            ServerUndock(true);
+        }
+
+        /// <summary>Every peer: a docked ship has no collision (it rides inside the home ship's bounds).</summary>
+        void OnDockChanged(ulong before, ulong now)
+        {
+            bool docked = now != NoShip;
+            foreach (var col in GetComponentsInChildren<Collider>(true))
+                if (!col.isTrigger) col.enabled = !docked;
+        }
+
+        /// <summary>Server: someone wakes up in cryo pod `pod` of this home ship.</summary>
+        public void ServerCryoWake(int pod) { if (IsServer) CryoWakeClientRpc(pod); }
+
+        [ClientRpc]
+        void CryoWakeClientRpc(int pod)
+        {
+            if (pod >= 0 && pod < CryoPods.Length && CryoPods[pod] != null) CryoPods[pod].Wake();
         }
 
         /// <summary>The ship a client owns (server and clients).</summary>

@@ -60,7 +60,7 @@ namespace Voidward.UI
 
         void Rebuild(PlayerPawn pawn)
         {
-            header.text = $"TRADER STATION   <size=75%><color=#ffe0a0>{pawn.Inventory.Credits.Value} credits</color></size>";
+            header.text = $"TRADER STATION   <size=75%><color=#ffe0a0>{pawn.Inventory.Salvage.Value} salvage</color></size>";
             Object.Destroy(body.gameObject);
             body = UIKit.Rect(panel, "Body");
             UIKit.LayoutElement(body.gameObject, -1, 740, 1, 1);
@@ -84,12 +84,12 @@ namespace Voidward.UI
                 string desc = d.Module != null ? d.Module.StatsSummary().Replace("\n", ", ") : d.Description;
                 var t = UIKit.Text(row, $"<b>{d.DisplayName}</b>\n<size=75%><color=#b0b0d0>{desc}</color></size>", 21);
                 UIKit.LayoutElement(t.gameObject, -1, 58, 1);
-                var b = UIKit.Button(row, $"{price} cr", () => station.BuyServerRpc(idx), 48, UIKit.Warn, 22);
-                b.interactable = pawn.Inventory.Credits.Value >= price;
-                UIKit.LayoutElement(b.gameObject, 130, 48);
+                var b = UIKit.Button(row, $"{price}", () => station.BuyServerRpc(idx), 48, UIKit.Warn, 22, Icons.Salvage);
+                b.interactable = pawn.Inventory.Salvage.Value >= price;
+                UIKit.LayoutElement(b.gameObject, 130, 48).minWidth = 130; // long descriptions must not squeeze the price
             }
-            var svc = UIKit.Button(buy, $"Repair, refuel & recharge my ship ({TraderStation.ServiceCost} cr)", () => station.ServiceServerRpc(), 56, UIKit.Good, 22);
-            svc.interactable = pawn.Inventory.Credits.Value >= TraderStation.ServiceCost;
+            var svc = UIKit.Button(buy, $"Repair, refuel & recharge my ship ({TraderStation.ServiceCost} salvage)", () => station.ServiceServerRpc(), 56, UIKit.Good, 22);
+            svc.interactable = pawn.Inventory.Salvage.Value >= TraderStation.ServiceCost;
 
             var sell = UIKit.Rect(body, "Sell");
             UIKit.VLayout(sell.gameObject, 8, 0, TextAnchor.UpperLeft);
@@ -107,7 +107,7 @@ namespace Voidward.UI
                 UIKit.HLayout(row.gameObject, 10, 8);
                 UIKit.LayoutElement(row.gameObject, -1, 56);
                 UIKit.ItemIcon(row, d, 46);
-                var t = UIKit.Text(row, $"<b>{d.DisplayName}</b> x{st.Count}  <size=75%><color=#ffe0a0>{TraderStation.SellPrice(d)} cr each</color></size>", 21);
+                var t = UIKit.Text(row, $"<b>{d.DisplayName}</b> x{st.Count}  <size=75%><color=#ffe0a0>{TraderStation.SellPrice(d)} salvage each</color></size>", 21);
                 UIKit.LayoutElement(t.gameObject, -1, 50, 1);
                 UIKit.LayoutElement(UIKit.Button(row, "Sell 1", () => station.SellServerRpc(slot, false), 44, UIKit.Accent, 20).gameObject, 100, 44);
                 UIKit.LayoutElement(UIKit.Button(row, "All", () => station.SellServerRpc(slot, true), 44, UIKit.Accent2, 20).gameObject, 80, 44);
