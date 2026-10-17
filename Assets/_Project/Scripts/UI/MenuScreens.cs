@@ -39,7 +39,7 @@ namespace Voidward.UI
         int memoriesTarget, memoriesShown, memoriesTotal;
         float memoriesStart = -1f, memoriesNextTick;
         string celebratePerk;
-        Button resultsLobby, resultsNewLoop;
+        Button resultsLobby;
         // connecting
         TextMeshProUGUI connectingLabel;
         float lobbyRefresh;
@@ -332,7 +332,7 @@ namespace Voidward.UI
             var row = UIKit.Row(w, 64);
             row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
             startButton = UIKit.Button(row, "Start Mission", () => SessionManager.Instance?.StartRun(), 64, UIKit.Good, 28, Icons.Play);
-            continueButton = UIKit.Button(row, "Continue Loop", () => SessionManager.Instance?.ContinueRun(), 64, UIKit.Primary, 26, Icons.Replay);
+            continueButton = UIKit.Button(row, "Continue Journey", () => SessionManager.Instance?.ContinueRun(), 64, UIKit.Primary, 26, Icons.Replay);
             inviteButton = UIKit.Button(row, "Invite Friends", () => SessionManager.Instance?.Steam.InviteFriends(), 64, UIKit.Primary, 28, Icons.Invite);
             copyIdButton = UIKit.Button(row, "Copy Lobby ID", CopyLobbyId, 64, UIKit.Secondary, 24);
             var row2 = UIKit.Row(w, 60);
@@ -356,9 +356,9 @@ namespace Voidward.UI
             string info = steam
                 ? "Steam lobby - invite friends via the button or the Steam overlay (Shift+Tab)." + (lobbyId != 0 ? $"\nLobby ID: <b>{lobbyId}</b>" : "")
                 : $"Direct IP - others join with <b>{LocalIp()}</b> : {TransportConfig.Port}";
-            lobbyInfo.text = info + $"\nLoop <b>{Meta.Loops + 1}</b>   Ship: <b>{Meta.SelectedShip}</b>   Memory fragments: <b>{Meta.Data.Memories}</b>";
+            lobbyInfo.text = info + $"\nShip: <b>{Meta.SelectedShip}</b>   Memory fragments: <b>{Meta.Data.Memories}</b>";
             startButton.interactable = nm.IsHost;
-            UIKit.SetLabel(startButton, nm.IsHost ? (Meta.Loops == 0 && !RunSave.Exists ? "Start Mission" : "New Loop") : "Waiting for host...");
+            UIKit.SetLabel(startButton, nm.IsHost ? (RunSave.Exists ? "New Journey" : "Start Mission") : "Waiting for host...");
             continueButton.gameObject.SetActive(nm.IsHost && RunSave.Exists);
             inviteButton.gameObject.SetActive(steam);
             copyIdButton.gameObject.SetActive(steam && lobbyId != 0);
@@ -537,7 +537,7 @@ namespace Voidward.UI
 
         void BuildResults(Transform root)
         {
-            // The logbook of the loop (#86): cause, stats, the crew's log entries, Memories; the host starts the next loop.
+            // The homecoming screen (#145: the only end of the journey): stats, the crew's log entries, Memories.
             var w = Window(root, Screen.Results, new Vector2(1180, 900), "");
             resultsTitle = UIKit.Text(w, "", 52, TextAlignmentOptions.Center, UIKit.TextColor, FontStyles.Bold);
             resultsTitle.fontSharedMaterial = UIKit.ShadowMaterial;
@@ -554,7 +554,6 @@ namespace Voidward.UI
             UIKit.LayoutElement(resultsMemories.gameObject, -1, 96);
             var row = UIKit.Row(w, 64);
             row.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
-            resultsNewLoop = UIKit.Button(row, "New Loop", () => RunManager.Instance?.NewLoopServerRpc(), 64, UIKit.Good, 26, Icons.Play);
             resultsLobby = UIKit.Button(row, "Lobby", () => RunManager.Instance?.ReturnToLobbyServerRpc(), 64, UIKit.Primary, 24, Icons.Replay);
             UIKit.Button(row, "Hangar", () => ui.Push(Screen.Hangar), 64, UIKit.Primary, 24, Icons.Hangar);
             UIKit.Button(row, "Leave", () => SessionManager.Instance?.LeaveGame(), 64, UIKit.Bad, 24, Icons.Quit);
@@ -564,16 +563,12 @@ namespace Voidward.UI
         {
             var s = ui.LastSummary;
             if (s == null) { resultsTitle.text = "LOGBOOK"; resultsBody.text = ""; resultsLog.text = ""; resultsMemories.text = ""; memoriesStart = -1f; return; }
-            resultsTitle.text = s.Victory
-                ? $"HOMECOMING - LOOP {s.Loop}\n<size=55%><color=#ffd8a0>" + s.EndReason + "</color></size>"
-                : $"LOOP {s.Loop} - THE LOOP RESETS\n<size=55%><color=#C9A8FF>" + s.EndReason + "</color></size>";
+            resultsTitle.text = "HOMECOMING\n<size=55%><color=#ffd8a0>" + s.EndReason + "</color></size>";
             var galaxy = ContentCatalog.GetGalaxy(s.GalaxyReached);
-            string eta = s.Victory ? "home" : DriveMath.Eta(s.HomeEtaMinutes);
-            string best = Meta.Data.BestEtaMinutes > 0f ? DriveMath.Eta(Meta.Data.BestEtaMinutes) : "--";
             resultsBody.text =
-                $"Galaxy <b>{s.GalaxyReached}/{GalaxyDef.Count}{(galaxy != null ? " - " + galaxy.DisplayName : "")}</b>     Warp core <b>{DriveComponentDef.TierName(DriveSlot.Core, s.DriveTier)}</b>     Home ETA <b>{eta}</b> <size=80%><color=#b0b0d0>(best {best})</color></size>\n" +
+                $"Galaxy <b>{s.GalaxyReached}/{GalaxyDef.Count}{(galaxy != null ? " - " + galaxy.DisplayName : "")}</b>     Warp core <b>{DriveComponentDef.TierName(DriveSlot.Core, s.DriveTier)}</b>     Home ETA <b>home</b>\n" +
                 $"Run time <b>{HudView.Clock(s.RunTimeSeconds)}</b>     Distance <b>{s.DistanceTraveled / 1000f:0.0} km</b>     Enemies <b>{s.Kills}</b>     Loot <b>{s.LootCollected}</b>\n" +
-                $"<size=80%><color=#b0b0d0>Loops so far: {Meta.Loops}   Homecomings: {Meta.Data.Victories}</color></size>";
+                $"<size=80%><color=#b0b0d0>Homecomings: {Meta.Data.Victories}</color></size>";
             resultsLog.text = string.IsNullOrEmpty(s.Log) ? "<color=#b0b0d0>No entries.</color>" : LogText(s.Log);
             memoriesTarget = Mathf.Max(0, s.MemoriesEarned);
             memoriesTotal = Meta.Data.Memories;
@@ -583,8 +578,6 @@ namespace Voidward.UI
             var nm = NetworkManager.Singleton;
             bool host = nm != null && nm.IsHost;
             resultsLobby.interactable = host;
-            resultsNewLoop.interactable = host;
-            UIKit.SetLabel(resultsNewLoop, host ? "New Loop" : "Waiting for host...");
         }
 
         /// <summary>Logbook lines "[h:mm:ss] text" with a dimmed time stamp.</summary>

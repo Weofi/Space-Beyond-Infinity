@@ -13,7 +13,7 @@ namespace Voidward.Ship
         void Awake() => ship = GetComponentInParent<ShipCore>();
 
         public string Prompt => ship != null && ship.Derelict.Value
-            ? $"Restore derelict power ({ShipCore.DerelictRepairCost} Scrap)"
+            ? ship.RestorePrompt
             : TerminalMode == Mode.Fabricator ? "Use fabricator"
             : TerminalMode == Mode.WarpDrive ? "Warp drive: parts & Exotic Matter" : "Ship cargo & modules";
 

@@ -30,7 +30,7 @@ namespace Voidward.Dev
         Galaxy,
         /// <summary>Seated as lead pilot in a flown galaxy warp (#79): Mk II drive, fuel loaded, cruising at 60 %.</summary>
         Warp,
-        /// <summary>Seated as lead pilot in the flight home from the LMC (#81): Home Drive, the Rift chasing, cruising at 80 %.</summary>
+        /// <summary>Seated as lead pilot in the flight home from the LMC (#81): Home Drive, the dense finale stretch, cruising at 80 %.</summary>
         Finale,
         /// <summary>At the helm of the home ship Nostos (#49), the own Dart docked at its clamp.</summary>
         Nostos,
@@ -530,15 +530,15 @@ namespace Voidward.Dev
                 return $"{route} | {f.LocalProgress / 1000f:0.0}/{f.Length.Value / 1000f:0.0} km {f.Progress01 * 100f:0}% {r.ZoneName(zone)} | " +
                        $"throttle {f.Throttle.Value:0.00} heat {f.Heat.Value:0.00} cruise {f.Cruise.Value} stall {f.Stalled.Value} hot {f.Overheated.Value} | " +
                        $"lead {f.Lead.Value} hazard {f.Hazard.Value} | out {f.DroppedOut.Value} | exotic {(d != null ? d.Exotic.Value : 0f):0.0} | scan {f.ScanRange:0} | destroyed {f.Destroyed.Count}" +
-                       (f.RiftStart.Value >= 0f ? " | " + RiftInfo : "");
+                       (f.FinaleStart.Value >= 0f ? $" | finale from {f.FinaleStart.Value / 1000f:0.0} km" : "");
             }
         }
 
-        // ------------------------------------------------------------------ the flight home + the Rift (#81)
+        // ------------------------------------------------------------------ the flight home (#81)
 
         /// <summary>
         /// Server: start the flight home from the LMC now (goes to galaxy 5 first if needed), with all drive parts at
-        /// `tier` (6 = Home Drive, ~5 min); the Rift chases the last 5 planned minutes. Logs "[Dev] end finale &lt;WarpInfo&gt;".
+        /// `tier` (6 = Home Drive, ~5 min); the last 5 planned minutes are the dense finale stretch. Logs "[Dev] end finale &lt;WarpInfo&gt;".
         /// </summary>
         public static void StartFinale(int tier = 6)
         {
@@ -564,41 +564,11 @@ namespace Voidward.Dev
             Log("end finale " + WarpInfo);
         }
 
-        /// <summary>Server: put the Rift `seconds` behind the bubble (wakes it; flight home only).</summary>
-        public static void RiftAt(float seconds)
-        {
-            var f = Flight;
-            if (!IsServer || f == null || !f.IsFinale) { Log("RiftAt FAILED: not in the flight home"); return; }
-            f.ServerSetRiftSeconds(seconds);
-            Log("rift at " + WarpInfo);
-        }
-
-        /// <summary>Server: the Wardens' last guard intercepts the bubble now.</summary>
-        public static void WardenWave()
-        {
-            var f = Flight;
-            if (!IsServer || f == null || !f.Active.Value) { Log("WardenWave FAILED: no warp flight"); return; }
-            f.ServerDevWardenWave();
-            Log("warden wave " + WarpInfo);
-        }
-
-        /// <summary>"rift 31.2 s 36.5 km @1170 m/s close 0.00 | from 0.0 km", "rift asleep (from 120.0 km)" or "no rift".</summary>
-        public static string RiftInfo
-        {
-            get
-            {
-                var f = Flight;
-                if (f == null || !f.Active.Value || f.RiftStart.Value < 0f) return "no rift";
-                if (!f.RiftAwake) return $"rift asleep (from {f.RiftStart.Value / 1000f:0.0} km)";
-                return $"rift {f.RiftSeconds:0.0} s {f.LocalRiftGap / 1000f:0.0} km @{f.RiftSpeed.Value:0} m/s close {f.RiftCloseness:0.00} | from {f.RiftStart.Value / 1000f:0.0} km";
-            }
-        }
-
-        // ------------------------------------------------------------------ time loop (#86)
+        // ------------------------------------------------------------------ failing (#145)
 
         /// <summary>
-        /// Server: the whole crew is lost (the real crew-wipe path); waits for the collapse and the logbook screen.
-        /// Records the run in the real meta save: BackupMeta() first. Logs "[Dev] end killcrew &lt;LoopInfo&gt;".
+        /// Server: every active pawn takes a lethal hit (the real death path: wakes in the Nostos' cryo pods after
+        /// the respawn delay); waits until all stand again. Logs "[Dev] end killcrew &lt;RunInfo&gt;".
         /// </summary>
         public static void KillCrew()
         {
@@ -609,43 +579,32 @@ namespace Voidward.Dev
 
         static IEnumerator KillCrewCo()
         {
-            foreach (var p in PlayerPawn.All) if (p != null && p.Active.Value) p.IsLost.Value = true;
-            float until = Time.realtimeSinceStartup + 10f;
-            while (Time.realtimeSinceStartup < until && (UI.UIRoot.Instance == null || UI.UIRoot.Instance.Current != UI.Screen.Results)) yield return null;
-            Log("end killcrew " + LoopInfo);
+            foreach (var p in PlayerPawn.All)
+                if (p != null && p.Active.Value && !p.IsDown.Value) HurtServer(p.Health, p.transform.position + p.transform.up, Vector3.up, 100000f);
+            float until = Time.realtimeSinceStartup + 25f;
+            yield return new WaitForSecondsRealtime(1f);
+            while (Time.realtimeSinceStartup < until)
+            {
+                bool anyDown = false;
+                foreach (var p in PlayerPawn.All) if (p != null && p.Active.Value && p.IsDown.Value) anyDown = true;
+                if (!anyDown) break;
+                yield return null;
+            }
+            Log("end killcrew " + RunInfo);
         }
 
-        /// <summary>Host: start the next loop from the logbook (as the "New Loop" button). Logs "[Dev] end newloop &lt;LoopInfo&gt;".</summary>
-        public static void NewLoop()
-        {
-            Log("begin newloop");
-            if (!IsServer || Run == null || Run.Phase.Value == GamePhase.Playing) { Log("end newloop FAILED: needs the host on the logbook"); return; }
-            DevRunner.Get().Run(NewLoopCo());
-        }
-
-        static IEnumerator NewLoopCo()
-        {
-            Run.ServerNewLoop();
-            float until = Time.realtimeSinceStartup + 5f;
-            while (Time.realtimeSinceStartup < until && Run.Phase.Value != GamePhase.Playing) yield return null;
-            yield return new WaitForSecondsRealtime(0.5f);
-            Log("end newloop " + LoopInfo);
-        }
-
-        /// <summary>"loop 2 Playing seed 123 | meta loops 1 best galaxy 1 best eta 35 h 12 min | log 2 | screen None | time 1.00".</summary>
-        public static string LoopInfo
+        /// <summary>"Playing seed 123 | log 2 | screen None | best galaxy 1".</summary>
+        public static string RunInfo
         {
             get
             {
                 if (Run == null) return "no run";
                 var ui = UI.UIRoot.Instance;
-                string eta = Meta.Data.BestEtaMinutes > 0f ? DriveMath.Eta(Meta.Data.BestEtaMinutes) : "--";
-                return $"loop {Run.Loop.Value} {Run.Phase.Value} seed {Run.RunSeed.Value} | meta loops {Meta.Loops} best galaxy {Meta.Data.BestSector} best eta {eta} | " +
-                    $"log {(IsServer ? Run.Logbook.Count : -1)} | screen {(ui != null ? ui.Current.ToString() : "-")} | time {Time.timeScale:0.00}";
+                return $"{Run.Phase.Value} seed {Run.RunSeed.Value} | log {(IsServer ? Run.Logbook.Count : -1)} | screen {(ui != null ? ui.Current.ToString() : "-")} | best galaxy {Meta.Data.BestSector}";
             }
         }
 
-        /// <summary>Server: the crew logbook of this loop, one entry per line.</summary>
+        /// <summary>Server: the crew logbook of this journey, one entry per line.</summary>
         public static string Logbook => IsServer && Run != null ? string.Join("\n", Run.Logbook) : "";
 
         // ------------------------------------------------------------------ system cruise + hops (#80)
@@ -1018,7 +977,7 @@ namespace Voidward.Dev
                 ShipSeat pilot = null;
                 foreach (var seat in ShipSeat.All) if (seat != null && seat.Ship == h && seat.Role == StationRole.Pilot) pilot = seat;
                 var me = Ship;
-                sb.Append($" | pods {h.CryoPods.Length} | cryo {(Run != null ? Run.RespawnsLeft.Value : 0)} | pilot {(pilot != null && pilot.IsOccupied ? pilot.Occupant.Value.ToString() : "-")}");
+                sb.Append($" | pods {h.CryoPods.Length} | disabled {h.Derelict.Value} | pilot {(pilot != null && pilot.IsOccupied ? pilot.Occupant.Value.ToString() : "-")}");
                 sb.Append($" | me {(me != null ? me.Class + (me.Docked ? " docked " + me.DockIndex.Value : " free") : "-")}");
                 return sb.ToString();
             }
@@ -1058,7 +1017,7 @@ namespace Voidward.Dev
             else Log($"end cryo pod {best} at {bestD:0.0} m | inside {(GravityVolume.At(p.transform.position) != null)} | {HomeInfo}");
         }
 
-        /// <summary>Server: destroy the Nostos (ends the loop: "Nostos destroyed"). BackupMeta()/RestoreMeta() around it. Logs "[Dev] end destroyhome &lt;LoopInfo&gt;".</summary>
+        /// <summary>Server: knock the Nostos out (0 hull = disabled until repaired, #145). Logs "[Dev] end destroyhome &lt;HomeInfo&gt;".</summary>
         public static void DestroyHome()
         {
             Log("begin destroyhome");
@@ -1070,9 +1029,18 @@ namespace Voidward.Dev
         static IEnumerator DestroyHomeCo(ShipCore h)
         {
             HurtServer(h.Hull, h.transform.position, Vector3.up, h.Hull.MaxHp.Value * 10f + h.Shield.Value);
-            float until = Time.realtimeSinceStartup + 10f;
-            while (Time.realtimeSinceStartup < until && (UI.UIRoot.Instance == null || UI.UIRoot.Instance.Current != UI.Screen.Results)) yield return null;
-            Log("end destroyhome " + LoopInfo);
+            yield return new WaitForSecondsRealtime(1f);
+            Log("end destroyhome " + HomeInfo);
+        }
+
+        /// <summary>Server: repair a disabled Nostos without paying (the real path: the terminal's Repair, Salvage). Logs "[Dev] end repairhome &lt;HomeInfo&gt;".</summary>
+        public static void RepairHome()
+        {
+            var h = ShipCore.Home;
+            if (!IsServer || h == null) { Log("end repairhome FAILED: needs the host and the Nostos"); return; }
+            h.Derelict.Value = false;
+            h.Hull.ReviveServer();
+            Log("end repairhome " + HomeInfo);
         }
 
         /// <summary>Server (#97): switch a ship of a class (the first found) to derelict or back (ShipDerelictLook).</summary>

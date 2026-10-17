@@ -21,14 +21,15 @@ home; the scanner and the ship's board computer point out what is worth it. Prog
 build up over one continuous journey.
 
 Route: M33 → Andromeda (M31) → NGC 6822 → Leo I → Large Magellanic Cloud → home flight to Sol.
-**Direction change (2026-10-17):** no roguelite runs and no time loop any more. A failed landing costs what
-the landing party carried (the landed ship stays as a salvageable wreck), never the journey (#132). The time loop described in
-section 3 is still what the current build does until #132 replaces it.
+**Direction change (2026-10-17):** no roguelite runs, no time loop and no Rift. Since #145 the build matches
+that: a fallen crew member wakes in a cryo pod, a Nostos at 0 health is disabled until repaired, and the journey only
+ends with the homecoming. Still to come in #146: down/revive, and a failed landing that costs what the landing party
+carried (the landed ship stays as a salvageable wreck).
 
 > **Transition note:** the design above (issue #72) replaced the old loop ("outrun the Collapse
 > through 3 sectors, power Jump Gates, defeat the Warden"). The run structure (#46: 5 galaxies, systems,
 > galaxy map, suspend save), the crew warp drive with Home ETA (#78) and the flown warp between galaxies (#79) are
-> playable, as are system cruise and the flown in-galaxy warp (#80), the flight home chased by the Rift (#81), the time loop (#86), seamless jump zones (#108) and the home ship Nostos (#49).
+> playable, as are system cruise and the flown in-galaxy warp (#80), the flight home (#81), seamless jump zones (#108) and the home ship Nostos (#49).
 > Still to come are the story intro (#109), the prologue, Sol approach and landing on Earth (#74).
 > Section 3 describes both the target design and what is playable today.
 
@@ -48,7 +49,7 @@ still include procedural placeholders. Asset sources and licences are recorded i
    prefab, the network prefab list and the scene `Assets/_Project/Scenes/Voidward.unity`).
    The repository already contains the generated output; rerun after changing the builder code.
 3. Open `Assets/_Project/Scenes/Voidward.unity` and press **Play**.
-4. Main menu → **Host Game** → **Start Mission** (first run) or **New Loop**.
+4. Main menu → **Host Game** → **Start Mission** (or **New Journey** when a save exists).
 
 ### Standalone build
 *File ▸ Build Profiles* → Windows (or macOS) → Build. `steam_appid.txt` (AppID 480) is copied
@@ -78,7 +79,7 @@ next to the executable automatically by `SteamAppIdBuildStep`.
 1. *Window ▸ Multiplayer ▸ Multiplayer Play Mode* → enable **Player 2…4** (up to 4 virtual players).
 2. Press Play. In the main editor window click **Host Game**.
 3. In each virtual player window click **Join Game ▸ Join IP** (`127.0.0.1`).
-4. Host clicks **Start Mission** or **New Loop**.
+4. Host clicks **Start Mission** (or **New Journey** when a save exists).
 
 ### Local test with two builds / build + editor
 ```
@@ -94,7 +95,7 @@ the Editor and release players); build ↔ build and Editor ↔ Multiplayer Play
 2. Build the game (Steam is the default transport in builds; `steam_appid.txt` = 480).
 3. PC 1: **Host Game** → a Steam lobby is created → **Invite Friends** (or Shift+Tab overlay).
 4. PC 2: accept the invite (the game joins automatically) or **Join Game ▸ Refresh ▸ Join**.
-5. Host: **Start Mission** or **New Loop**.
+5. Host: **Start Mission** (or **New Journey** when a save exists).
 
 Late joiners are dropped into the running system with a fresh ship. If a client disconnects, its
 ship stays in the world. If the host quits, clients return to the main menu with a notification.
@@ -121,19 +122,19 @@ system to the next galaxy (one-way).
   much more flight time and exotic matter.
 * **Enemies:** nature and aliens only (no pirates): fauna, an alien ecosystem per galaxy and the
   **Wardens**, an ancient biomechanical species that guards warp cores in its enclaves.
-* **Death:** a downed player is revived by the crew or wakes in a cryo pod on board. Crew wipe or the
-  home ship destroyed → the time loop resets the run to M33. Meta progression = the **Logbook of the
-  Loop** (memory fragments, codex, unlocks).
+* **Failing:** a fallen player wakes in a cryo pod on board the Nostos. A Nostos at 0 health is disabled (no warp,
+  workbench or cryo) until the crew repairs it with Salvage. There is no game over and no time loop; the journey
+  ends with the homecoming.
 * **Story:** the intro shows a family at home watching the news of SELENE-4's return, then the return flight
   and the anomaly (#109, #87); the homecoming lands on Earth and closes on the same family and news show (#88).
-* **The Rift** (formerly the Collapse) only appears in the finale: the flight home is an escape from it.
+* **The flight home** from the LMC is the longest and densest warp flight, flown the same way as the others.
 
 ### Currently playable build
 
-**Loop:** wake up at the *Wormhole Exit* in M33 → explore the system (scan/ping, land, mine, loot, fight)
+**Journey:** wake up at the *Wormhole Exit* in M33 → explore the system (scan/ping, land, mine, loot, fight)
 → back to the ship, upgrade/craft → check the **galaxy map (M)** → as pilot, fly out through a **jump zone** at
-the system edge to the next system, or through the **Galactic Rim** of the outermost system one-way to the next galaxy → … → from the Large Magellanic Cloud: **fly home**, chased by the Rift
-(~5 min with the Home Drive; caught = back into the loop, out in front = homecoming).
+the system edge to the next system, or through the **Galactic Rim** of the outermost system one-way to the next galaxy → … → from the Large Magellanic Cloud: **fly home**
+(~5 min with the Home Drive; the flight ends with the homecoming).
 
 * **Galaxies & systems:** 5 galaxies (M33, M31, NGC 6822, Leo I, LMC), each with 4-6 systems generated
   from the run seed: planetary systems, asteroid & wreck fields, anomalies (frequent flares/meteors),
@@ -168,7 +169,7 @@ the system edge to the next system, or through the **Galactic Rim** of the outer
   **warp bubble**: W/S = warp throttle, X = cut, the nose steers the bubble sideways; every other ship holds its
   slot in the bubble and its crew shoots rocks and interceptors. The route: the departure galaxy's **halo**
   (asteroid fields, debris clouds, comets, interceptor patrols) - the **deep void** (full throttle; rare
-  space-time **rifts** with one gap to fly through, **gravity anomalies** that pull you in and slingshot you on
+  **gravity anomalies** that pull you in and slingshot you on
   a close pass, lone giant rocks) - the **arrival halo** with a welcome party. Obstacles appear at the edge of the
   **nav computer's** scanner range (better nav = see further = fly faster safely). A collision at speed hurts
   (shield, then hull) and forces an **emergency stop**; small rocks and debris can be shot apart. Above the
@@ -182,27 +183,21 @@ the system edge to the next system, or through the **Galactic Rim** of the outer
   glowing core pods (weak points) to drop its shield, then the hull. It drops a hoard of top-tier crates.
 * **Oxygen** drains outside ships and outside breathable atmospheres (Ice and Crystal worlds are
   breathable). Ships, the Nostos interior and station pads refill it.
-* **Cryo charges**: 4 per run (+1 per new galaxy). A fallen crew member wakes in their cryo pod aboard the
-  Nostos. Lose your Dart and a replacement waits at a free docking clamp after 20 s. If the whole crew is
-  lost or the Nostos is destroyed, the loop resets.
-* **The time loop**: death (crew lost or caught by the Rift) slows time, the Rift closes the picture and
-  the loop's **logbook** opens (cause, galaxy, warp core, Home ETA vs. your best, the crew's log entries).
-  The host starts the **New Loop** right there; later loops open with a short deja-vu and radio echoes from
-  earlier loops instead of the intro.
+* **Cryo pods**: a fallen crew member wakes in their cryo pod aboard the Nostos after a short wait. Lose your Dart and
+  a replacement waits at a free docking clamp after 20 s.
 * **The Nostos** — the crew's home ship (#49). The run starts with every player in their Dart docked at
   one of its four wing clamps (hold W to launch, ease into a free clamp to dock again, leave the seat to step
   inside). Only the Nostos opens jump zones: its pilot leads every warp, and the Darts dock for the flight.
   Inside: bridge (Pilot), engine room (warp core + drive terminal, Engineer, aft turret), cargo hall
   (airlock, fabricator, cargo, hatches to the clamps), cryo bay; forward flak turret. It lands only on flat
-  ground, slowly. Destroyed = the loop resets.
+  ground, slowly. At 0 health it is disabled until repaired at its terminal (120 Salvage).
 * **Trader stations** (wormhole exit and nomad systems): buy modules, gear, kits, Fuel and Exotic Matter,
   sell resources, repair & refuel (60 Salvage).
 * **Events**: meteor showers, distress signals (salvage + hostiles), solar flares (shields
   offline, radiation in the open).
-* **Suspend save:** the host's run is saved when entering a galaxy and when leaving the session; *Continue
-  Run* in the lobby resumes it (players are matched by name). The save is deleted when the run ends.
-* **Meta progression**: every run awards *Memory fragments* (distance, kills, galaxies, homecoming).
-  Spend it in the **Hangar** on perks, the Mule ship and starting modules (saved locally).
+* **Journey save:** the host's journey is saved when entering a galaxy, when the Nostos is disabled and when leaving
+  the session; *Continue Journey* in the lobby resumes it (players are matched by name). The save is deleted at the homecoming.
+* **Memory fragments and the Hangar** (perks, the Mule ship, starting modules) still exist and are being reworked (#47): there are no runs any more, so they are no longer earned per run.
 
 ### Controls (rebindable in Settings)
 
@@ -281,7 +276,7 @@ Assets/_Project/
     UI/           code-built uGUI/TMP screens (menu, lobby, hangar, settings, HUD, inventory, trade…)
   Editor/         ContentBuilder (data, materials), PrefabBuilder (meshes, prefabs), SceneBuilder
   Shaders/        ToonFlat (flat/toon), Planet, Ocean, Atmosphere (scattering), Clouds, NebulaSkybox,
-                  Collapse (kept for the Rift, #73), Glass, Unlit, AdditiveParticle
+                  Collapse (wormhole look, for the prologue #87), Glass, Unlit, AdditiveParticle
 ```
 
 Assembly definitions keep the graph acyclic (Core ← Data ← Combat/Inventory/Planet ← Ship ← Player

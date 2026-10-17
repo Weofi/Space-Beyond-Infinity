@@ -2,7 +2,7 @@ using System;
 
 namespace Voidward.Core
 {
-    /// <summary>Stats collected during a run, shown on the loop reset / homecoming screen and converted to Memory fragments.</summary>
+    /// <summary>Stats collected during the journey, shown on the homecoming screen and converted to Memory fragments.</summary>
     [Serializable]
     public class RunSummary
     {
@@ -14,13 +14,11 @@ namespace Voidward.Core
         public int LootCollected;
         public int MemoriesEarned;
         public float RunTimeSeconds;
-        /// <summary>The loop this run was (1-based, #86).</summary>
-        public int Loop = 1;
         /// <summary>Warp core tier at the end (1-6).</summary>
         public int DriveTier = 1;
         /// <summary>Home ETA in flight minutes from where the run ended (0 after the homecoming).</summary>
         public float HomeEtaMinutes;
-        /// <summary>Crew logbook of this loop, one "[h:mm:ss] text" entry per line.</summary>
+        /// <summary>Crew logbook of this journey, one "[h:mm:ss] text" entry per line.</summary>
         public string Log = "";
 
         /// <summary>Memory fragments: the meta currency earned by this run.</summary>

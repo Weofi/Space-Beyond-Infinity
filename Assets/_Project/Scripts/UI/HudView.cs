@@ -63,7 +63,7 @@ namespace Voidward.UI
 
         // top-centre: collapse meter + compass
         readonly Image meterFill;
-        readonly RectTransform meterTrack, pipPlayer, pipEnd, pipRift;
+        readonly RectTransform meterTrack, pipPlayer, pipEnd;
         readonly TextMeshProUGUI meterText;
         readonly TextMeshProUGUI etaText;
         float etaTimer;
@@ -84,7 +84,7 @@ namespace Voidward.UI
 
         // cards
         readonly TextMeshProUGUI objHeader, objText, objHint;
-        readonly TextMeshProUGUI sectorTitle, sectorName, respawnText, salvageText;
+        readonly TextMeshProUGUI sectorTitle, sectorName, salvageText;
 
         // overlays
         readonly TextMeshProUGUI jumpText, deathText, o2Warn;
@@ -246,8 +246,6 @@ namespace Voidward.UI
             meterFill.sprite = HudKit.Gradient(HudKit.Teal, HudKit.Shield);
             meterFill.type = Image.Type.Filled; meterFill.fillMethod = Image.FillMethod.Horizontal;
             pipEnd = Pip(meterTrack, HudKit.Gold, HudKit.Ring, 18);
-            pipRift = Pip(meterTrack, RiftColor, HudKit.Ring, 16); // the Rift chasing the flight home (#81)
-            pipRift.gameObject.SetActive(false);
             pipPlayer = Pip(meterTrack, HudKit.Shield, HudKit.Chevron, 14);
             meterText = UIKit.Text(meter, "", 19, TextAlignmentOptions.Center, HudKit.Teal, FontStyles.Bold);
             UIKit.Place(meterText.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(440, 26), new Vector2(0.5f, 0));
@@ -341,10 +339,6 @@ namespace Voidward.UI
             sectorName.textWrappingMode = TextWrappingModes.NoWrap;
             sectorName.characterSpacing = 3f;
             UIKit.Place(sectorName.rectTransform, new Vector2(1, 1), new Vector2(-16, -28), new Vector2(310, 30), new Vector2(1, 1));
-            var respIcon = UIKit.IconText(sec, Icons.Respawn, 20, HudKit.TextHead);
-            UIKit.Place(respIcon.rectTransform, new Vector2(0, 0), new Vector2(14, 10), new Vector2(24, 26), new Vector2(0, 0));
-            respawnText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Left, HudKit.TextHead, FontStyles.Bold);
-            UIKit.Place(respawnText.rectTransform, new Vector2(0, 0), new Vector2(42, 10), new Vector2(150, 26), new Vector2(0, 0));
             var credIcon = UIKit.IconText(sec, Icons.Salvage, 20, HudKit.Hex(0xFCD34D));
             UIKit.Place(credIcon.rectTransform, new Vector2(1, 0), new Vector2(-16, 10), new Vector2(24, 26), new Vector2(1, 0));
             salvageText = UIKit.Text(sec, "", 18, TextAlignmentOptions.Right, HudKit.Hex(0xFCD34D), FontStyles.Bold);
@@ -542,7 +536,6 @@ namespace Voidward.UI
                     sectorTitle.text = $"GALAXY {rm.GalaxyIndex.Value}/{GalaxyDef.Count}  -  SYSTEM {rm.SystemIndex.Value + 1}/{(plan != null ? plan.Systems.Length : 0)}";
                     sectorName.text = sys != null ? sys.Name : "";
                 }
-                respawnText.text = HudKit.Num(rm.RespawnsLeft.Value.ToString()) + " <size=70%><color=#94A3B8>CRYO</color></size>";
                 string flightMsg = WarpMessage() ?? JumpMessage(pawn);
                 jumpPlate.gameObject.SetActive(flightMsg != null);
                 if (flightMsg != null) jumpText.text = flightMsg;
@@ -712,13 +705,11 @@ namespace Voidward.UI
         void UpdateDeath(PlayerPawn pawn)
         {
             string text = "";
-            if (pawn.IsLost.Value) text = "LOST\n<size=50%><color=#CBD5E1>Spectating - your crew fights on</color></size>";
-            else if (pawn.IsDown.Value)
+            if (pawn.IsDown.Value)
             {
                 float t = pawn.RespawnAt.Value - Time.time;
-                var rm0 = RunManager.Instance;
                 text = t > 0f
-                    ? $"YOU DIED\n<size=50%><color=#CBD5E1>Waking in the cryo bay in {HudKit.Num(Mathf.CeilToInt(t).ToString())}s   |   cryo charges left: {(rm0 != null ? rm0.RespawnsLeft.Value : 0)}</color></size>"
+                    ? $"YOU DIED\n<size=50%><color=#CBD5E1>Waking in the cryo bay in {HudKit.Num(Mathf.CeilToInt(t).ToString())}s</color></size>"
                     : "YOU DIED\n<size=50%><color=#CBD5E1>Waiting for a ship to respawn at...</color></size>";
             }
             deathPlate.gameObject.SetActive(text.Length > 0);
@@ -732,7 +723,6 @@ namespace Voidward.UI
         {
             var flight = WarpFlight.Instance;
             if (flight != null && WarpBubble.Active && flight.Route != null) { UpdateWarpMeter(flight); return; }
-            pipRift.gameObject.SetActive(false);
             int key = GalaxyGenerator.GalaxySeed(rm.RunSeed.Value, rm.GalaxyIndex.Value) ^ (rm.SystemIndex.Value * 7919 + 1);
             if (key != layoutKey && rm.RunSeed.Value != 0)
             {
@@ -787,9 +777,6 @@ namespace Voidward.UI
             float w = meterTrack.rect.width;
             pipPlayer.anchoredPosition = new Vector2(pf * w, 13f);
             pipEnd.anchoredPosition = new Vector2(w, 0f);
-            float gap = f.LocalRiftGap;
-            pipRift.gameObject.SetActive(gap >= 0f);
-            if (gap >= 0f) pipRift.anchoredPosition = new Vector2(Mathf.Clamp01((f.LocalProgress - gap) / Mathf.Max(1f, f.Length.Value)) * w, 0f);
             var zone = r.ZoneAt(f.LocalProgress, out _);
             meterText.color = zone == WarpZone.Void ? HudKit.Energy : HudKit.Fuel;
             meterText.text = f.IsHop ? $"SYSTEM WARP   {r.ZoneName(zone)}" : $"{Short(f.From.Value)} > {Short(f.To.Value)}   {r.ZoneName(zone)}";
@@ -806,12 +793,7 @@ namespace Voidward.UI
             sb.Append($"ETA <color=#F59E0B>{DriveMath.Eta(secs / 60f)}</color>   ");
             if (drive != null && !f.IsHop) sb.Append($"EXOTIC <color=#C4A5FF>{Mathf.FloorToInt(drive.Exotic.Value)}/{drive.Capacity}</color>   ");
             if (f.Cruise.Value) sb.Append("<color=#2DD4BF>CRUISE</color>");
-            if (f.RiftAwake)
-            {
-                float rs = f.RiftSeconds;
-                sb.Append($"\n<color={(rs < WarpFlight.RiftCloseSeconds ? "#EF4444" : "#C084FC")}>THE RIFT  {Mathf.FloorToInt(rs)} s BEHIND  ({HudKit.Dist(f.LocalRiftGap)})</color>");
-            }
-            else if (f.NextSignal(out var sig) && !f.DroppedOut.Value)
+            if (f.NextSignal(out var sig) && !f.DroppedOut.Value)
             {
                 float ahead = sig.S - f.LocalProgress;
                 bool inRange = Mathf.Abs(ahead) < WarpFlight.DropRange;
@@ -833,8 +815,6 @@ namespace Voidward.UI
             if (f.Stalled.Value) return "<size=70%><color=#EF4444>EMERGENCY STOP</color></size>" + Sub("DRIVE RESTARTING");
             if (f.Hazard.Value >= 0 && f.Throttle.Value > 0.05f && Mathf.Repeat(Time.time, 0.5f) < 0.32f)
                 return "<size=55%><color=#FBBF24>OBSTACLE AHEAD</color></size>";
-            if (f.RiftCloseness > 0f && Mathf.Repeat(Time.time, 0.8f) < 0.5f)
-                return "<size=55%><color=#C084FC>THE RIFT IS CLOSING IN</color></size>" + Sub($"{Mathf.FloorToInt(f.RiftSeconds)} s - FULL THROTTLE");
             return null;
         }
 
@@ -889,8 +869,8 @@ namespace Voidward.UI
             if (flight != null && WarpBubble.Active)
             {
                 header = flight.IsFinale ? "THE FLIGHT HOME" : "WARP FLIGHT";
-                text = flight.RiftAwake ? (lead ? "Outrun the Rift: keep the throttle up, dodge at top speed, mind the heat"
-                        : "Outrun the Rift: shoot rocks and interceptors out of the lead pilot's way")
+                text = flight.IsFinale ? (lead ? "The last stretch is the densest: keep the throttle up, dodge at top speed, mind the heat"
+                        : "The last stretch is the densest: shoot rocks and interceptors out of the lead pilot's way")
                     : flight.DroppedOut.Value ? "Out of warp at a signal - loot it, then back to the ships"
                     : lead ? "You lead the bubble: throttle down in fields, steer through the gaps"
                     : "Shoot rocks and interceptors - the lead pilot flies the bubble";
@@ -918,7 +898,6 @@ namespace Voidward.UI
             objHint.gameObject.SetActive(hint.Length > 0);
         }
 
-        static readonly Color RiftColor = new Color(0.75f, 0.4f, 1f);
 
         static string Key(string k) => $"<mark=#1E293BFF padding=\"6,6,2,2\"><color=#38BDF8><b>{k}</b></color></mark>";
 

@@ -32,7 +32,7 @@ Cargo, Fabricator, Luftschleuse und Zugänge zu den Andockklammern der Darts.
 
 ### Kryo-Bucht
 
-Hier wachen gefallene Crewmitglieder wieder auf, solange Kryo-Ladungen verfügbar sind.
+Hier wachen gefallene Crewmitglieder wieder auf, solange die Nostos in Betrieb ist.
 
 ### Brücke
 

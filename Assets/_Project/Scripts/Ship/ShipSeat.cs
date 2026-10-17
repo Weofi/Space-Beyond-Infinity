@@ -130,7 +130,7 @@ namespace Voidward.Ship
         {
             get
             {
-                if (Ship != null && Ship.Derelict.Value) return $"Restore derelict power ({ShipCore.DerelictRepairCost} Scrap)";
+                if (Ship != null && Ship.Derelict.Value) return Ship.RestorePrompt;
                 if (IsOccupied) return SeatRole + " station (occupied)";
                 switch (SeatRole)
                 {

@@ -99,11 +99,13 @@ namespace Voidward.Ship
         }
         /// <summary>Server: a ship was destroyed (before despawn).</summary>
         public static event Action<ShipCore> ServerDestroyed;
+        /// <summary>Server: a ship docked at the home ship (#145: the journey is saved then).</summary>
+        public static event Action<ShipCore> ServerDocked;
         /// <summary>Every client: stats recomputed.</summary>
         public event Action StatsChanged;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { All.Clear(); ServerDestroyed = null; ShieldBrokenClient = null; }
+        static void ResetStatics() { All.Clear(); ServerDestroyed = null; ServerDocked = null; ShieldBrokenClient = null; }
 
         float lastHitTime = -100f;
         float throttle;
@@ -292,6 +294,14 @@ namespace Voidward.Ship
             ShipSeat.VacateAllOn(this);
             if (Docked) ServerUndock(false);
             foreach (var s in All.ToArray()) if (s != null && s.DockedTo.Value == NetworkObjectId) s.ServerUndock(false);
+            if (IsHome)
+            {
+                // The home ship is disabled, not destroyed (#145): dark and derelict until the crew repairs it (Salvage);
+                // no warp, no workbench, no cryo respawn meanwhile. Nothing stored aboard is lost.
+                Derelict.Value = true;
+                ExplodeClientRpc(transform.position, 14f);
+                return;
+            }
             // Spill part of the cargo.
             if (Cargo != null)
             {
@@ -551,6 +561,13 @@ namespace Voidward.Ship
 
         /// <summary>Restore a derelict ship (costs scrap).</summary>
         public const int DerelictRepairCost = 8;
+        /// <summary>Repair of the disabled home ship (#145), paid in Salvage by whoever starts it.</summary>
+        public const int HomeRepairSalvage = 120;
+
+        /// <summary>Prompt of the seats and terminals of a derelict ship.</summary>
+        public string RestorePrompt => IsHome
+            ? $"Repair the {ShipName.Value} ({HomeRepairSalvage} Salvage)"
+            : $"Restore derelict power ({DerelictRepairCost} Scrap)";
 
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         public void ClaimServerRpc(RpcParams rp = default)
@@ -558,15 +575,26 @@ namespace Voidward.Ship
             ulong c = rp.Receive.SenderClientId;
             if (!Derelict.Value || !SenderNear(c, 60f)) return;
             var inv = NetInventory.ForClient(c);
-            if (inv == null || !inv.Remove("scrap", DerelictRepairCost))
+            if (IsHome)
+            {
+                if (inv == null || inv.Salvage.Value < HomeRepairSalvage)
+                {
+                    ServiceClientRpc("ui_back", $"Need {HomeRepairSalvage} Salvage to repair the {ShipName.Value}", c);
+                    return;
+                }
+                inv.Salvage.Value -= HomeRepairSalvage;
+            }
+            else if (inv == null || !inv.Remove("scrap", DerelictRepairCost))
             {
                 ServiceClientRpc("ui_back", $"Need {DerelictRepairCost} Scrap to restore power", c);
                 return;
             }
             Derelict.Value = false;
-            Hull.Heal(Hull.MaxHp.Value);
+            Hull.ReviveServer();
             Fuel.Value = Stats.MaxFuel;
-            AnnounceClientRpc($"{ShipName.Value} is online! Crew it together: Pilot, Turrets, Engineer.");
+            AnnounceClientRpc(IsHome
+                ? $"{ShipName.Value} is back online: warp drive, workbench and cryo pods work again."
+                : $"{ShipName.Value} is online! Crew it together: Pilot, Turrets, Engineer.");
         }
 
         [ClientRpc]
@@ -626,6 +654,7 @@ namespace Voidward.Ship
             DockedTo.Value = home.NetworkObjectId;
             var c = home.Clamps[index].transform;
             GetComponent<NetTeleport>().ServerTeleport(c.position, c.rotation);
+            ServerDocked?.Invoke(this);
             return true;
         }
 

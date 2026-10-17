@@ -13,10 +13,12 @@ namespace Voidward.Progression
         public int Memories;
         public int TotalMemories;
         public int Runs;
+        /// <summary>The player has seen the story intro (#145); saves with finished runs count as seen.</summary>
+        public bool IntroSeen;
         public int Victories;
         public int BestSector;
         public float BestDistance;
-        /// <summary>Lowest Home ETA (flight minutes) a failed loop ended with; 0 = none yet (#86).</summary>
+        /// <summary>Lowest Home ETA (flight minutes) a failed run ended with; 0 = none yet (unused since #145).</summary>
         public float BestEtaMinutes;
         public string SelectedShip = "Dart";
         public List<string> Unlocked = new List<string>();
@@ -133,8 +135,15 @@ namespace Voidward.Progression
             return new RunLoadout { Ship = SelectedShip, PerkMask = mask };
         }
 
-        /// <summary>Loops this player has finished (every run is one loop of the time loop, #86).</summary>
-        public static int Loops => Data.Runs;
+        /// <summary>The story intro plays once per player (#145; the time loop is gone). Old saves with finished runs count as seen.</summary>
+        public static bool IntroSeen => Data.IntroSeen || Data.Runs > 0;
+
+        public static void MarkIntroSeen()
+        {
+            if (Data.IntroSeen) return;
+            Data.IntroSeen = true;
+            Save();
+        }
 
         /// <summary>Called on every client when a run ends.</summary>
         public static void RecordRun(RunSummary s)

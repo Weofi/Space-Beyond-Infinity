@@ -18,10 +18,8 @@ namespace Voidward.World
     /// out at signals. The pilot of the lead ship throttles (W/S) and steers sideways; every other ship holds its
     /// slot in the warp bubble (ShipFlight) and its crew shoots rocks and interceptors. Each ship's transform
     /// authority detects its own impacts (WarpCorridorView) and reports them; the server applies damage and stops.
-    /// The flight home from the last galaxy is the run's finale (#81): over its last FinaleSeconds of planned flight
-    /// (the whole flight with the Home Drive) the Rift chases the bubble a little slower than the build's planned
-    /// speed where it is (fields: nav-safe, void: what the cooling sustains), speeding up towards the end. Stops (collisions, overheating, the Wardens' last guard interdicting) let
-    /// it close in; when it catches the bubble the crew falls back into the time loop (RunManager.ServerRiftCaught).
+    /// The flight home from the last galaxy (#81) is the longest flight: its last FinaleSeconds of planned flight
+    /// (the whole flight with the Home Drive) are the densest stretch (WarpRoute.FinaleStart), without signals.
     /// </summary>
     public partial class WarpFlight : NetworkBehaviour
     {
@@ -41,19 +39,9 @@ namespace Voidward.World
         /// <summary>Engaged enemies this close to the lead ship (m) pull the bubble out of warp (#80).</summary>
         public const float InterdictRange = 300f;
 
-        // ---- the Rift (#81) ----
-        /// <summary>Planned seconds of the flight home the Rift chases the bubble (the whole flight with the Home Drive, ~5 min).</summary>
+        // ---- the flight home (#81) ----
+        /// <summary>Planned seconds at the end of the flight home that form the dense finale stretch (the whole flight with the Home Drive, ~5 min).</summary>
         public const float FinaleSeconds = 300f;
-        /// <summary>Head start of the bubble when the Rift tears open (seconds at the Rift's speed).</summary>
-        const float RiftLeadSeconds = 40f;
-        /// <summary>Rift speed as a share of the build's planned pace, from the start to the end of the chase.</summary>
-        const float RiftPaceStart = 0.8f, RiftPaceEnd = 1.02f;
-        /// <summary>Below this many seconds of lead the Rift counts as close (warnings, extra heat, screen effects).</summary>
-        public const float RiftCloseSeconds = 12f;
-        /// <summary>Heat per second the Rift's pull adds when it is right behind the bubble.</summary>
-        const float RiftHeat = 0.05f;
-        /// <summary>Share of the chase after which the Wardens' last guard intercepts the bubble.</summary>
-        const float WaveAt = 0.55f;
 
         public NetworkVariable<bool> Active = new NetworkVariable<bool>(false);
         public NetworkVariable<bool> DroppedOut = new NetworkVariable<bool>(false);
@@ -78,12 +66,8 @@ namespace Voidward.World
         /// <summary>Bit per signal id the crew already dropped out at.</summary>
         public NetworkVariable<int> VisitedSignals = new NetworkVariable<int>(0);
         public NetworkList<int> Destroyed;
-        /// <summary>Route position where the Rift wakes up in the flight home (#81); -1 = no finale.</summary>
-        public NetworkVariable<float> RiftStart = new NetworkVariable<float>(-1f);
-        /// <summary>Route metres between the Rift and the bubble; -1 = the Rift is not chasing (yet).</summary>
-        public NetworkVariable<float> RiftGap = new NetworkVariable<float>(-1f);
-        /// <summary>Speed of the Rift along the route (m/s).</summary>
-        public NetworkVariable<float> RiftSpeed = new NetworkVariable<float>(0f);
+        /// <summary>Route position where the dense finale stretch of the flight home begins (#81); -1 = no finale.</summary>
+        public NetworkVariable<float> FinaleStart = new NetworkVariable<float>(-1f);
 
         // ---- shared (every peer) ----
         WarpRoute route;
@@ -91,7 +75,6 @@ namespace Voidward.World
         WarpCorridorView view;
         float localProgress;
         float localProgressPrev;
-        float localRiftGap = -1f;
 
         // ---- server ----
         float commanded;
@@ -100,8 +83,6 @@ namespace Voidward.World
         float hazardTimer;
         float fuelNeed, fuelBurned;
         int lastPatrolChunk = -1;
-        float riftPos;
-        bool riftWarned, waveDone;
         readonly Dictionary<int, float> obstacleDamage = new Dictionary<int, float>();
         readonly HashSet<long> impacts = new HashSet<long>();
         readonly List<NetworkObject> siteObjects = new List<NetworkObject>();
@@ -128,8 +109,8 @@ namespace Voidward.World
             {
                 if (!Active.Value) return null;
                 int key = Seed.Value ^ From.Value * 7919 ^ To.Value * 104729 ^ Mathf.RoundToInt(Length.Value) ^ (TargetSystem.Value + 1) * 15485863
-                          ^ Mathf.RoundToInt(RiftStart.Value) * 31;
-                if (route == null || key != routeKey) { route = new WarpRoute(Seed.Value, From.Value, To.Value, Length.Value, IsHop, RiftStart.Value); routeKey = key; }
+                          ^ Mathf.RoundToInt(FinaleStart.Value) * 31;
+                if (route == null || key != routeKey) { route = new WarpRoute(Seed.Value, From.Value, To.Value, Length.Value, IsHop, FinaleStart.Value); routeKey = key; }
                 return route;
             }
         }
@@ -168,18 +149,6 @@ namespace Voidward.World
 
         /// <summary>This flight is the flight home, the run's finale (#81).</summary>
         public bool IsFinale => Active.Value && !IsHop && To.Value > GalaxyDef.Count;
-
-        /// <summary>The Rift is chasing the bubble (#81).</summary>
-        public bool RiftAwake => Active.Value && RiftGap.Value >= 0f;
-
-        /// <summary>Route metres between the Rift and the bubble on this peer (eased between network ticks), -1 = not chasing.</summary>
-        public float LocalRiftGap => RiftAwake ? localRiftGap : -1f;
-
-        /// <summary>Seconds until the Rift reaches the bubble if it stopped now (Infinity when not chasing).</summary>
-        public float RiftSeconds => RiftAwake && RiftSpeed.Value > 1f ? Mathf.Max(0f, localRiftGap) / RiftSpeed.Value : float.PositiveInfinity;
-
-        /// <summary>0 = far, 1 = right behind the bubble.</summary>
-        public float RiftCloseness => RiftAwake ? Mathf.Clamp01(1f - RiftSeconds / RiftCloseSeconds) : 0f;
 
         public bool IsDestroyed(int id) => Destroyed.Contains(id);
 
@@ -239,8 +208,6 @@ namespace Voidward.World
                 localProgress = Mathf.Abs(err) > 600f ? Progress.Value : localProgress + err * Mathf.Clamp01(3f * dt);
             }
             if (localProgress < localProgressPrev - 600f) localProgressPrev = localProgress; // jumped back (new flight)
-            if (IsServer || RiftGap.Value < 0f || localRiftGap < 0f || Mathf.Abs(RiftGap.Value - localRiftGap) > 3000f) localRiftGap = RiftGap.Value;
-            else localRiftGap = Mathf.Max(0f, localRiftGap + (RiftGap.Value - localRiftGap) * Mathf.Clamp01(4f * dt));
 
             WarpBubble.Active = true;
             WarpBubble.Flying = !DroppedOut.Value;
@@ -343,13 +310,9 @@ namespace Voidward.World
             VisitedSignals.Value = 0;
             fuelNeed = fuel;
             fuelBurned = 0f;
-            // The flight home (#81): the Rift chases the last FinaleSeconds of planned flight.
+            // The flight home (#81): the last FinaleSeconds of planned flight are the dense finale stretch.
             bool finale = system < 0 && to > GalaxyDef.Count;
-            RiftStart.Value = finale ? FinaleStartOf(new WarpRoute(Seed.Value, from, to, Length.Value)) : -1f;
-            RiftGap.Value = -1f;
-            RiftSpeed.Value = 0f;
-            riftPos = 0f;
-            riftWarned = waveDone = false;
+            FinaleStart.Value = finale ? FinaleStartOf(new WarpRoute(Seed.Value, from, to, Length.Value)) : -1f;
             Lead.Value = PickLead(lead);
             exiting = false;
             if (seamless && ShipById(Lead.Value) != null)
@@ -364,7 +327,7 @@ namespace Voidward.World
             Active.Value = true;
             DroppedOut.Value = false;
             Debug.Log($"[Warp] begin {from} -> {to}{(system >= 0 ? " system " + system : "")}: {Length.Value / 1000f:0.0} km at {FullSpeed:0} m/s, planned {minutes:0.0} min, fuel {fuelNeed}" +
-                      (finale ? $", rift from {RiftStart.Value / 1000f:0.0} km" : ""));
+                      (finale ? $", finale from {FinaleStart.Value / 1000f:0.0} km" : ""));
         }
 
         /// <summary>Server: the flight is over (arrived, run ended, dev goto). Clears signal sites; RunManager enters the destination.</summary>
@@ -378,8 +341,6 @@ namespace Voidward.World
             Throttle.Value = 0f;
             Cruise.Value = false;
             ResumeCountdown.Value = -1f;
-            RiftGap.Value = -1f;
-            RiftSpeed.Value = 0f;
         }
 
         /// <summary>Exotic Matter burnt so far in this flight (refunded by a suspend save taken mid-flight).</summary>
@@ -464,7 +425,6 @@ namespace Voidward.World
             float heat = Heat.Value;
             if (t > limit) heat += (t - limit) * HeatGain * dt;
             else heat -= HeatCool * (1f + (limit - t) * 2f) * (EngineerAboard() ? 1.6f : 1f) * dt;
-            heat += RiftHeat * RiftCloseness * dt; // the Rift's pull strains the drive (#81)
             heat = Mathf.Clamp01(heat);
             if (heat >= 1f && !Overheated.Value)
             {
@@ -496,10 +456,9 @@ namespace Voidward.World
             ServerInterdiction(rm);
 
             if (p >= r.Length - 0.5f) { ServerBeginExit(); return; }
-            ServerRift(rm, dt);
         }
 
-        // ================================================================ server: the Rift (#81)
+        // ================================================================ server: the finale stretch (#81)
 
         /// <summary>Planned speed (m/s) at route position s: fields at the nav's safe speed, the void at the cooling's.</summary>
         float PlannedSpeedAt(WarpRoute r, float s)
@@ -519,63 +478,6 @@ namespace Voidward.World
                 s -= step;
             }
             return Mathf.Max(0f, s);
-        }
-
-        /// <summary>Server: wake the Rift at the finale stretch, move it, warn, the Wardens' last guard, catch the bubble.</summary>
-        void ServerRift(RunManager rm, float dt)
-        {
-            float start = RiftStart.Value;
-            if (start < 0f) return;
-            float p = Progress.Value;
-            var r = Route;
-            if (RiftGap.Value < 0f)
-            {
-                if (p < start) return;
-                riftPos = p - RiftLeadSeconds * RiftPaceStart * PlannedSpeedAt(r, p);
-                RiftGap.Value = p - riftPos;
-                Debug.Log($"[Warp] rift awake at {p / 1000f:0.0} km, gap {RiftGap.Value:0} m");
-                rm.Announce("THE RIFT tears open behind the bubble!\nIt wants to pull you back into the loop - full throttle, don't stop", "boss_roar");
-            }
-            float chase = Mathf.Clamp01((riftPos - start) / Mathf.Max(1f, Length.Value - start));
-            // As fast as the crew's planned speed where the Rift is (slower in the fields too), a bit slower at first.
-            float speed = Mathf.Lerp(RiftPaceStart, RiftPaceEnd, chase) * PlannedSpeedAt(r, Mathf.Max(0f, riftPos));
-            riftPos += speed * dt;
-            RiftSpeed.Value = speed;
-            float gap = p - riftPos;
-            RiftGap.Value = Mathf.Max(0f, gap);
-            if (gap <= 0f)
-            {
-                Debug.Log($"[Warp] caught by the rift at {p / 1000f:0.0}/{Length.Value / 1000f:0.0} km");
-                ServerAbort();
-                rm.ServerRiftCaught();
-                return;
-            }
-            float secs = gap / Mathf.Max(1f, speed);
-            if (secs < RiftCloseSeconds && !riftWarned)
-            {
-                riftWarned = true;
-                rm.Announce("THE RIFT IS CLOSING IN!\nFull throttle - every stop feeds it", "alarm");
-            }
-            else if (secs > RiftCloseSeconds * 1.8f) riftWarned = false;
-
-            if (!waveDone && p >= start + WaveAt * (Length.Value - start)) { waveDone = true; ServerWardenWave(rm); }
-        }
-
-        /// <summary>Server: the Wardens' last guard intercepts the bubble ahead (tough interceptors of the last galaxy).</summary>
-        void ServerWardenWave(RunManager rm)
-        {
-            var def = ContentCatalog.GetGalaxy(Mathf.Clamp(From.Value, 1, GalaxyDef.Count));
-            if (def == null || def.SpaceEnemies.Length == 0) return;
-            int crew = NetworkManager != null ? NetworkManager.ConnectedClientsIds.Count : 1;
-            int n = Mathf.Min(8, 2 + 2 * crew);
-            for (int i = 0; i < n; i++)
-            {
-                var kind = def.SpaceEnemies[i % def.SpaceEnemies.Length];
-                Vector3 at = new Vector3(Random.Range(650f, 850f), Random.Range(-90f, 90f), Random.Range(-220f, 220f));
-                EnemyFactory.Spawn(kind, at, Quaternion.LookRotation(-WarpBubble.Axis), def.EnemyTier + 0.5f, 1.4f);
-            }
-            Debug.Log($"[Warp] warden wave: {n} interceptors");
-            rm.Announce("The Wardens' last guard intercepts the bubble!\nShoot them down fast - the Rift keeps coming", "boss_roar");
         }
 
         bool LeadPilotSeated()
@@ -609,7 +511,7 @@ namespace Voidward.World
                     if (Destroyed.Contains(o.Id) || o.Kind == WarpHazard.Debris) continue;
                     float ahead = o.S - p;
                     float lat = (o.LatAt(ahead) - new Vector2(lp.y, lp.z)).magnitude;
-                    bool inLane = o.Kind == WarpHazard.Rift ? lat > o.Radius - 25f : lat < (o.Kind == WarpHazard.GravityWell ? o.Radius * 1.4f : o.Radius) + 40f;
+                    bool inLane = lat < (o.Kind == WarpHazard.GravityWell ? o.Radius * 1.4f : o.Radius) + 40f;
                     if (inLane) { found = o.Id; break; }
                 }
             }
@@ -763,7 +665,7 @@ namespace Voidward.World
                 Cruise.Value = false;
                 commanded = 0f;
                 Throttle.Value = 0f;
-                string what = o.Kind == WarpHazard.Rift ? "the rift" : o.Kind == WarpHazard.GravityWell ? "the anomaly core" : o.Kind == WarpHazard.Comet ? "a comet" : "an asteroid";
+                string what = o.Kind == WarpHazard.GravityWell ? "the anomaly core" : o.Kind == WarpHazard.Comet ? "a comet" : "an asteroid";
                 rm.Announce($"COLLISION with {what} - emergency stop!", "alarm");
             }
         }
@@ -772,7 +674,7 @@ namespace Voidward.World
         void ImpactClientRpc(Vector3 at, int kind, bool slingshot)
         {
             if (slingshot) { Vfx.ScreenFlash(new Color(1f, 0.75f, 0.35f, 0.35f), 0.4f); Vfx.Shake(0.4f); return; }
-            Vfx.Explosion(at, kind == (int)WarpHazard.Debris ? 2.5f : 7f, kind == (int)WarpHazard.Rift ? new Color(0.75f, 0.4f, 1f) : new Color(1f, 0.65f, 0.4f));
+            Vfx.Explosion(at, kind == (int)WarpHazard.Debris ? 2.5f : 7f, new Color(1f, 0.65f, 0.4f));
             Sfx.Play(kind == (int)WarpHazard.Debris ? "explosion" : "explosion_big", at);
             Vfx.Shake(kind == (int)WarpHazard.Debris ? 0.3f : 0.9f);
         }
@@ -835,7 +737,6 @@ namespace Voidward.World
                 rm.Announce($"Warp resumes in {ResumeDelay:0} s - everyone back to the ships!", "jump_charge");
                 return;
             }
-            if (RiftAwake) { FeedbackRpc("No time for detours - the Rift is on your tail!", "ui_back", RpcTarget.Single(client, RpcTargetUse.Temp)); return; }
             int id = SignalInRange(Progress.Value);
             if (id < 0) { FeedbackRpc("No signal in range to drop out at", "ui_back", RpcTarget.Single(client, RpcTargetUse.Temp)); return; }
             WarpSignal sig = default;
@@ -920,30 +821,9 @@ namespace Voidward.World
         public void ServerSetProgress(float p)
         {
             if (!IsServer || !Active.Value) return;
-            float before = Progress.Value;
             Progress.Value = Mathf.Clamp(p, 0f, Length.Value - 1f);
             localProgress = localProgressPrev = Progress.Value;
             lastPatrolChunk = WarpRoute.ChunkOf(Progress.Value + 1200f);
-            riftPos += Progress.Value - before; // the Rift keeps its distance
-        }
-
-        /// <summary>Server, dev: put the Rift `seconds` behind the bubble (wakes it in the flight home).</summary>
-        public void ServerSetRiftSeconds(float seconds)
-        {
-            if (!IsServer || !IsFinale) return;
-            float speed = RiftSpeed.Value > 1f ? RiftSpeed.Value : RiftPaceStart * PlannedSpeedAt(Route, Progress.Value);
-            riftPos = Progress.Value - Mathf.Max(0f, seconds) * speed;
-            RiftGap.Value = Progress.Value - riftPos;
-            RiftSpeed.Value = speed;
-            localRiftGap = RiftGap.Value;
-        }
-
-        /// <summary>Server, dev: the Wardens' last guard now.</summary>
-        public void ServerDevWardenWave()
-        {
-            if (!IsServer || !Active.Value) return;
-            waveDone = true;
-            ServerWardenWave(RunManager.Instance);
         }
 
         /// <summary>Server, dev: drop out at the signal in range, or start the resume countdown (as the lead pilot's [G]).</summary>
