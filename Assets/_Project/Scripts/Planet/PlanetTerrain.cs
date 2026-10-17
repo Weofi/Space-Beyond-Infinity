@@ -198,13 +198,20 @@ namespace Voidward.Planet
         /// <summary>Large-scale region mask in [0,1] (alternate ground colors, decor variation).</summary>
         public float RegionAt(Vector3 d)
         {
+            float provinceRegion = -1f;
+            if (provinces.Length > 0) ProvinceField(d, float.MaxValue, false, out _, out provinceRegion);
+            return Region(d, provinceRegion);
+        }
+
+        /// <summary>Region mask from the province colour zone (&lt; 0 = no provinces) broken up by noise.</summary>
+        float Region(Vector3 d, float provinceRegion)
+        {
             float f = Shape.RegionFrequency;
             float n = regionNoise.Eval(d.x * f + 3.1f, d.y * f, d.z * f) + 0.5f * regionNoise.Eval(d.x * f * 2.7f, d.y * f * 2.7f + 9.4f, d.z * f * 2.7f);
             float noiseRegion = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.25f, 0.35f, n));
-            if (provinces.Length == 0) return noiseRegion;
+            if (provinceRegion < 0f) return noiseRegion;
             // Colour zones follow the provinces (geology), the noise only breaks them up a little.
-            ProvinceField(d, float.MaxValue, false, out _, out float region);
-            return Mathf.Clamp01(Mathf.Lerp(region, noiseRegion, 0.25f));
+            return Mathf.Clamp01(Mathf.Lerp(provinceRegion, noiseRegion, 0.25f));
         }
 
         /// <summary>Surface normal (local space) from finite differences over `step` meters.</summary>
@@ -271,9 +278,15 @@ namespace Voidward.Planet
         /// Elevation with a band limit: erosion octaves shorter than minWavelength (m) are skipped. Coarse LOD chunks
         /// pass about twice their vertex spacing (no aliasing, cheaper builds); gameplay queries use the full detail.
         /// </summary>
-        public float ElevationFrac(Vector3 d, float minWavelength)
+        public float ElevationFrac(Vector3 d, float minWavelength) => ElevationFrac(d, minWavelength, out _, false);
+
+        /// <summary>Elevation plus the region mask from the same province pass (chunk builds: no second Voronoi).</summary>
+        public float ElevationFrac(Vector3 d, float minWavelength, out float region) => ElevationFrac(d, minWavelength, out region, true);
+
+        float ElevationFrac(Vector3 d, float minWavelength, out float region, bool wantRegion)
         {
-            float e = BaseElevation(d, out float carve, out float erosionMul, minWavelength, false);
+            float e = BaseElevation(d, out float carve, out float erosionMul, out float provinceRegion, minWavelength, false);
+            region = wantRegion ? Region(d, provinceRegion) : 0f;
             if (erosionDepth > 0f && erosionMul > 0.01f) e += Erosion(d, minWavelength) * erosionMul;
             if (oceanDeepen > 1f && e < seaElevation) e = seaElevation - Deepen(seaElevation - e);
             if (riversActive && carve > 0f)
@@ -290,11 +303,12 @@ namespace Voidward.Planet
         /// Noise layers, canyons, landforms and craters (everything erosion carves into). minWavelength skips noise
         /// octaves finer than that (m); coarse = the cheap proxy erosion steers by (no craters).
         /// </summary>
-        float BaseElevation(Vector3 d, out float carve, float minWavelength, bool coarse) => BaseElevation(d, out carve, out _, minWavelength, coarse);
+        float BaseElevation(Vector3 d, out float carve, float minWavelength, bool coarse) => BaseElevation(d, out carve, out _, out _, minWavelength, coarse);
 
-        float BaseElevation(Vector3 d, out float carve, out float erosionMul, float minWavelength, bool coarse)
+        float BaseElevation(Vector3 d, out float carve, out float erosionMul, out float provinceRegion, float minWavelength, bool coarse)
         {
             erosionMul = 1f;
+            provinceRegion = -1f;
             float maxFreq = minWavelength > 0f ? Radius / minWavelength : float.MaxValue;
             Vector3 p = d;
             if (warp > 0f)
@@ -316,7 +330,7 @@ namespace Voidward.Planet
                 sum += v * layers[i].Strength * mask;
             }
 
-            if (provinces.Length > 0) sum += ProvinceField(d, maxFreq, true, out erosionMul, out _);
+            if (provinces.Length > 0) sum += ProvinceField(d, maxFreq, true, out erosionMul, out provinceRegion);
 
             carve = 0f;
             if (canyonDepth > 0f)
@@ -420,7 +434,7 @@ namespace Voidward.Planet
                 w[i] = x > cut ? 0f : System.MathF.Exp(-x / provinceBlend);
                 sum += w[i];
             }
-            float h = 0f, ero = 0f, reg = 0f;
+            float h = 0f, ero = 0f, reg = 0f, elev = 0f, elevW = 0f;
             // Cliff strength varies along the edges: some stretches are walls, others ramps (no endless fences).
             float cliffMod = withRelief ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.35f, 0.3f,
                 provinceNoise.Eval(q.x * 6.3f + 71f, q.y * 6.3f, q.z * 6.3f) + 0.5f * provinceNoise.Eval(q.x * 14f, q.y * 14f + 33f, q.z * 14f))) : 0f;
@@ -441,8 +455,13 @@ namespace Voidward.Planet
                     we = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.5f - half, 0.5f + half, wi));
                     if (def.Terraces > 0) we = Mathf.Clamp01(Terrace(we * def.Terraces) / def.Terraces);
                 }
-                h += def.Elevation * provinces[i].Lift * we + def.Relief * ProvinceRelief(def, q, provinces[i].Offset, maxFreq) * wi;
+                // Sharpened weights are renormalised below: they must still sum to 1, otherwise cliff borders get
+                // trenches or berms (a raw step on one side, the linear weight on the other).
+                elev += def.Elevation * provinces[i].Lift * we;
+                elevW += we;
+                h += def.Relief * ProvinceRelief(def, q, provinces[i].Offset, maxFreq) * wi;
             }
+            if (elevW > 1e-5f) h += elev / elevW;
             erosionMul = ero;
             region = reg;
             return h;
@@ -486,7 +505,7 @@ namespace Voidward.Planet
             int side = slopeRes + 1;
             var grid = new Vector3[6 * side * side];
             float h = erosionScale * 0.3f / Radius, band = erosionScale * 0.3f;
-            System.Threading.Tasks.Parallel.For(0, 6 * side, row =>
+            void Row(int row)
             {
                 int f = row / side, j = row % side;
                 float b = 2f * j / slopeRes - 1f;
@@ -496,11 +515,17 @@ namespace Voidward.Planet
                     Vector3 t1 = Vector3.Cross(d, Mathf.Abs(d.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
                     Vector3 t2 = Vector3.Cross(d, t1);
                     // Central differences of a smooth proxy at the gully scale: small bumps must not twist the gullies.
-                    float ea = BaseElevation((d + t1 * h).normalized, out _, band, true) - BaseElevation((d - t1 * h).normalized, out _, band, true);
-                    float eb = BaseElevation((d + t2 * h).normalized, out _, band, true) - BaseElevation((d - t2 * h).normalized, out _, band, true);
+                    // Craters included: erosion should also run down crater walls.
+                    float ea = BaseElevation((d + t1 * h).normalized, out _, band, false) - BaseElevation((d - t1 * h).normalized, out _, band, false);
+                    float eb = BaseElevation((d + t2 * h).normalized, out _, band, false) - BaseElevation((d - t2 * h).normalized, out _, band, false);
                     grid[row * side + i] = (t1 * ea + t2 * eb) / (2f * h);
                 }
-            });
+            }
+#if UNITY_WEBGL && !UNITY_EDITOR
+            for (int row = 0; row < 6 * side; row++) Row(row); // no threads on WebGL
+#else
+            System.Threading.Tasks.Parallel.For(0, 6 * side, Row);
+#endif
             slopeGrid = grid;
         }
 
@@ -589,13 +614,15 @@ namespace Voidward.Planet
         {
             var def = layer.Def;
             p = Vector3.Scale(p, def.Stretch);
+            float stretch = Mathf.Max(def.Stretch.x, Mathf.Max(def.Stretch.y, def.Stretch.z));
             float freq = def.Frequency, amp = 1f, sum = 0f, norm = 0f, weight = 1f;
             for (int o = 0; o < def.Octaves; o++)
             {
-                if (freq > maxFreq)
+                if (freq * stretch > maxFreq)
                 {
-                    // Band limit: the skipped octaves still count in the normalisation (they average out).
-                    for (; o < def.Octaves; o++) { sum += (def.Kind == PlanetNoiseKind.Ridged ? 0.25f * weight : 0.5f) * amp; norm += amp; amp *= def.Persistence; }
+                    // Band limit: the skipped octaves still count with their mean value (they average out).
+                    float mean = def.Kind == PlanetNoiseKind.Ridged ? 0.25f * weight : def.Kind == PlanetNoiseKind.Billow ? 0.33f : 0.5f;
+                    for (; o < def.Octaves; o++) { sum += mean * amp; norm += amp; amp *= def.Persistence; }
                     break;
                 }
                 float n = layer.Noise.Eval(p.x * freq + layer.Offset.x, p.y * freq + layer.Offset.y, p.z * freq + layer.Offset.z);

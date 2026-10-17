@@ -135,12 +135,13 @@ Shader "VOIDWARD/Ocean"
             float DepthLod(float2 uv) { return SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, sampler_CameraDepthTexture, UnityStereoTransformScreenSpaceTex(uv), 0).r; }
             float3 ColorLod(float2 uv) { return SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(uv), 0).rgb; }
 
-            float4 ScreenReflect(float3 posWS, float3 r, float dist)
+            float4 ScreenReflect(float3 posWS, float3 r, float dist, float waterEye)
             {
-                float stepLen = max(0.25, dist * 0.012);
+                const int Steps = 20;
+                float stepLen = max(0.25, dist * 0.015);
                 float3 p = posWS + r * stepLen * 0.5;
                 [loop]
-                for (int i = 0; i < 28; i++)
+                for (int i = 0; i < Steps; i++)
                 {
                     p += r * stepLen;
                     float4 cs = TransformWorldToHClip(p);
@@ -149,7 +150,9 @@ Shader "VOIDWARD/Ocean"
                     if (any(uv < 0.0) || any(uv > 1.0)) break;
                     float sceneEye = LinearEyeDepth(DepthLod(uv), _ZBufferParams);
                     float delta = cs.w - sceneEye; // > 0: the ray went behind something
-                    if (delta > 0.0 && delta < stepLen * 2.5 + 0.5)
+                    // Things in front of this water pixel (pawn, ship, near trees) cannot be in its reflection.
+                    if (sceneEye < waterEye * 0.9) { stepLen *= 1.35; continue; }
+                    if (delta > 0.0 && delta < stepLen * 1.5 + 0.5)
                     {
                         // Refine between the last two steps.
                         float3 a = p - r * stepLen, b = p;
@@ -162,10 +165,10 @@ Shader "VOIDWARD/Ocean"
                         }
                         float2 huv = ComputeNormalizedDeviceCoordinates(b, GetWorldToHClipMatrix());
                         float2 edge = saturate(min(huv, 1.0 - huv) * 12.0);
-                        float conf = edge.x * edge.y * (1.0 - i / 28.0);
+                        float conf = edge.x * edge.y * (1.0 - i / (float)Steps);
                         return float4(ColorLod(huv), conf);
                     }
-                    stepLen *= 1.3;
+                    stepLen *= 1.35;
                 }
                 return 0;
             }
@@ -256,13 +259,14 @@ Shader "VOIDWARD/Ocean"
                     sky = lerp(_HorizonColor.rgb, _SkyColor.rgb, saturate(up * 1.8)) * lerp(0.04, 1.0, day) * sun.color;
                 }
                 else sky = GlossyEnvironmentReflection(r, 0.2, 1.0);
-                // Mirror the scene where the reflected ray hits it (close range only: from orbit it is all sky).
-                if (_SSR > 0.0 && dist < 900.0 && dot(r, upWS) > -0.05)
+                float fres = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+                // Mirror the scene where the reflected ray hits it (close range only: from orbit it is all sky). Skipped
+                // where the reflection hardly shows (looking down into the water).
+                if (_SSR > 0.0 && dist < 900.0 && fres > 0.06 && dot(r, upWS) > -0.05)
                 {
-                    float4 ssr = ScreenReflect(IN.positionWS + upWS * 0.05, r, dist);
+                    float4 ssr = ScreenReflect(IN.positionWS + upWS * 0.05, r, dist, IN.eyeDepth);
                     sky = lerp(sky, ssr.rgb, ssr.a * _SSR * saturate(1.0 - dist / 900.0));
                 }
-                float fres = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
                 col = lerp(col, sky, saturate(fres * (0.45 + 0.55 * _Gloss)));
 
                 // Sun glint: roughness grows with distance (sub-pixel waves), so orbit views get a broad sheen.

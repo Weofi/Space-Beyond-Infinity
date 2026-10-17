@@ -112,6 +112,8 @@ namespace Voidward.Planet
         public static void Generate(PlanetTerrain terrain, ChunkData data, bool small, bool large, PlanetPropLibrary props = null, float farDensity = 0f)
         {
             bool far = farDensity > 0f;
+            // Far stand-ins sit on a coarse chunk: place them on its band-limited surface, not the full-detail one.
+            float bandLimit = far ? terrain.Radius * Mathf.PI * 0.5f / (data.N << data.Level) * 2.2f : 0f;
             var shape = terrain.Shape;
             if (!Styles.TryGetValue(shape.Decor, out var rules) || shape.DecorDensity <= 0f) return;
             float R = terrain.Radius;
@@ -157,7 +159,7 @@ namespace Voidward.Planet
                     }
                     if (accept > p) continue;
 
-                    float e = terrain.ElevationFrac(dir);
+                    float e = terrain.ElevationFrac(dir, bandLimit);
                     if (terrain.HasOcean && e < terrain.SeaElevationFrac + 0.6f / R) continue;
                     bool inClearing = false;
                     for (int s = 0; s < sites.Count; s++)
@@ -193,8 +195,17 @@ namespace Voidward.Planet
                     if (!far && rule.Collider > 0f && col > 0f)
                     {
                         colliders ??= new List<Vector4>();
-                        Vector3 c = pos + up * (col * 0.8f);
-                        colliders.Add(new Vector4(c.x, c.y, c.z, col));
+                        if (outcrop)
+                        {
+                            // The outcrop is sunk ~0.45 x its size into the slope: the sphere follows the rock.
+                            Vector3 oc = pos - up * (sz * 0.45f);
+                            colliders.Add(new Vector4(oc.x, oc.y, oc.z, sz * 0.85f));
+                        }
+                        else
+                        {
+                            Vector3 c = pos + up * (col * 0.8f);
+                            colliders.Add(new Vector4(c.x, c.y, c.z, col));
+                        }
                     }
                 }
             }
